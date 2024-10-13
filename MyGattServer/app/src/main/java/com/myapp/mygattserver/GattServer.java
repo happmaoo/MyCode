@@ -169,7 +169,7 @@ public class GattServer extends Service {
         public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 // 设备连接
-                advertiser.stopAdvertising(advertiseCallback);
+                //advertiser.stopAdvertising(advertiseCallback);
                 Log.i("GATT", "设备连接.");
 
 
