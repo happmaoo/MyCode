@@ -29,7 +29,8 @@ android {
 }
 
 dependencies {
-
+    implementation fileTree(dir: 'libs', include: ['*.jar']) // 引入所有 JAR 文件
+    implementation fileTree(dir: 'libs', include: ['*.aar']) // 引入所有 AAR 文件
     implementation libs.appcompat
     implementation libs.material
     implementation libs.activity

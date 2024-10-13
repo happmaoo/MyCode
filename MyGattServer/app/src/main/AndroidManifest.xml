@@ -53,6 +53,7 @@
         <service
             android:name="com.myapp.mygattserver.GattServer"
             android:foregroundServiceType="location" />
+        <service android:name=".PluginResultsService" />
     </application>
 
 </manifest>

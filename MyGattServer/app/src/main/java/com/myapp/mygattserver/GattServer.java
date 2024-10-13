@@ -38,7 +38,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.UUID;
-
+import com.termux.shared.termux.TermuxConstants;
+import com.termux.shared.termux.TermuxConstants.TERMUX_APP.RUN_COMMAND_SERVICE;
 
 public class GattServer extends Service {
 
@@ -231,18 +232,42 @@ public class GattServer extends Service {
         }
     };
 
-    private void termuxcommand(String arg1,String arg2){
-        Intent intent = new Intent();
-        intent.setClassName("com.termux", "com.termux.app.RunCommandService");
-        intent.setAction("com.termux.RUN_COMMAND");
-        intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash");
-        intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"./gattserver.sh", arg1,arg2});
-        intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
 
-        intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
-        intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0");
-        startService(intent);
+
+
+
+    private void termuxcommand(String arg1,String arg2){
+
+        Intent intent = new Intent();
+        intent.setClassName(TermuxConstants.TERMUX_PACKAGE_NAME, TermuxConstants.TERMUX_APP.RUN_COMMAND_SERVICE_NAME);
+        intent.setAction(RUN_COMMAND_SERVICE.ACTION_RUN_COMMAND);
+        intent.putExtra(RUN_COMMAND_SERVICE.EXTRA_COMMAND_PATH, "/data/data/com.termux/files/usr/bin/bash");
+        intent.putExtra(RUN_COMMAND_SERVICE.EXTRA_ARGUMENTS, new String[]{"./gattserver.sh", arg1,arg2});
+        intent.putExtra(RUN_COMMAND_SERVICE.EXTRA_WORKDIR, "/data/data/com.termux/files/home");
+        intent.putExtra(RUN_COMMAND_SERVICE.EXTRA_BACKGROUND, true);
+        intent.putExtra(RUN_COMMAND_SERVICE.EXTRA_SESSION_ACTION, "0");
+        //intent.putExtra(RUN_COMMAND_SERVICE.EXTRA_COMMAND_LABEL, "my command");
+        //intent.putExtra(RUN_COMMAND_SERVICE.EXTRA_COMMAND_DESCRIPTION, "Runs the top command to show processes using the most resources.");
+
+        Intent pluginResultsServiceIntent = new Intent(getApplicationContext(), PluginResultsService.class);
+        int executionId = PluginResultsService.getNextExecutionId();
+        pluginResultsServiceIntent.putExtra(PluginResultsService.EXTRA_EXECUTION_ID, executionId);
+
+        PendingIntent pendingIntent = PendingIntent.getService(getApplicationContext(), executionId,
+                pluginResultsServiceIntent,
+                PendingIntent.FLAG_ONE_SHOT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? PendingIntent.FLAG_MUTABLE : 0));
+        intent.putExtra(TermuxConstants.TERMUX_APP.RUN_COMMAND_SERVICE.EXTRA_PENDING_INTENT, pendingIntent);
+
+        try {
+            // Send command intent for execution
+            Log.d("aaa", "Sending execution command with id " + executionId);
+            startService(intent);
+        } catch (Exception e) {
+            Log.e("aaa", "Failed to start execution command with id " + executionId + ": " + e.getMessage());
+        }
+
     }
+
 
     private String readFirstLineFromFile() {
         String firstLine = "";
@@ -254,6 +279,7 @@ public class GattServer extends Service {
         }
         return firstLine;
     }
+
 
 
 
