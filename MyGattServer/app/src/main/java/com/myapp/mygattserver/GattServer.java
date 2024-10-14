@@ -66,9 +66,9 @@ public class GattServer extends Service {
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Foreground Service")
-                .setContentText("Service is running...")
-                .setSmallIcon(R.drawable.ic_launcher_foreground) // 确保你有一个通知图标
+                .setContentTitle("Gatt Server")
+                .setContentText("Server is running...")
+                .setSmallIcon((R.mipmap.ic_launcher)) // 确保你有一个通知图标
                 .setContentIntent(pendingIntent)
                 .build();
 
