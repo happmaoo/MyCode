@@ -30,6 +30,7 @@ public class autobrightness extends Service {
     private Sensor lightSensor;
     private SensorEventListener lightSensorListener;
     private static String CONFIG = "";
+    String arg1;
 
     private boolean firstStart = true; // 声明firstStart并设置初始值为true
 
@@ -43,20 +44,8 @@ public class autobrightness extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
 
 
-        // 创建广播接收器 接收 ScreenOffReceiver
-        BroadcastReceiver receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                // 获取广播中传递的数据
-                String arg1 = intent.getStringExtra("arg1");
-                // 处理信息
-                //Log.d("TAG", "ACTION_SEND_INFO:"+arg1);
-            }
-        };
 
-        // 注册广播接收器
-        IntentFilter filter = new IntentFilter("com.myapp.ACTION_SEND_INFO");
-        registerReceiver(receiver, filter);
+
 
 
 
@@ -159,16 +148,35 @@ public class autobrightness extends Service {
                 // 处理精度变化
             }
         };
-        String arg1 = intent.getStringExtra("arg1");
 
-        if("stop".equals(arg1)){
-            sensorManager.unregisterListener(lightSensorListener);
-        }
-        else if("run".equals(arg1)){
 
-            sensorManager.registerListener(lightSensorListener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);
 
-        }
+        // 创建广播接收器 接收 ScreenOffReceiver
+        BroadcastReceiver receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                // 获取广播中传递的数据
+                arg1 = intent.getStringExtra("arg1");
+                // 处理信息
+                //Log.d("TAG", "ACTION_SCREEN:"+arg1);
+                if("stop".equals(arg1)){
+
+                    Log.d("TAG", "arg1:"+arg1);
+                    sensorManager.unregisterListener(lightSensorListener);
+                }
+                else if("run".equals(arg1)){
+                    Log.d("TAG", "arg1:"+arg1);
+                    sensorManager.registerListener(lightSensorListener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);
+
+                }
+            }
+        };
+        // 注册广播接收器
+        IntentFilter filter = new IntentFilter("com.myapp.ACTION_SCREEN");
+        registerReceiver(receiver, filter);
+
+
+
         //sensorManager.registerListener(lightSensorListener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);
         return START_STICKY;
     }
