@@ -29,6 +29,8 @@ public class autobrightness extends Service {
     private SensorEventListener lightSensorListener;
     private static String CONFIG = "";
 
+    private boolean firstStart = true; // 声明firstStart并设置初始值为true
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -39,6 +41,8 @@ public class autobrightness extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
+
+        if (firstStart) {
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("AutoBrightness")
                 .setContentText("AutoBrightness Service is running")
@@ -47,6 +51,9 @@ public class autobrightness extends Service {
                 .build();
 
         startForeground(1, notification);
+            // 将firstStart设置为false，避免重复启动前台通知
+            firstStart = false;
+        }
 
         // 这里可以执行你的服务逻辑
         Log.d("TAG", "onStartCommand");

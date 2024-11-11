@@ -16,6 +16,8 @@ import android.content.Context;
 import android.widget.TextView;
 import android.widget.EditText;
 import android.widget.Toast;
+import android.os.Build;
+
 
 public class MainActivity extends AppCompatActivity {
     private ScreenOffReceiver screenOffReceiver;
@@ -49,6 +51,11 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // 代码在 Android 12 或更高版本上运行
+            Toast.makeText(this, "错误, app不支持安卓12以上版本.因为不支持后台startForegroundService.用WorkManager替代", Toast.LENGTH_LONG).show();
+        }
 
         // 检查系统是否允许更改设置
         if (Settings.System.canWrite(this)) {

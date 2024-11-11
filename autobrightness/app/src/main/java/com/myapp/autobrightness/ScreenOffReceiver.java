@@ -9,6 +9,7 @@ public class ScreenOffReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
+
             Intent serviceIntent = new Intent(context, autobrightness.class);
             context.stopService(serviceIntent);
             serviceIntent.putExtra("arg1", "stop");
