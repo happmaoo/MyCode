@@ -87,7 +87,6 @@ public class MainActivity extends AppCompatActivity {
 
 
         Intent serviceIntent = new Intent(this, autobrightness.class);
-        serviceIntent.putExtra("arg1", "run");
         serviceIntent.putExtra("arg-config", config);
 
         // 针对 API 26 及更高版本，使用 startForegroundService
@@ -96,6 +95,13 @@ public class MainActivity extends AppCompatActivity {
         } else {
             startService(serviceIntent);
         }
+
+/*
+        Intent broadcastIntent = new Intent("com.myapp.ACTION");
+        broadcastIntent.putExtra("arg1", "run");
+        sendBroadcast(broadcastIntent);
+
+ */
 
 
         lightLevelTextView = findViewById(R.id.text);

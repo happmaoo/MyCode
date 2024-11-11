@@ -77,7 +77,7 @@ public class autobrightness extends Service {
         // 初始化传感器监听器
         lightSensorListener = new SensorEventListener() {
 
-            
+
             @Override
             public void onSensorChanged(SensorEvent event) {
                 float lightLevel = event.values[0];
@@ -149,7 +149,7 @@ public class autobrightness extends Service {
             }
         };
 
-
+        sensorManager.registerListener(lightSensorListener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);
 
         // 创建广播接收器 接收 ScreenOffReceiver
         BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -161,18 +161,18 @@ public class autobrightness extends Service {
                 //Log.d("TAG", "ACTION_SCREEN:"+arg1);
                 if("stop".equals(arg1)){
 
-                    Log.d("TAG", "arg1:"+arg1);
+                    //Log.d("TAG", "arg1:"+arg1);
                     sensorManager.unregisterListener(lightSensorListener);
                 }
                 else if("run".equals(arg1)){
-                    Log.d("TAG", "arg1:"+arg1);
+                    //Log.d("TAG", "arg1:"+arg1);
                     sensorManager.registerListener(lightSensorListener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);
 
                 }
             }
         };
         // 注册广播接收器
-        IntentFilter filter = new IntentFilter("com.myapp.ACTION_SCREEN");
+        IntentFilter filter = new IntentFilter("com.myapp.ACTION");
         registerReceiver(receiver, filter);
 
 
