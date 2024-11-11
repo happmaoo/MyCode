@@ -6,10 +6,8 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Build;
 import android.os.IBinder;
 import android.hardware.Sensor;
@@ -41,25 +39,6 @@ public class autobrightness extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-
-
-        // 创建广播接收器 接收 ScreenOffReceiver
-        BroadcastReceiver receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                // 获取广播中传递的数据
-                String arg1 = intent.getStringExtra("arg1");
-                // 处理信息
-                //Log.d("TAG", "ACTION_SEND_INFO:"+arg1);
-            }
-        };
-
-        // 注册广播接收器
-        IntentFilter filter = new IntentFilter("com.myapp.ACTION_SEND_INFO");
-        registerReceiver(receiver, filter);
-
-
-
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
 
