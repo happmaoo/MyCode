@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">AutoBrightness</string>
+    <string name="sample_string"><![CDATA[说明:例如\n0 10 50\n10 500 200\n表示光线>0,<=10 则设置屏幕亮度50...\n支持多行\n 小米MIUI请在app属性里设置省电策略为无限制。并加防后台锁定清理锁]]></string>
+</resources>
