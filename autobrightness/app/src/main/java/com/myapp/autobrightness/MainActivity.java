@@ -27,9 +27,18 @@ public class MainActivity extends AppCompatActivity {
     private BroadcastReceiver lightLevelReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+
+            // 获取当前的屏幕亮度
+            int currentBrightness = 0;
+            try {
+                currentBrightness = Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS);
+            } catch (Settings.SettingNotFoundException e) {
+                e.printStackTrace();
+            }
+
             // 从广播中获取光照强度数据
             float lightLevel = intent.getFloatExtra("lightLevel", -1);
-            lightLevelTextView.setText("光线传感器: " + lightLevel + " lux");
+            lightLevelTextView.setText("光线传感器: " + lightLevel + " lux" + "\n亮度: " +currentBrightness);
         }
     };
 
