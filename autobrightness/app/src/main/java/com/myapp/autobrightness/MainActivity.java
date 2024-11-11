@@ -3,6 +3,7 @@ package com.myapp.autobrightness;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Handler;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
@@ -113,7 +114,32 @@ public class MainActivity extends AppCompatActivity {
         String inputText = editText.getText().toString();
         editor.putString("config", inputText);
         editor.apply(); // 使用apply异步保存，commit同步保存
-        Toast.makeText(this, "下次启动app生效.", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "保存完成喽，app重启.", Toast.LENGTH_LONG).show();
+
+
+        // 延迟2秒执行重启应用操作
+        new Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                // 先停止服务
+                Intent serviceIntent = new Intent(MainActivity.this, autobrightness.class);
+                serviceIntent.putExtra("arg1", "stop");
+                stopService(serviceIntent);
+                unregisterReceiver(lightLevelReceiver);
+
+                // 获取并启动应用的启动Intent
+                Intent restartIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                if (restartIntent != null) {
+                    restartIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(restartIntent);
+                }
+
+                // 关闭当前Activity及其父Activity，并完全退出应用程序
+                finishAffinity();
+                System.exit(0);
+            }
+        }, 2000); // 延迟2000毫秒（即2秒）
+
     }
 
 
