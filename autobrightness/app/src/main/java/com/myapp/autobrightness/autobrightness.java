@@ -60,7 +60,6 @@ public class autobrightness extends Service {
         // 初始化传感器监听器
         lightSensorListener = new SensorEventListener() {
 
-
             @Override
             public void onSensorChanged(SensorEvent event) {
                 float lightLevel = event.values[0];
