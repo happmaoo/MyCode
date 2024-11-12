@@ -14,14 +14,14 @@ public class ScreenOffReceiver extends BroadcastReceiver {
             broadcastIntent.putExtra("arg1", "stop");
             context.sendBroadcast(broadcastIntent);
 
-            Log.d("TAG", "ACTION_SCREEN_OFF");
+            //Log.d("TAG", "ACTION_SCREEN_OFF");
 
         }else if(Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
             Intent broadcastIntent = new Intent("com.myapp.ACTION");
             broadcastIntent.putExtra("arg1", "run");
             context.sendBroadcast(broadcastIntent);
 
-            Log.d("TAG", "ACTION_SCREEN_ON");
+            //Log.d("TAG", "ACTION_SCREEN_ON");
         }
     }
 }

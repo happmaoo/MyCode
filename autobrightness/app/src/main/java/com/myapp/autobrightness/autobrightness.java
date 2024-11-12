@@ -19,6 +19,9 @@ import android.hardware.SensorManager;
 import android.util.Log;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import android.provider.Settings;
 
 import androidx.core.app.NotificationCompat;
@@ -30,6 +33,8 @@ public class autobrightness extends Service {
     private Sensor lightSensor;
     private SensorEventListener lightSensorListener;
     private static String CONFIG = "";
+    private static String CONFIG_main = "";
+    private static int CONFIG_lmd = 3;
     String arg1;
 
     private boolean firstStart = true; // 声明firstStart并设置初始值为true
@@ -91,14 +96,25 @@ public class autobrightness extends Service {
 
                 if (intent.getStringExtra("arg-config") != null) {
                     CONFIG = intent.getStringExtra("arg-config");
+                    // 使用正则表达式查找 "lmd:5" 及其后面所有内容
+                    Pattern pattern = Pattern.compile("lmd:(\\d+)([\\s\\S]*)");
+                    Matcher matcher = pattern.matcher(CONFIG);
+
+                    if (matcher.find()) {
+                        CONFIG_lmd = Integer.parseInt(matcher.group(1).trim());
+                        CONFIG_main = matcher.group(2).trim(); // 去掉开头或结尾的空白
+                        //Log.d("CONFIG", "匹配到的内容:\n" + CONFIG_main);
+                    } else {
+                        Log.d("CONFIG", "未找到匹配内容");
+                    }
                 }
 
-                String[] lines = CONFIG.split("\\n");
+                String[] lines = CONFIG_main.split("\\n");
 
                 List<int[]> configData = new ArrayList<>();
 
                 // 解析每行规则：每行包含2个数，分别代表 光线强度低于  亮度值
-                // 例如 10 50 if ( 表示光线强度低于10) 则设置亮度50
+                // 例如 0 50 if ( 表示光线强度>0) 则设置亮度50
                 for (String line : lines) {
                     String[] numbers = line.trim().split("\\s+");
                     int light = Integer.parseInt(numbers[0]);
@@ -106,13 +122,14 @@ public class autobrightness extends Service {
                     configData.add(new int[]{light,brightness});
                 }
 
-                for (int[] rule : configData) {
+                for (int i = configData.size() - 1; i >= 0; i--) {
+                    int[] rule = configData.get(i);
                     int light = rule[0];
                     int brightness = rule[1];
 
 
-                    if (lightLevel  <= light) {
-                        //Log.d("TAG", "当前配置: "+start+end);
+                    if (lightLevel  >= light) {
+                        //Log.d("TAG", "设置亮度: "+brightness);
                         //setScreenBrightness(brightness);
                         checkb(lightLevel,light,brightness);
                         break;
@@ -136,8 +153,8 @@ public class autobrightness extends Service {
                     lastlight = light; // 更新
                 }
 
-                if (consecutiveCount >= 3) { // 如果连续次数达到 3
-                    //Log.d("TAG", "-------- 连续次数达到 3.------");
+                if (consecutiveCount >= CONFIG_lmd) { // 如果连续次数达到 CONFIG_lmd
+                    //Log.d("TAG", "-------- 连续次数达到 "+CONFIG_lmd+"------");
                     setScreenBrightnessSmoothly(brightness); // 调用设置亮度的方法
                     lastlight = 0;
                 }
@@ -149,6 +166,7 @@ public class autobrightness extends Service {
             }
         };
 
+        // 这里是启动服务时自启动 sensorManager
         sensorManager.registerListener(lightSensorListener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);
 
         // 创建广播接收器 接收 ScreenOffReceiver

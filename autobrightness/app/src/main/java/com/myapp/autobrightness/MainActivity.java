@@ -70,7 +70,7 @@ public class MainActivity extends AppCompatActivity {
 
         // 首次运行写入配置文件
         if (config == null) {
-            editor.putString("config", "10 50\n500 250\n5000 300\n10000 400\n20000 500\n90000 700");
+            editor.putString("config", "lmd:3\n0 50\n2 250\n5000 300\n20000 700");
             editor.apply();
             config = sharedPref.getString("config", null);
         }
@@ -122,7 +122,7 @@ public class MainActivity extends AppCompatActivity {
         String inputText = editText.getText().toString();
         editor.putString("config", inputText);
         editor.apply(); // 使用apply异步保存，commit同步保存
-        Toast.makeText(this, "保存完成喽，app重启.", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "保存完成，重新打开app.3.2.1..", Toast.LENGTH_LONG).show();
 
 
         // 延迟2秒执行重启应用操作
@@ -176,7 +176,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // 取消注册广播接收器
-        unregisterReceiver(lightLevelReceiver);
+
     }
 }
