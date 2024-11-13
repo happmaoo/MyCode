@@ -12,4 +12,4 @@ https://github.com/happmaoo/MyCode/tree/main/clockwidget/app/release
 ---
 
 bilibili 主页
-<a href="https://space.bilibili.com/8286319" target="_blank">https://space.bilibili.com/8286319</a>
+https://space.bilibili.com/8286319
