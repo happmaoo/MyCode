@@ -11,6 +11,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -32,6 +33,8 @@ public class autobrightness extends Service {
     private SensorManager sensorManager;
     private Sensor lightSensor;
     private SensorEventListener lightSensorListener;
+
+    float lightLevel;
     private static String CONFIG = "";
     private static String CONFIG_main = "";
     private static int CONFIG_lmd = 3;
@@ -85,7 +88,7 @@ public class autobrightness extends Service {
 
             @Override
             public void onSensorChanged(SensorEvent event) {
-                float lightLevel = event.values[0];
+                lightLevel = event.values[0];
                 //Log.d("TAG", String.valueOf(lightLevel));
 
                 // 发送广播 改变主界面的文字
@@ -117,9 +120,9 @@ public class autobrightness extends Service {
                 // 例如 0 50 if ( 表示光线强度>0) 则设置亮度50
                 for (String line : lines) {
                     String[] numbers = line.trim().split("\\s+");
-                    int light = Integer.parseInt(numbers[0]);
-                    int brightness = Integer.parseInt(numbers[1]);
-                    configData.add(new int[]{light,brightness});
+                    int mylight = Integer.parseInt(numbers[0]);
+                    int mybrightness = Integer.parseInt(numbers[1]);
+                    configData.add(new int[]{mylight,mybrightness});
                 }
 
                 for (int i = configData.size() - 1; i >= 0; i--) {
@@ -143,19 +146,34 @@ public class autobrightness extends Service {
             int lastlight = 0; // 用于记录上一次的 值
             int consecutiveCount = 0; // 用于记录连续出现相同 的次数
 
-            public void checkb(float lightLevel,int light,int brightness) {
+            public void checkb(float lightLevel,int mylight,int mybrightness) {
 
-                //Log.d("TAG", "当前设置: " );
-                if (light == lastlight) {
+                if (mylight == 0) {
+                    // 如果调用的是配置文件里光线=0时，暂停2秒后获取光线强度，如果是0就立即设置屏幕亮度
+                    // 适用于晚上看不见的情况，因为这时光线传感器始终为0，不会触发 onSensorChanged
+                    //Log.d("TAG", "lightLevel: "+lightLevel );
+                    new Handler().postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (lightLevel == 0) {
+                                setScreenBrightnessSmoothly(mybrightness);
+                            }
+                        }
+                    }, 2000); // 延迟2秒 (2000毫秒)
+                }
+
+
+                //Log.d("TAG", "mylight: "+mylight );
+                if (mylight == lastlight) {
                     consecutiveCount++; // 如果当前 与上一个相同，计数器加 1
                 } else {
                     consecutiveCount = 1; // 如果不相同，重置计数器为 1
-                    lastlight = light; // 更新
+                    lastlight = mylight; // 更新
                 }
 
                 if (consecutiveCount >= CONFIG_lmd) { // 如果连续次数达到 CONFIG_lmd
                     //Log.d("TAG", "-------- 连续次数达到 "+CONFIG_lmd+"------");
-                    setScreenBrightnessSmoothly(brightness); // 调用设置亮度的方法
+                    setScreenBrightnessSmoothly(mybrightness); // 调用设置亮度的方法
                     lastlight = 0;
                 }
             }
