@@ -38,6 +38,7 @@ public class autobrightness extends Service {
     private static String CONFIG = "";
     private static String CONFIG_main = "";
     private static int CONFIG_lmd = 3;
+    private static int CONFIG_duration = 2;
     String arg1;
 
     private boolean firstStart = true; // 声明firstStart并设置初始值为true
@@ -100,12 +101,13 @@ public class autobrightness extends Service {
                 if (intent.getStringExtra("arg-config") != null) {
                     CONFIG = intent.getStringExtra("arg-config");
                     // 使用正则表达式查找 "lmd:5" 及其后面所有内容
-                    Pattern pattern = Pattern.compile("lmd:(\\d+)([\\s\\S]*)");
+                    Pattern pattern = Pattern.compile("lmd:(\\d+)/(\\d+)([\\s\\S]*)");
                     Matcher matcher = pattern.matcher(CONFIG);
 
                     if (matcher.find()) {
                         CONFIG_lmd = Integer.parseInt(matcher.group(1).trim());
-                        CONFIG_main = matcher.group(2).trim(); // 去掉开头或结尾的空白
+                        CONFIG_duration= Integer.parseInt(matcher.group(2).trim())* 1000;
+                        CONFIG_main = matcher.group(3).trim(); // 去掉开头或结尾的空白
                         //Log.d("CONFIG", "匹配到的内容:\n" + CONFIG_main);
                     } else {
                         Log.d("CONFIG", "未找到匹配内容");
@@ -230,7 +232,7 @@ public class autobrightness extends Service {
 
         // 创建 ValueAnimator 动画对象，从当前亮度过渡到目标亮度
         ValueAnimator animator = ValueAnimator.ofInt(currentBrightness, targetBrightness);
-        animator.setDuration(2000);  // 设置过渡时间为500毫秒
+        animator.setDuration(CONFIG_duration);  // 设置过渡时间
         animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {

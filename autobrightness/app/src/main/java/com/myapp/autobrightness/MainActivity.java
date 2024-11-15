@@ -70,7 +70,7 @@ public class MainActivity extends AppCompatActivity {
 
         // 首次运行写入配置文件
         if (config == null) {
-            editor.putString("config", "lmd:3\n0 50\n2 250\n5000 300\n20000 700");
+            editor.putString("config", "lmd:3/2\n0 50\n20 250");
             editor.apply();
             config = sharedPref.getString("config", null);
         }
