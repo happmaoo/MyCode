@@ -1,0 +1,100 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.myapp.mybleserver"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="25"
+8-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml
+9        android:targetSdkVersion="29" />
+9-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml
+10
+11    <uses-permission android:name="android.permission.ACCESS_SUPERUSER" />
+11-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:7:5-75
+11-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:7:22-72
+12    <uses-permission android:name="android.permission.INTERNET" />
+12-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:8:5-67
+12-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:8:22-64
+13    <uses-permission android:name="android.permission.ACCESS_ROOT" />
+13-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:9:5-70
+13-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:9:22-67
+14    <uses-permission
+14-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:12:5-68
+15        android:name="android.permission.BLUETOOTH"
+15-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:12:22-65
+16        android:maxSdkVersion="30" />
+16-->[no.nordicsemi.android:ble:2.5.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/ec31f4fa2eb377c3db383ed9143e497d/jetified-ble-2.5.0/AndroidManifest.xml:14:9-35
+17    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+17-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:13:5-74
+17-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:13:22-71
+18    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+18-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:14:5-79
+18-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:14:22-76
+19    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+19-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:15:5-81
+19-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:15:22-78
+20    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+20-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:16:5-78
+20-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:16:22-75
+21    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+21-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:17:5-76
+21-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:17:22-73
+22    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+22-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:18:5-73
+22-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:18:22-70
+23    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+23-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:19:5-77
+23-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:19:22-74
+24    <uses-permission android:name="android.permission.BATTERY_STATS" />
+24-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:21:5-22:47
+24-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:21:22-69
+25
+26    <application
+26-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:25:5-46:19
+27        android:allowBackup="true"
+27-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:26:9-35
+28        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+28-->[androidx.core:core:1.0.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/aa782ce88e4a65071c9b22f6f1fd262a/core-1.0.1/AndroidManifest.xml:22:18-86
+29        android:debuggable="true"
+30        android:extractNativeLibs="false"
+31        android:icon="@mipmap/ic_launcher"
+31-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:28:9-43
+32        android:label="@string/app_name"
+32-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:29:9-41
+33        android:roundIcon="@mipmap/ic_launcher_round"
+33-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:30:9-54
+34        android:supportsRtl="true"
+34-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:31:9-35
+35        android:testOnly="true"
+35-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:27:9-33
+36        android:theme="@style/AppTheme" >
+36-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:32:9-40
+37        <activity android:name="com.myapp.mybleserver.MainActivity" >
+37-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:33:9-39:20
+37-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:33:19-47
+38            <intent-filter>
+38-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:34:13-38:29
+39                <action android:name="android.intent.action.MAIN" />
+39-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:35:17-69
+39-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:35:25-66
+40
+41                <category android:name="android.intent.category.LAUNCHER" />
+41-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:37:17-77
+41-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:37:27-74
+42            </intent-filter>
+43        </activity>
+44
+45        <service
+45-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:41:9-45:63
+46            android:name="com.myapp.mybleserver.GattService"
+46-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:42:13-40
+47            android:enabled="true"
+47-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:43:13-35
+48            android:exported="false"
+48-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:44:13-37
+49            android:foregroundServiceType="connectedDevice" />
+49-->/home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:45:13-60
+50    </application>
+51
+52</manifest>
