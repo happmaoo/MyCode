@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:padding="0dp"
+    android:background="#00000000"> <!-- 设置背景透明 -->
+
+    <!-- 显示时间的 TextClock android:typeface="serif"-->
+    <TextClock
+        android:id="@+id/textClock"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="62sp"
+        android:typeface="sans"
+        android:textColor="#FFFFFF"
+        android:format12Hour="hh:mm"
+        android:format24Hour="HH:mm"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="0dp"/>
+
+    <!-- 显示日期的 TextClock -->
+    <TextClock
+        android:id="@+id/textDate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+
+        android:textSize="18sp"
+        android:textColor="#ccc"
+        android:format12Hour="MM/dd EEEE"
+        android:format24Hour="MM/dd EEEE"
+        android:layout_below="@id/textClock"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="-10dp"/>
+
+</RelativeLayout>

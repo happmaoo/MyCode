@@ -1,0 +1,523 @@
+package com.myapp.mybleclient;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.Service;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothManager;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.Binder;
+import android.os.Build;
+import android.os.IBinder;
+import android.util.Log;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+import androidx.core.app.NotificationCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+
+// bt -pan
+import android.bluetooth.BluetoothProfile;
+import android.widget.Toast;
+
+import java.lang.reflect.Method;
+
+
+
+import no.nordicsemi.android.ble.BleManager;
+import no.nordicsemi.android.ble.data.Data;
+
+public class GattService extends Service {
+
+    public static final String DATA_PLANE_ACTION = "data-plane";
+    // 广播相关常量
+    public static final String ACTION_DATA_RECEIVED = "com.myapp.mybleclient.ACTION_DATA_RECEIVED";
+    public static final String EXTRA_DATA_VALUE = "data_value";
+    public static final String EXTRA_DEVICE_ADDRESS = "device_address";
+
+    private static final String TAG = "gatt-service";
+
+    private BroadcastReceiver bluetoothObserver;
+    private final Map<String, ClientManager> clientManagers = new HashMap<>();
+
+    private BluetoothProfile panProxy; // PAN 代理对象
+
+    MyApp app;
+    private String allLog = "";
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        setupForegroundService();
+        setupBluetoothObserver();
+
+        BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        if (bluetoothManager != null && bluetoothManager.getAdapter() != null && bluetoothManager.getAdapter().isEnabled()) {
+            enableBleServices();
+        }
+
+
+        // 初始化 PAN 代理
+        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+        if (adapter != null) {
+            // PAN 的 Profile ID 是 5
+            adapter.getProfileProxy(this, panListener, 5);
+        }
+
+        // SharedPreferences
+        app = (MyApp) getApplicationContext();
+    }
+
+
+
+    private void setupForegroundService() {
+        String channelId = GattService.class.getSimpleName();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    channelId,
+                    "Gatt Service",
+                    NotificationManager.IMPORTANCE_DEFAULT
+            );
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) manager.createNotificationChannel(channel);
+        }
+
+        Notification notification = new NotificationCompat.Builder(this, channelId)
+                .setSmallIcon(R.drawable.ic_notif)
+                .setContentTitle("BLE Client Service")
+                .setContentText("Running...")
+                .build();
+
+        startForeground(1, notification);
+    }
+
+    private void setupBluetoothObserver() {
+        bluetoothObserver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
+                    int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1);
+                    if (state == BluetoothAdapter.STATE_ON) enableBleServices();
+                    else if (state == BluetoothAdapter.STATE_OFF) disableBleServices();
+                } else if (BluetoothDevice.ACTION_BOND_STATE_CHANGED.equals(action)) {
+                    BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                    if (device != null) {
+                        if (device.getBondState() == BluetoothDevice.BOND_BONDED) addDevice(device);
+                        else if (device.getBondState() == BluetoothDevice.BOND_NONE) removeDevice(device);
+                    }
+                }
+            }
+        };
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
+        filter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
+        registerReceiver(bluetoothObserver, filter);
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        disconnectPan();
+        unregisterReceiver(bluetoothObserver);
+        disableBleServices();
+
+        // pan
+        if (panProxy != null) {
+            BluetoothAdapter.getDefaultAdapter().closeProfileProxy(5, panProxy);
+        }
+        app.remove("log");
+    }
+
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+        if (intent != null && DATA_PLANE_ACTION.equals(intent.getAction())) {
+            return new DataPlane();
+        }
+        return null;
+    }
+
+    /**
+     * 供 Activity/Fragment 调用的 Binder
+     */
+    public class DataPlane extends Binder {
+        // 发送数据的方法
+        public void send(String message) {
+            sendMessageToAll(message);
+        }
+
+
+    }
+
+    private void enableBleServices() {
+        BluetoothManager bm = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        if (bm != null && bm.getAdapter() != null) {
+            for (BluetoothDevice device : bm.getAdapter().getBondedDevices()) {
+                addDevice(device);
+            }
+        }
+    }
+
+    private void disableBleServices() {
+        for (ClientManager manager : clientManagers.values()) {
+            manager.close();
+        }
+        clientManagers.clear();
+    }
+
+    private void addDevice(BluetoothDevice device) {
+        if (!clientManagers.containsKey(device.getAddress())) {
+            ClientManager manager = new ClientManager(this, device.getAddress());
+
+            manager.connect(device)
+                    .retry(3, 1000)      // 如果失败（包括 status 22），重试 3 次，每次间隔
+                    .useAutoConnect(true)
+                    .timeout(30000)     // 设置 秒超时
+                    .enqueue();
+
+            clientManagers.put(device.getAddress(), manager);
+        }
+    }
+
+    private void removeDevice(BluetoothDevice device) {
+        ClientManager manager = clientManagers.remove(device.getAddress());
+        if (manager != null) manager.close();
+    }
+
+    /**
+     * 向所有已连接的设备发送字符串数据
+     */
+    public void sendMessageToAll(String message) {
+        byte[] data = message.getBytes(StandardCharsets.UTF_8);
+        for (ClientManager manager : clientManagers.values()) {
+            manager.sendData(data);
+        }
+    }
+
+
+    /**
+     * 发送广播通知数据接收
+     */
+    private void broadcastData(String value) {
+
+        String tm = getCurrentTime();
+        value = tm + ":" + value + "\n";
+        allLog = allLog + value;
+
+        Intent intent = new Intent(ACTION_DATA_RECEIVED);
+        intent.putExtra(EXTRA_DATA_VALUE, value);
+
+        // 使用 LocalBroadcastManager 发送本地广播（更安全）
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+        app.setString("log", allLog);
+
+        // 或者使用系统广播（如果需要跨进程通信）
+        // sendBroadcast(intent);
+
+        Log.d(TAG, "Broadcast sent: " + value);
+    }
+
+    // --- BLE Manager 内部实现 ---
+
+    private class ClientManager extends BleManager {
+
+        private BluetoothGattCharacteristic myChar;
+        private BluetoothGattCharacteristic batteryChar;
+        private final String deviceAddress;
+
+        public ClientManager(@NonNull Context context, String address) {
+            super(context);
+            this.deviceAddress = address;
+        }
+
+        // 辅助方法：确保任何时候都能拿到真实的设备对象
+        private BluetoothDevice getRemoteDevice() {
+            return BluetoothAdapter.getDefaultAdapter().getRemoteDevice(deviceAddress);
+        }
+
+        public void sendData(byte[] data) {
+            if (myChar != null && (myChar.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE) != 0) {
+                writeCharacteristic(myChar, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+                        .with((device, result) -> Log.d(TAG, "Data sent to " + device.getAddress()))
+                        .enqueue();
+            } else {
+                Log.e(TAG, "Characteristic does not support writing or is null");
+            }
+        }
+
+        @NonNull
+        @Override
+        protected BleManagerGattCallback getGattCallback() { return new GattCallback(); }
+
+        private class GattCallback extends BleManagerGattCallback {
+
+            @Override
+            protected boolean isRequiredServiceSupported(@NonNull BluetoothGatt gatt) {
+
+                // 先列出所有服务（用于调试）
+                logAllServices(gatt);
+
+
+                BluetoothGattService service =
+                        gatt.getService(UUID.fromString("80323644-3537-4F0B-A53B-CF494ECEAAB3"));
+                if (service != null) {
+                    // 赋值给外部类的 myChar
+                    myChar = service.getCharacteristic(UUID.fromString("80323644-3537-4F0B-A53B-CF494ECEAAB3"));
+                }
+                // 2. 同时检查电池服务
+                BluetoothGattService batteryService =
+                        gatt.getService(UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb"));
+                if (batteryService != null) {
+                    batteryChar = batteryService.getCharacteristic(
+                            UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb"));
+
+                    if (batteryChar != null) {
+                        Log.d(TAG, "Found battery service, properties: 0x" +
+                                Integer.toHexString(batteryChar.getProperties()));
+                    }
+                }
+
+                return myChar != null; // 只要求主服务存在
+            }
+
+
+
+
+
+
+            @Override
+            protected void initialize() {
+                setNotificationCallback(myChar).with((device, data) -> {
+                    byte[] bytes = data.getValue();
+                    if (bytes != null) {
+                        String value = new String(bytes, StandardCharsets.UTF_8);
+                        // 发送广播通知数据接收
+                        broadcastData(value);
+                    }
+                });
+                enableNotifications(myChar).enqueue();
+
+            }
+
+
+
+
+
+            private void readBatteryLevel() {
+                if (batteryChar != null) {
+                    // 使用 Nordic BLE Library 提供的 readCharacteristic
+                    readCharacteristic(batteryChar)
+                            .with((device, data) -> {
+                                if (data.getValue() != null && data.getValue().length > 0) {
+
+                                    int batteryLevel = data.getIntValue(Data.FORMAT_UINT8, 0);
+                                    Log.d(TAG, "Device: " + device.getAddress() + " Battery Level: " + batteryLevel + "%");
+
+                                    broadcastData("bat:" + batteryLevel);
+                                    app.setInt("bat", batteryLevel);
+                                }
+                            })
+                            .enqueue();
+                }
+            }
+
+
+            @Override
+            protected void onDeviceReady() {
+                super.onDeviceReady();
+                broadcastData( "connected:[" + deviceAddress+"]");
+
+                app.setBoolean("connected", true);
+                app.setString("addr", deviceAddress);
+
+                // 读取初始电池电量
+                if (batteryChar != null) {
+                    readBatteryLevel();
+                }
+
+                //如果pan是勾选的，首先打开服务端的 bt-tether
+                boolean sp_pan = app.getBoolean("pan", false);
+                if(sp_pan){sendMessageToAll("enable_pan");}
+
+
+                // 如果该设备支持 PAN，尝试连接
+                BluetoothDevice device = getBluetoothDevice();
+                if (device.getBondState() == BluetoothDevice.BOND_BONDED) {
+                    // 调用外部类的 connectPan 方法
+                    if(sp_pan){connectPan(device);}
+                }
+            }
+
+            @Override
+            protected void onDeviceDisconnected() {
+                super.onDeviceDisconnected();
+                broadcastData( "disconnected:[" + deviceAddress+"]");
+                myChar = null;
+
+                app.setBoolean("connected", false);
+
+
+                //检查蓝牙适配器状态 off 直接返回，不再进入 Handler 重连逻辑
+                BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+                if (adapter == null || !adapter.isEnabled()) {
+                    Log.d(TAG, "Bluetooth is OFF, stopping retry for: " + deviceAddress);
+                    return;
+                }
+
+                // 如果不是因为主动关闭 Service 导致的断开，就重新调用 connect
+                // 配合 useAutoConnect(true)，它会进入静默等待状态，对方一开机就能连上
+                // 延迟 1 秒后再发起重连，给 Android 蓝牙堆栈释放资源的时间
+
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                    Log.d(TAG, "Attempting to reconnect to: " + deviceAddress);
+
+                    BluetoothDevice device = getRemoteDevice();
+                    if (device != null) {
+                        connect(device)
+                                .useAutoConnect(true) // Android 8 上建议开启
+                                .retry(999, 2000)
+                                .enqueue();
+                    }
+                }, 2000); // 延迟 2 秒给系统释放旧句柄的时间
+            }
+
+
+            @Override
+            protected void onServicesInvalidated() { myChar = null; batteryChar = null;}
+        }
+
+
+
+
+
+
+        // --------- 列出所有支持的服务和特性 ---------
+        private void logAllServices(BluetoothGatt gatt) {
+            if (gatt == null) return;
+
+            Log.d(TAG, "=== Bluetooth GATT Services for " + deviceAddress + " ===");
+            for (BluetoothGattService service : gatt.getServices()) {
+                Log.d(TAG, "Service UUID: " + service.getUuid().toString());
+            }
+            Log.d(TAG, "==========================================");
+
+        }
+
+        @RequiresApi(api = Build.VERSION_CODES.O)
+        private String getPropertiesString(int properties) {
+            List<String> props = new ArrayList<>();
+            if ((properties & BluetoothGattCharacteristic.PROPERTY_READ) != 0) props.add("READ");
+            if ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE) != 0) props.add("WRITE");
+            if ((properties & BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) props.add("NOTIFY");
+            if ((properties & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0) props.add("INDICATE");
+            if ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0) props.add("WRITE_NO_RESPONSE");
+            return String.join("|", props);
+        }
+
+
+
+
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+    // bt-pan
+    private final BluetoothProfile.ServiceListener panListener = new BluetoothProfile.ServiceListener() {
+        @Override
+        public void onServiceConnected(int profile, BluetoothProfile proxy) {
+            if (profile == 5) { // 5 代表 PAN
+                panProxy = proxy;
+                Log.d(TAG, "PAN Service Connected");
+            }
+        }
+
+        @Override
+        public void onServiceDisconnected(int profile) {
+            if (profile == 5) panProxy = null;
+        }
+    };
+
+
+
+
+    /**
+     * 连接 PAN 网络
+     */
+    public void connectPan(BluetoothDevice device) {
+        if (panProxy == null) return;
+
+        try {
+            // connect 方法是隐藏的，必须通过反射调用
+            Method connectMethod = panProxy.getClass().getDeclaredMethod("connect", BluetoothDevice.class);
+            connectMethod.setAccessible(true);
+            boolean result = (boolean) connectMethod.invoke(panProxy, device);
+            Log.d(TAG, "Connecting to PAN: " + (result ? "Success" : "Failed"));
+        } catch (Exception e) {
+            Log.e(TAG, "PAN Connection Error: " + e.getMessage());
+        }
+    }
+
+
+    /**
+     * 断开 PAN 网络
+     */
+    public void disconnectPan() {
+        if (panProxy == null) return;
+
+        try {
+            // 1. 反射获取 getConnectedDevices 方法
+            Method getConnectedDevicesMethod = panProxy.getClass().getDeclaredMethod("getConnectedDevices");
+            List<BluetoothDevice> connectedDevices = (List<BluetoothDevice>) getConnectedDevicesMethod.invoke(panProxy);
+
+            if (connectedDevices != null && !connectedDevices.isEmpty()) {
+                // 2. 反射获取 disconnect 方法
+                Method disconnectMethod = panProxy.getClass().getDeclaredMethod("disconnect", BluetoothDevice.class);
+
+                for (BluetoothDevice device : connectedDevices) {
+                    disconnectMethod.invoke(panProxy, device);
+                    Log.d(TAG, "Disconnected PAN device: " + device.getAddress());
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error disconnecting all PAN devices: " + e.getMessage());
+        }
+    }
+
+
+
+    public String getCurrentTime() {
+        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
+        return sdf.format(new Date());
+    }
+
+
+}
