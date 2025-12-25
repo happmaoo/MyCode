@@ -1,4 +1,0 @@
-<resources>
-    <string name="app_name">AutoBrightness</string>
-    <string name="sample_string"><![CDATA[说明:首次运行请赋予修改系统设置权限，本app测试机为红米note9 5G,安卓10，请调整删除合适的参数为止。\n例如\n10 50\n500 200\n表示光线<10 则设置屏幕亮度50...\n支持多行\n小米MIUI请在app属性里设置省电策略为无限制。并加防后台锁定清理锁]]></string>
-</resources>
