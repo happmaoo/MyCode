@@ -99,6 +99,15 @@
             android:layout_height="50dp"
             android:orientation="horizontal">
 
+            <Switch
+                android:id="@+id/switch_wifi"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layoutDirection="rtl"
+                android:layout_marginRight="12dp"
+                android:enabled="false"
+                android:text="wifi" />
+
             <EditText
                 android:id="@+id/editText_send"
                 android:layout_width="wrap_content"
@@ -106,7 +115,8 @@
                 android:layout_weight="2"
                 android:ems="10"
                 android:hint=""
-                android:inputType="textPersonName"
+                android:inputType=""
+                android:enabled="false"
                 android:textSize="16sp" />
 
             <Button
@@ -114,7 +124,10 @@
                 android:layout_width="100dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:enabled="false"
                 android:text="Send" />
+
+
 
         </LinearLayout>
 
@@ -133,6 +146,7 @@
             android:padding="8dp"
             android:scrollbars="vertical"
             android:text=""
+            android:fontFamily="monospace"
             android:textColor="@android:color/black"
             android:textIsSelectable="true"
             android:textSize="12sp" />

@@ -24,9 +24,12 @@ import androidx.core.app.NotificationCompat;
 import java.io.DataOutputStream;
 import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -51,6 +54,8 @@ public class GattService extends Service {
 
     String received;
 
+    MyApp app;
+    private String allLog = "";
 
     public static class MyServiceProfile {
         // 标准电池服务 UUID
@@ -88,8 +93,9 @@ public class GattService extends Service {
 
 
 
-
-
+        // SharedPreferences
+        app = (MyApp) getApplication();
+        app.remove("log");
     }
 
     private void setupForeground() {
@@ -193,6 +199,12 @@ public class GattService extends Service {
     // ------------------- 发送广播到主界面 ----------------------
     public void sendBroadcastData(String data) {
 
+        // 记录日志到文件
+        String tm = getCurrentTime();
+        String logdata = tm + ":" + data + "\n";
+        allLog = allLog + logdata;
+        app.setString("log", allLog);
+
         new Handler(Looper.getMainLooper()).post(() -> {
             Intent intent = new Intent("com.myapp.BLE_DATA_RECEIVED");
             intent.putExtra("data", data);
@@ -203,6 +215,35 @@ public class GattService extends Service {
                 //如果客户端发来 enable_pan 开启蓝牙共享 服务端
                 mBluetoothPanServer = new BluetoothPanServer();
                 mBluetoothPanServer.enableBtPan(getApplicationContext());
+            }
+            if("enable_wifi".equals(data)){
+                //如果客户端发来 enable_wifi 开启wifi
+                try {
+                    // Android 10 对应的 startSoftAp 方法编号通常在 40-50 之间
+                    // 可以通过 `adb shell service list` 查看 wifi 服务的编号
+                    Process p = Runtime.getRuntime().exec("su");
+                    DataOutputStream os = new DataOutputStream(p.getOutputStream());
+                    os.writeBytes("svc data enable\n");
+                    os.writeBytes("service call wifi 42\n");
+                    os.writeBytes("exit\n");
+                    os.flush();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            if("disable_wifi".equals(data)){
+                try {
+                    // Android 10 对应的 startSoftAp 方法编号通常在 40-50 之间
+                    // 可以通过 `adb shell service list` 查看 wifi 服务的编号
+                    Process p = Runtime.getRuntime().exec("su");
+                    DataOutputStream os = new DataOutputStream(p.getOutputStream());
+
+                    os.writeBytes("service call wifi 43\n");
+                    os.writeBytes("exit\n");
+                    os.flush();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
             serverManager.setMyCharacteristicValue("received");
 
@@ -428,4 +469,8 @@ public class GattService extends Service {
         }
     }
 
+    public String getCurrentTime() {
+        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
+        return sdf.format(new Date());
+    }
 }

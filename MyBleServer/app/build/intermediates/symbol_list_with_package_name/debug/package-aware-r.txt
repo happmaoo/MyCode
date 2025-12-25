@@ -679,6 +679,7 @@ id beginning
 id blocking
 id bottom
 id btn_send
+id btn_stop
 id buttonPanel
 id center
 id center_horizontal

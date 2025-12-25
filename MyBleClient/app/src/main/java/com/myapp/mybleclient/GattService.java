@@ -24,6 +24,7 @@ import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
+import java.io.DataOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -36,7 +37,6 @@ import java.util.UUID;
 
 // bt -pan
 import android.bluetooth.BluetoothProfile;
-import android.widget.Toast;
 
 import java.lang.reflect.Method;
 
@@ -59,6 +59,11 @@ public class GattService extends Service {
     private final Map<String, ClientManager> clientManagers = new HashMap<>();
 
     private BluetoothProfile panProxy; // PAN 代理对象
+    private boolean panConnecting = false;
+    private int panRetryCount = 0;
+    private static final int MAX_PAN_RETRY = 5;
+
+    private boolean isDestroying = false;
 
     MyApp app;
     private String allLog = "";
@@ -66,6 +71,13 @@ public class GattService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+
+
+        // 如果蓝牙没有打开则打开
+        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+        if (!adapter.isEnabled()) { adapter.enable(); }
+
+
         setupForegroundService();
         setupBluetoothObserver();
 
@@ -76,7 +88,6 @@ public class GattService extends Service {
 
 
         // 初始化 PAN 代理
-        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
         if (adapter != null) {
             // PAN 的 Profile ID 是 5
             adapter.getProfileProxy(this, panListener, 5);
@@ -135,6 +146,8 @@ public class GattService extends Service {
 
     @Override
     public void onDestroy() {
+        isDestroying = true; // 设置标志位
+        stopForeground(true);
         super.onDestroy();
         disconnectPan();
         unregisterReceiver(bluetoothObserver);
@@ -160,9 +173,19 @@ public class GattService extends Service {
      * 供 Activity/Fragment 调用的 Binder
      */
     public class DataPlane extends Binder {
-        // 发送数据的方法
+        // 发送数据到服务端的方法
+        // 也可以在这里写 activity传来的命令
         public void send(String message) {
+
             sendMessageToAll(message);
+
+            if("enable_wifi".equals(message)){
+                //打开服务端热点的同时还要打开本机 wifi
+                setWifiEnabled(true);
+            }
+            if("disable_wifi".equals(message)){
+                setWifiEnabled(false);
+            }
         }
 
 
@@ -306,17 +329,34 @@ public class GattService extends Service {
 
             @Override
             protected void initialize() {
+
+                // 数据通知
                 setNotificationCallback(myChar).with((device, data) -> {
                     byte[] bytes = data.getValue();
                     if (bytes != null) {
                         String value = new String(bytes, StandardCharsets.UTF_8);
-                        // 发送广播通知数据接收
                         broadcastData(value);
                     }
                 });
                 enableNotifications(myChar).enqueue();
 
+                // ⭐ 电池电量变化监听
+                if (batteryChar != null &&
+                        (batteryChar.getProperties() & BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
+
+                    setNotificationCallback(batteryChar).with((device, data) -> {
+                        Integer level = data.getIntValue(Data.FORMAT_UINT8, 0);
+                        if (level != null) {
+                            Log.d(TAG, "Battery updated: " + level + "%");
+                            broadcastData("bat:" + level);
+                            app.setInt("bat", level);
+                        }
+                    });
+
+                    enableNotifications(batteryChar).enqueue();
+                }
             }
+
 
 
 
@@ -369,6 +409,13 @@ public class GattService extends Service {
 
             @Override
             protected void onDeviceDisconnected() {
+
+                // 如果 Service 已经准备销毁，直接返回，不要 postDelayed
+                if (isDestroying) {
+                    Log.d(TAG, "Service is destroying, skipping reconnect.");
+                    return;
+                }
+
                 super.onDeviceDisconnected();
                 broadcastData( "disconnected:[" + deviceAddress+"]");
                 myChar = null;
@@ -376,12 +423,23 @@ public class GattService extends Service {
                 app.setBoolean("connected", false);
 
 
+
                 //检查蓝牙适配器状态 off 直接返回，不再进入 Handler 重连逻辑
                 BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
                 if (adapter == null || !adapter.isEnabled()) {
                     Log.d(TAG, "Bluetooth is OFF, stopping retry for: " + deviceAddress);
+                    stopForeground(true);
+                    stopSelf();
                     return;
                 }
+
+
+                // 如果 Service 已经准备销毁，直接返回,不要重连了
+                if (isDestroying) {
+                    Log.d(TAG, "Service is destroying, skipping reconnect.");
+                    return;
+                }
+
 
                 // 如果不是因为主动关闭 Service 导致的断开，就重新调用 connect
                 // 配合 useAutoConnect(true)，它会进入静默等待状态，对方一开机就能连上
@@ -473,18 +531,68 @@ public class GattService extends Service {
      * 连接 PAN 网络
      */
     public void connectPan(BluetoothDevice device) {
-        if (panProxy == null) return;
+        if (panProxy == null || device == null) return;
+        if (panConnecting) return;
+
+        // 已经连上就不要再连
+        if (isPanConnected(device)) {
+            Log.d(TAG, "PAN already connected: " + device.getAddress());
+            panRetryCount = 0;
+            return;
+        }
+        panConnecting = true;
+        new android.os.Handler(android.os.Looper.getMainLooper())
+                .postDelayed(() -> {
+                    try {
+                        Method connectMethod =
+                                panProxy.getClass().getDeclaredMethod("connect", BluetoothDevice.class);
+                        connectMethod.setAccessible(true);
+
+                        boolean result = (boolean) connectMethod.invoke(panProxy, device);
+                        Log.d(TAG, "PAN connect attempt " + panRetryCount +
+                                " result=" + result);
+
+                    } catch (Exception e) {
+                        Log.e(TAG, "PAN connect error: " + e.getMessage());
+                    }
+                    //  秒后检查是否连上
+                    new android.os.Handler(android.os.Looper.getMainLooper())
+                            .postDelayed(() -> {
+                                panConnecting = false;
+
+                                if (isPanConnected(device)) {
+                                    Log.d(TAG, "PAN connected OK: " + device.getAddress());
+                                    panRetryCount = 0;
+                                } else {
+                                    panRetryCount++;
+                                    Log.w(TAG, "PAN not connected, retry=" + panRetryCount);
+
+                                    if (panRetryCount < MAX_PAN_RETRY) {
+                                        connectPan(device); // 重试
+                                    } else {
+                                        Log.e(TAG, "PAN connect failed after max retries");
+                                    }
+                                }
+                            }, 1000);
+
+                }, 1000); // ⭐ 延迟  秒再连
+    }
+
+    private boolean isPanConnected(BluetoothDevice device) {
+        if (panProxy == null) return false;
 
         try {
-            // connect 方法是隐藏的，必须通过反射调用
-            Method connectMethod = panProxy.getClass().getDeclaredMethod("connect", BluetoothDevice.class);
-            connectMethod.setAccessible(true);
-            boolean result = (boolean) connectMethod.invoke(panProxy, device);
-            Log.d(TAG, "Connecting to PAN: " + (result ? "Success" : "Failed"));
+            Method getConnectedDevices =
+                    panProxy.getClass().getDeclaredMethod("getConnectedDevices");
+            List<BluetoothDevice> list =
+                    (List<BluetoothDevice>) getConnectedDevices.invoke(panProxy);
+
+            return list != null && list.contains(device);
         } catch (Exception e) {
-            Log.e(TAG, "PAN Connection Error: " + e.getMessage());
+            return false;
         }
     }
+
 
 
     /**
@@ -511,6 +619,35 @@ public class GattService extends Service {
             Log.e(TAG, "Error disconnecting all PAN devices: " + e.getMessage());
         }
     }
+
+
+
+    /**
+     * 打开或关闭 WiFi
+     *
+     */
+    public static void setWifiEnabled(boolean enable) {
+        new Thread(() -> {
+            try {
+                // 延迟 2 秒 因为服务端需要时间开热点
+                Thread.sleep(2000);
+                Process process = Runtime.getRuntime().exec("su");
+                DataOutputStream os = new DataOutputStream(process.getOutputStream());
+                if (enable) {
+                    os.writeBytes("svc wifi enable\n");
+                } else {
+                    os.writeBytes("svc wifi disable\n");
+                }
+                os.flush();
+                os.writeBytes("exit\n");
+                os.flush();
+                process.waitFor();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+    }
+
 
 
 

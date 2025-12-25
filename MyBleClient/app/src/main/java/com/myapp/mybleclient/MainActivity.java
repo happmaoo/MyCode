@@ -17,8 +17,10 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -38,6 +40,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btn_send,btn_stop;
     private boolean mIsBound = false;
     private CheckBox checkBox_autoconn,checkBox_pan;
+    private Switch switch_wifi;
 
     private ImageView imageView_bt,imageView_bat,imageView_sig;
     private String color1="#FF2DBB38";
@@ -89,6 +92,7 @@ public class MainActivity extends AppCompatActivity {
         textView_bt = findViewById(R.id.textView_bt);
         textView_bat = findViewById(R.id.textView_bat);
         textView_sig = findViewById(R.id.textView_sig);
+        switch_wifi = findViewById(R.id.switch_wifi);
 
 
 
@@ -158,6 +162,10 @@ public class MainActivity extends AppCompatActivity {
 
 
                 btn_stop.setText("Start");
+                switch_wifi.setEnabled(false);
+                btn_send.setEnabled(false);
+                editText_send.setEnabled(false);
+
                 app.setBoolean("connected", false);
                 refreshicon();
             } else {
@@ -166,9 +174,27 @@ public class MainActivity extends AppCompatActivity {
 
 
                 btn_stop.setText("Stop");
+                switch_wifi.setEnabled(true);
+                btn_send.setEnabled(true);
+                editText_send.setEnabled(true);
+
+                app.setBoolean("connected", true);
             }
         });
 
+
+        // wifi 开关
+        switch_wifi.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) {
+                if (mDataPlane != null) {
+                    mDataPlane.send("enable_wifi");
+                }
+            } else {
+                if (mDataPlane != null) {
+                    mDataPlane.send("disable_wifi");
+                }
+            }
+        });
 
 
     }

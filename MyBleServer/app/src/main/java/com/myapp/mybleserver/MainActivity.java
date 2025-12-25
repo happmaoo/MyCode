@@ -30,7 +30,9 @@ public class MainActivity extends AppCompatActivity {
     private GattServiceConn gattServiceConn;
     EditText editText;
     TextView textView_rec;
-    Button btn_send;
+    Button btn_send,btn_stop;
+
+    MyApp app;
 
     private static final String BLE_DATA_RECEIVED = "com.myapp.BLE_DATA_RECEIVED";
 
@@ -60,6 +62,10 @@ public class MainActivity extends AppCompatActivity {
         editText = findViewById(R.id.editText);
         textView_rec = findViewById(R.id.textView_rec);
         btn_send = findViewById(R.id.btn_send);
+        btn_stop = findViewById(R.id.btn_stop);
+
+        // SharedPreferences
+        app = (MyApp) getApplication();
 
 
         // 异步检查 root 权限，避免阻塞主线程
@@ -93,6 +99,22 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        //-----------Button stop----------------
+        btn_stop.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // 1. 停止服务
+                stopService(intent);
+                // 3. 延迟退出，确保服务完全停止
+                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        finishAffinity();
+                        System.exit(0);
+                    }
+                }, 500); // 延迟500ms确保服务停止
+            }
+        });
 
     }
 
@@ -123,9 +145,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // 注册广播接收器
-        //IntentFilter filter = new IntentFilter(BLE_DATA_RECEIVED);
-        //registerReceiver(bleDataReceiver, filter);
+        textView_rec.setText(app.getString("log",""));
     }
 
     @Override
@@ -196,10 +216,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
-
-
-
-
 
 
 
