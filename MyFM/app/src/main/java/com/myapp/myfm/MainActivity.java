@@ -63,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
     private View rssi_meter;
 
     private String freq;
-    private String color1="#73CD90";
+    private String color1="#bffac1";
 
     private VolumeMeterView volumeMeterView;
     private volatile boolean isListenerActive = true;

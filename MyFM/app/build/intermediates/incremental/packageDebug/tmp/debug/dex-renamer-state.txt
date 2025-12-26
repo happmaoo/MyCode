@@ -1,7 +1,7 @@
-#Thu Dec 25 12:19:21 CST 2025
-base.0=/home/happmaoo/temp/lineage15.1/MyFM/app/build/intermediates/dex/debug/mergeExtDexDebug/out/classes.dex
+#Fri Dec 26 10:21:17 CST 2025
+base.0=/home/happmaoo/AndroidStudioProjects/MyFM/app/build/intermediates/dex/debug/mergeExtDexDebug/out/classes.dex
 path.1=classes.dex
 renamed.1=classes2.dex
 path.0=classes.dex
 renamed.0=classes.dex
-base.1=/home/happmaoo/temp/lineage15.1/MyFM/app/build/intermediates/dex/debug/mergeProjectDexDebug/out/classes.dex
+base.1=/home/happmaoo/AndroidStudioProjects/MyFM/app/build/intermediates/dex/debug/mergeProjectDexDebug/out/classes.dex
