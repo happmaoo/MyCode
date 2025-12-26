@@ -15,6 +15,3 @@ mdate=$(date +'%Y-%m-%d-%H-%M-%S')
 xfce4-terminal -e "bash -c 'git add .; echo \"部分变更列表:\"; git status --short | head -n 10; git commit -m \"备份 $mdate\"; git tag $mdate; git push; git push --tags; echo \"完成.\"; sleep 5'"
 
 
-
-
-
