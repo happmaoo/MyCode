@@ -12,7 +12,7 @@ echo "完成"
 mdate=$(date +'%Y-%m-%d %H:%M:%S')
 
 # 使用 head -n 10 限制输出行数，避免参数超长
-xfce4-terminal -e "bash -c 'git add .; echo \"部分变更列表:\"; git status --short | head -n 10; git commit -m \"备份 $(mdate)\"; git push; echo \"完成.\"; sleep 5'"
+xfce4-terminal -e "bash -c 'git add .; echo \"部分变更列表:\"; git status --short | head -n 10; git commit -m \"备份 $mdate\"; git push; echo \"完成.\"; sleep 5'"
 
 
 
