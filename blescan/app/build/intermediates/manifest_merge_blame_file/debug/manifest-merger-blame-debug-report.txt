@@ -1,0 +1,149 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.myapp.blescan"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="25"
+8-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml
+9        android:targetSdkVersion="29" />
+9-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml
+10
+11    <uses-permission android:name="android.permission.ACCESS_SUPERUSER" />
+11-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:5:5-75
+11-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:5:22-72
+12    <uses-permission android:name="android.permission.INTERNET" />
+12-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:6:5-67
+12-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:6:22-64
+13    <uses-permission android:name="android.permission.ACCESS_ROOT" />
+13-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:7:5-70
+13-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:7:22-67
+14    <uses-permission
+14-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:10:5-68
+15        android:name="android.permission.BLUETOOTH"
+15-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:10:22-65
+16        android:maxSdkVersion="30" />
+16-->[no.nordicsemi.android:ble:2.6.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/f0a196b78f6157decb3e1c3f6886b0ff/jetified-ble-2.6.1/AndroidManifest.xml:12:9-35
+17    <uses-permission
+17-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:11:5-74
+18        android:name="android.permission.BLUETOOTH_ADMIN"
+18-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:11:22-71
+19        android:maxSdkVersion="30" />
+19-->[no.nordicsemi.android.support.v18:scanner:1.6.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/ea570be1dd4b8d4d41461a69e731f541/jetified-scanner-1.6.0/AndroidManifest.xml:19:9-35
+20    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+20-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:12:5-79
+20-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:12:22-76
+21    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+21-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:13:5-81
+21-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:13:22-78
+22    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+22-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:14:5-78
+22-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:14:22-75
+23    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+23-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:15:5-76
+23-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:15:22-73
+24    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+24-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:16:5-73
+24-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:16:22-70
+25    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+25-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:17:5-77
+25-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:17:22-74
+26
+27    <!-- wifi 热点权限 -->
+28    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+28-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:22:5-76
+28-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:22:22-73
+29    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+29-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:23:5-76
+29-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:23:22-73
+30    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+30-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:12:5-79
+30-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:12:22-76
+31    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+31-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:25:5-79
+31-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:25:22-76
+32    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+32-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:26:5-79
+32-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:26:22-76
+33    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+33-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:22:5-76
+33-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:22:22-73
+34    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+34-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:23:5-76
+34-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:23:22-73
+35
+36    <!-- Android 10 及以上需要额外的权限 -->
+37    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+37-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:31:5-85
+37-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:31:22-82
+38    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+38-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:13:5-81
+38-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:13:22-78
+39
+40    <application
+40-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:33:5-47:19
+41        android:allowBackup="true"
+41-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:34:9-35
+42        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+42-->[androidx.core:core:1.0.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/aa782ce88e4a65071c9b22f6f1fd262a/core-1.0.1/AndroidManifest.xml:22:18-86
+43        android:debuggable="true"
+44        android:extractNativeLibs="false"
+45        android:icon="@mipmap/ic_launcher"
+45-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:35:9-43
+46        android:label="@string/app_name"
+46-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:36:9-41
+47        android:roundIcon="@mipmap/ic_launcher_round"
+47-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:37:9-54
+48        android:supportsRtl="true"
+48-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:38:9-35
+49        android:testOnly="true"
+50        android:theme="@style/AppTheme" >
+50-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:39:9-40
+51        <activity android:name="com.myapp.blescan.MainActivity" >
+51-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:40:9-46:20
+51-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:40:19-64
+52            <intent-filter>
+52-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:41:13-45:29
+53                <action android:name="android.intent.action.MAIN" />
+53-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:42:17-69
+53-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:42:25-66
+54
+55                <category android:name="android.intent.category.LAUNCHER" />
+55-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:44:17-77
+55-->/home/happmaoo/AndroidStudioProjects/blescan/app/src/main/AndroidManifest.xml:44:27-74
+56            </intent-filter>
+57        </activity>
+58        <!--
+59		Service used to scan in background to emulate scanning with
+60		PendingIntent on Android 4.3 - 7.x. Service will scan in background with given
+61		settings and filters.
+62        -->
+63        <service
+63-->[no.nordicsemi.android.support.v18:scanner:1.6.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/ea570be1dd4b8d4d41461a69e731f541/jetified-scanner-1.6.0/AndroidManifest.xml:41:9-43:40
+64            android:name="no.nordicsemi.android.support.v18.scanner.ScannerService"
+64-->[no.nordicsemi.android.support.v18:scanner:1.6.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/ea570be1dd4b8d4d41461a69e731f541/jetified-scanner-1.6.0/AndroidManifest.xml:42:13-84
+65            android:exported="false" />
+65-->[no.nordicsemi.android.support.v18:scanner:1.6.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/ea570be1dd4b8d4d41461a69e731f541/jetified-scanner-1.6.0/AndroidManifest.xml:43:13-37
+66        <!--
+67		The receiver used to scan with PendingIntent on Android 8+.
+68		It will translate results from android.bluetooth.le package to
+69		no.nordicsemi.android.support.v18, apply filters or perform batching,
+70		depending on the settings.
+71        -->
+72        <receiver
+72-->[no.nordicsemi.android.support.v18:scanner:1.6.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/ea570be1dd4b8d4d41461a69e731f541/jetified-scanner-1.6.0/AndroidManifest.xml:51:9-58:20
+73            android:name="no.nordicsemi.android.support.v18.scanner.PendingIntentReceiver"
+73-->[no.nordicsemi.android.support.v18:scanner:1.6.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/ea570be1dd4b8d4d41461a69e731f541/jetified-scanner-1.6.0/AndroidManifest.xml:52:13-91
+74            android:exported="true" >
+74-->[no.nordicsemi.android.support.v18:scanner:1.6.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/ea570be1dd4b8d4d41461a69e731f541/jetified-scanner-1.6.0/AndroidManifest.xml:53:13-36
+75            <intent-filter>
+75-->[no.nordicsemi.android.support.v18:scanner:1.6.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/ea570be1dd4b8d4d41461a69e731f541/jetified-scanner-1.6.0/AndroidManifest.xml:55:13-57:29
+76                <action android:name="no.nordicsemi.android.support.v18.ACTION_FOUND" />
+76-->[no.nordicsemi.android.support.v18:scanner:1.6.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/ea570be1dd4b8d4d41461a69e731f541/jetified-scanner-1.6.0/AndroidManifest.xml:56:17-89
+76-->[no.nordicsemi.android.support.v18:scanner:1.6.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/ea570be1dd4b8d4d41461a69e731f541/jetified-scanner-1.6.0/AndroidManifest.xml:56:25-86
+77            </intent-filter>
+78        </receiver>
+79    </application>
+80
+81</manifest>
