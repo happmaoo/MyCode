@@ -32,6 +32,7 @@ dependencies {
 
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation 'no.nordicsemi.android:ble:2.5.0'
+    //最高支持 'no.nordicsemi.android:ble:2.6.1' 再高就要java17版本了
 
     implementation 'androidx.appcompat:appcompat:1.0.2'
     implementation 'androidx.constraintlayout:constraintlayout:1.1.3'
