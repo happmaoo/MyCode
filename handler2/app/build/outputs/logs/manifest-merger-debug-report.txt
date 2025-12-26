@@ -1,0 +1,158 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:2:1-22:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:2:1-22:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:2:1-22:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:2:1-22:12
+MERGED from [androidx.appcompat:appcompat:1.0.2] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/9442e2deaa13c1c57ceecb67bd85baf8/appcompat-1.0.2/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.constraintlayout:constraintlayout:1.1.3] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/cb3ee0668a2ccffbec6ced598c9d8e79/constraintlayout-1.1.3/AndroidManifest.xml:2:1-11:12
+MERGED from [androidx.fragment:fragment:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/fd1328430e5c3ce6c4c485baf1d0990c/fragment-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.vectordrawable:vectordrawable-animated:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/3010479fa33a41a48c3d949139b95c57/vectordrawable-animated-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.legacy:legacy-support-core-ui:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/9ce94cc40a82bcef6e5f674563b48cac/legacy-support-core-ui-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.legacy:legacy-support-core-utils:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/e71265ba7c7836fd6b7a3572e18e95dd/legacy-support-core-utils-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.vectordrawable:vectordrawable:1.0.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/7a8e630ff2198b19ae0f194c8a4a7c0b/vectordrawable-1.0.1/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.loader:loader:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/1a7929ea79abc37513892fc022245291/loader-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.viewpager:viewpager:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/3ef529e7659a6dad5bca87ebe763f091/viewpager-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.coordinatorlayout:coordinatorlayout:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/828033404d599beb6668283b7da13000/coordinatorlayout-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.drawerlayout:drawerlayout:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/184c984507bae6d54ce89a1b39416d6f/drawerlayout-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.slidingpanelayout:slidingpanelayout:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/0c4da79d4e937f2e4d0ab85574b7a83d/slidingpanelayout-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.customview:customview:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/1e40e6425c76c059bfb4b3234ce21463/customview-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.swiperefreshlayout:swiperefreshlayout:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/4af59ff58e7e532654eb12c1932b79de/swiperefreshlayout-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.asynclayoutinflater:asynclayoutinflater:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/99c9f72a6b00b19d9d75b6a5a3eee151/asynclayoutinflater-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.core:core:1.0.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/aa782ce88e4a65071c9b22f6f1fd262a/core-1.0.1/AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/b65ef4e19f20cf47e11654755224012b/versionedparcelable-1.0.0/AndroidManifest.xml:17:1-25:12
+MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/2f8d1ed6722dd8ec027727976d721a74/cursoradapter-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-runtime:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/c1a5fbc0b633ef85b57e8bc0af32bb17/lifecycle-runtime-2.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.documentfile:documentfile:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/a8c9207d9e235b09f38de3b9e6c8e8e0/documentfile-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.localbroadcastmanager:localbroadcastmanager:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/d0451c97239df5be4dc66598fdd5c551/localbroadcastmanager-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.print:print:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/80a24a77b2345ebb709fc7815d75c401/print-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/17fbeec812e2445b24bf4626afbb91b3/lifecycle-viewmodel-2.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-livedata:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/1e517e060e22e5750a896c56d451ab07/lifecycle-livedata-2.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/8909bb9e572b85a1aed6ea82735a7b78/lifecycle-livedata-core-2.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.arch.core:core-runtime:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/2541981a540b257b4ca2e11e0b5e803f/core-runtime-2.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.interpolator:interpolator:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/2e208f9141563db79bd49ce93534ac4d/interpolator-1.0.0/AndroidManifest.xml:17:1-22:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:2:1-22:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:2:1-22:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:2:1-22:12
+	package
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:3:5-33
+		INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+		INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+	android:versionName
+		INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:2:1-22:12
+		INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+	android:versionCode
+		INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:2:1-22:12
+		INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:2:11-69
+application
+ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:5:5-20:19
+MERGED from [androidx.constraintlayout:constraintlayout:1.1.3] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/cb3ee0668a2ccffbec6ced598c9d8e79/constraintlayout-1.1.3/AndroidManifest.xml:9:5-20
+MERGED from [androidx.constraintlayout:constraintlayout:1.1.3] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/cb3ee0668a2ccffbec6ced598c9d8e79/constraintlayout-1.1.3/AndroidManifest.xml:9:5-20
+MERGED from [androidx.core:core:1.0.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/aa782ce88e4a65071c9b22f6f1fd262a/core-1.0.1/AndroidManifest.xml:22:5-89
+MERGED from [androidx.core:core:1.0.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/aa782ce88e4a65071c9b22f6f1fd262a/core-1.0.1/AndroidManifest.xml:22:5-89
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/b65ef4e19f20cf47e11654755224012b/versionedparcelable-1.0.0/AndroidManifest.xml:22:5-23:19
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/b65ef4e19f20cf47e11654755224012b/versionedparcelable-1.0.0/AndroidManifest.xml:22:5-23:19
+	android:appComponentFactory
+		ADDED from [androidx.core:core:1.0.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/aa782ce88e4a65071c9b22f6f1fd262a/core-1.0.1/AndroidManifest.xml:22:18-86
+	android:supportsRtl
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:10:9-35
+	android:label
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:8:9-41
+	android:roundIcon
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:9:9-54
+	android:icon
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:7:9-43
+	android:allowBackup
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:6:9-35
+	android:theme
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:11:9-40
+activity#com.myapp.handler2.MainActivity
+ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:12:9-18:20
+	android:name
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:12:19-65
+intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
+ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:13:13-17:29
+action#android.intent.action.MAIN
+ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:14:17-69
+	android:name
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:14:25-66
+category#android.intent.category.LAUNCHER
+ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:16:17-77
+	android:name
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:16:27-74
+service#com.myapp.handler2.MyService
+ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:19:9-64
+	android:name
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml:19:18-61
+uses-sdk
+INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+MERGED from [androidx.appcompat:appcompat:1.0.2] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/9442e2deaa13c1c57ceecb67bd85baf8/appcompat-1.0.2/AndroidManifest.xml:20:5-44
+MERGED from [androidx.appcompat:appcompat:1.0.2] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/9442e2deaa13c1c57ceecb67bd85baf8/appcompat-1.0.2/AndroidManifest.xml:20:5-44
+MERGED from [androidx.constraintlayout:constraintlayout:1.1.3] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/cb3ee0668a2ccffbec6ced598c9d8e79/constraintlayout-1.1.3/AndroidManifest.xml:5:5-7:41
+MERGED from [androidx.constraintlayout:constraintlayout:1.1.3] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/cb3ee0668a2ccffbec6ced598c9d8e79/constraintlayout-1.1.3/AndroidManifest.xml:5:5-7:41
+MERGED from [androidx.fragment:fragment:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/fd1328430e5c3ce6c4c485baf1d0990c/fragment-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.fragment:fragment:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/fd1328430e5c3ce6c4c485baf1d0990c/fragment-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.vectordrawable:vectordrawable-animated:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/3010479fa33a41a48c3d949139b95c57/vectordrawable-animated-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.vectordrawable:vectordrawable-animated:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/3010479fa33a41a48c3d949139b95c57/vectordrawable-animated-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.legacy:legacy-support-core-ui:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/9ce94cc40a82bcef6e5f674563b48cac/legacy-support-core-ui-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.legacy:legacy-support-core-ui:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/9ce94cc40a82bcef6e5f674563b48cac/legacy-support-core-ui-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.legacy:legacy-support-core-utils:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/e71265ba7c7836fd6b7a3572e18e95dd/legacy-support-core-utils-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.legacy:legacy-support-core-utils:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/e71265ba7c7836fd6b7a3572e18e95dd/legacy-support-core-utils-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.vectordrawable:vectordrawable:1.0.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/7a8e630ff2198b19ae0f194c8a4a7c0b/vectordrawable-1.0.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.vectordrawable:vectordrawable:1.0.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/7a8e630ff2198b19ae0f194c8a4a7c0b/vectordrawable-1.0.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.loader:loader:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/1a7929ea79abc37513892fc022245291/loader-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.loader:loader:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/1a7929ea79abc37513892fc022245291/loader-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.viewpager:viewpager:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/3ef529e7659a6dad5bca87ebe763f091/viewpager-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.viewpager:viewpager:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/3ef529e7659a6dad5bca87ebe763f091/viewpager-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.coordinatorlayout:coordinatorlayout:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/828033404d599beb6668283b7da13000/coordinatorlayout-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.coordinatorlayout:coordinatorlayout:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/828033404d599beb6668283b7da13000/coordinatorlayout-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.drawerlayout:drawerlayout:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/184c984507bae6d54ce89a1b39416d6f/drawerlayout-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.drawerlayout:drawerlayout:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/184c984507bae6d54ce89a1b39416d6f/drawerlayout-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.slidingpanelayout:slidingpanelayout:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/0c4da79d4e937f2e4d0ab85574b7a83d/slidingpanelayout-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.slidingpanelayout:slidingpanelayout:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/0c4da79d4e937f2e4d0ab85574b7a83d/slidingpanelayout-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.customview:customview:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/1e40e6425c76c059bfb4b3234ce21463/customview-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.customview:customview:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/1e40e6425c76c059bfb4b3234ce21463/customview-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.swiperefreshlayout:swiperefreshlayout:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/4af59ff58e7e532654eb12c1932b79de/swiperefreshlayout-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.swiperefreshlayout:swiperefreshlayout:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/4af59ff58e7e532654eb12c1932b79de/swiperefreshlayout-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.asynclayoutinflater:asynclayoutinflater:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/99c9f72a6b00b19d9d75b6a5a3eee151/asynclayoutinflater-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.asynclayoutinflater:asynclayoutinflater:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/99c9f72a6b00b19d9d75b6a5a3eee151/asynclayoutinflater-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.core:core:1.0.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/aa782ce88e4a65071c9b22f6f1fd262a/core-1.0.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.core:core:1.0.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/aa782ce88e4a65071c9b22f6f1fd262a/core-1.0.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/b65ef4e19f20cf47e11654755224012b/versionedparcelable-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/b65ef4e19f20cf47e11654755224012b/versionedparcelable-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/2f8d1ed6722dd8ec027727976d721a74/cursoradapter-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/2f8d1ed6722dd8ec027727976d721a74/cursoradapter-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/c1a5fbc0b633ef85b57e8bc0af32bb17/lifecycle-runtime-2.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/c1a5fbc0b633ef85b57e8bc0af32bb17/lifecycle-runtime-2.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.documentfile:documentfile:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/a8c9207d9e235b09f38de3b9e6c8e8e0/documentfile-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.documentfile:documentfile:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/a8c9207d9e235b09f38de3b9e6c8e8e0/documentfile-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.localbroadcastmanager:localbroadcastmanager:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/d0451c97239df5be4dc66598fdd5c551/localbroadcastmanager-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.localbroadcastmanager:localbroadcastmanager:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/d0451c97239df5be4dc66598fdd5c551/localbroadcastmanager-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.print:print:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/80a24a77b2345ebb709fc7815d75c401/print-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.print:print:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/80a24a77b2345ebb709fc7815d75c401/print-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/17fbeec812e2445b24bf4626afbb91b3/lifecycle-viewmodel-2.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/17fbeec812e2445b24bf4626afbb91b3/lifecycle-viewmodel-2.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/1e517e060e22e5750a896c56d451ab07/lifecycle-livedata-2.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/1e517e060e22e5750a896c56d451ab07/lifecycle-livedata-2.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/8909bb9e572b85a1aed6ea82735a7b78/lifecycle-livedata-core-2.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/8909bb9e572b85a1aed6ea82735a7b78/lifecycle-livedata-core-2.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.arch.core:core-runtime:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/2541981a540b257b4ca2e11e0b5e803f/core-runtime-2.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.arch.core:core-runtime:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/2541981a540b257b4ca2e11e0b5e803f/core-runtime-2.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.interpolator:interpolator:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/2e208f9141563db79bd49ce93534ac4d/interpolator-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.interpolator:interpolator:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/2e208f9141563db79bd49ce93534ac4d/interpolator-1.0.0/AndroidManifest.xml:20:5-44
+INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+		INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+		ADDED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
+		INJECTED from /home/happmaoo/AndroidStudioProjects/handler2/app/src/main/AndroidManifest.xml
