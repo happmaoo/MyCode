@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-63:12
-INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-63:12
-INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-63:12
-INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-63:12
+ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-75:12
+INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-75:12
+INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-75:12
+INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-75:12
 MERGED from [no.nordicsemi.android:ble:2.5.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/ec31f4fa2eb377c3db383ed9143e497d/jetified-ble-2.5.0/AndroidManifest.xml:2:1-16:12
 MERGED from [androidx.appcompat:appcompat:1.0.2] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/9442e2deaa13c1c57ceecb67bd85baf8/appcompat-1.0.2/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.constraintlayout:constraintlayout:1.1.3] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/cb3ee0668a2ccffbec6ced598c9d8e79/constraintlayout-1.1.3/AndroidManifest.xml:2:1-11:12
@@ -32,22 +32,22 @@ MERGED from [androidx.lifecycle:lifecycle-livedata:2.0.0] /home/happmaoo/.gradle
 MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/8909bb9e572b85a1aed6ea82735a7b78/lifecycle-livedata-core-2.0.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.arch.core:core-runtime:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/2541981a540b257b4ca2e11e0b5e803f/core-runtime-2.0.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.interpolator:interpolator:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/2e208f9141563db79bd49ce93534ac4d/interpolator-1.0.0/AndroidManifest.xml:17:1-22:12
-INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-63:12
-INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-63:12
-INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-63:12
+INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-75:12
+INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-75:12
+INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-75:12
 	package
 		ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:4:5-36
 		INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml
 		INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml
 	android:versionName
 		INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml
-		ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-63:12
+		ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-75:12
 		INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml
 	xmlns:tools
 		ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:3:5-51
 	android:versionCode
 		INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml
-		ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-63:12
+		ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:1-75:12
 		INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml
 	xmlns:android
 		ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:2:11-69
@@ -126,7 +126,7 @@ ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManif
 	android:name
 		ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:34:22-82
 application
-ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:37:5-59:19
+ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:37:5-71:19
 MERGED from [androidx.constraintlayout:constraintlayout:1.1.3] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/cb3ee0668a2ccffbec6ced598c9d8e79/constraintlayout-1.1.3/AndroidManifest.xml:9:5-20
 MERGED from [androidx.constraintlayout:constraintlayout:1.1.3] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/cb3ee0668a2ccffbec6ced598c9d8e79/constraintlayout-1.1.3/AndroidManifest.xml:9:5-20
 MERGED from [androidx.core:core:1.0.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/aa782ce88e4a65071c9b22f6f1fd262a/core-1.0.1/AndroidManifest.xml:22:5-89
@@ -175,6 +175,20 @@ ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManif
 		ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:58:13-60
 	android:name
 		ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:55:13-40
+service#com.myapp.mybleserver.MyNotificationListenerService
+ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:61:9-68:19
+	android:exported
+		ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:64:13-36
+	android:permission
+		ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:63:13-87
+	android:name
+		ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:62:13-58
+intent-filter#action:name:android.service.notification.NotificationListenerService
+ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:65:13-67:29
+action#android.service.notification.NotificationListenerService
+ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:66:17-99
+	android:name
+		ADDED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml:66:25-96
 uses-sdk
 INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /home/happmaoo/temp/lineage15.1/MyBleServer/app/src/main/AndroidManifest.xml

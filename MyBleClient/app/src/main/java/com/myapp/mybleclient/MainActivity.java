@@ -39,7 +39,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView textView_rec,textView_bt,textView_bat,textView_sig;
     private Button btn_send,btn_stop;
     private boolean mIsBound = false;
-    private CheckBox checkBox_autoconn,checkBox_pan;
+    private CheckBox checkBox_autoconn,checkBox_autopan,checkBox_pan,checkBox_wifi;
     private Switch switch_wifi;
 
     private ImageView imageView_bt,imageView_bat,imageView_sig;
@@ -84,7 +84,9 @@ public class MainActivity extends AppCompatActivity {
         btn_send = findViewById(R.id.btn_send);
         btn_stop = findViewById(R.id.btn_stop);
         checkBox_autoconn = findViewById(R.id.checkBox_autoconn);
+        checkBox_autopan = findViewById(R.id.checkBox_autopan);
         checkBox_pan = findViewById(R.id.checkBox_pan);
+        checkBox_wifi = findViewById(R.id.checkBox_wifi);
 
         imageView_bt = findViewById(R.id.imageView_bt);
         imageView_bat = findViewById(R.id.imageView_bat);
@@ -92,7 +94,7 @@ public class MainActivity extends AppCompatActivity {
         textView_bt = findViewById(R.id.textView_bt);
         textView_bat = findViewById(R.id.textView_bat);
         textView_sig = findViewById(R.id.textView_sig);
-        switch_wifi = findViewById(R.id.switch_wifi);
+
 
 
 
@@ -100,9 +102,9 @@ public class MainActivity extends AppCompatActivity {
         // SharedPreferences
         app = (MyApp) getApplicationContext();
         //app.saveString("username", "JohnDoe");
-        boolean sp_pan = app.getBoolean("pan", false);
+        boolean sp_pan = app.getBoolean("autopan", false);
         if(sp_pan){
-            checkBox_pan.setChecked(true);
+            checkBox_autopan.setChecked(true);
         }
         textView_bt.setText(app.getString("addr", ""));
         textView_bat.setText(String.valueOf(app.getInt("bat", 0)));
@@ -141,12 +143,12 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // checkBox_pan
-        checkBox_pan.setOnCheckedChangeListener((buttonView, isChecked) -> {
+        checkBox_autopan.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
-                app.setBoolean("pan", true);
-                Toast.makeText(MainActivity.this, "pan 连接开启", Toast.LENGTH_SHORT).show();
+                app.setBoolean("autopan", true);
+                Toast.makeText(MainActivity.this, "pan 自动连接开启", Toast.LENGTH_SHORT).show();
             }else{
-                app.setBoolean("pan", false);
+                app.setBoolean("autopan", false);
             }
         });
 
@@ -162,11 +164,22 @@ public class MainActivity extends AppCompatActivity {
 
 
                 btn_stop.setText("Start");
-                switch_wifi.setEnabled(false);
+                checkBox_wifi.setEnabled(false);
+                checkBox_pan.setEnabled(false);
                 btn_send.setEnabled(false);
                 editText_send.setEnabled(false);
 
                 app.setBoolean("connected", false);
+
+                app.setpan(false);
+                app.setwifi(false);
+                checkBox_pan.setChecked(false);
+                checkBox_wifi.setChecked(false);
+
+                textView_bat.setText("0");
+                app.setInt("bat", 0);
+
+
                 refreshicon();
             } else {
                 startService(intent);
@@ -174,7 +187,8 @@ public class MainActivity extends AppCompatActivity {
 
 
                 btn_stop.setText("Stop");
-                switch_wifi.setEnabled(true);
+                checkBox_wifi.setEnabled(true);
+                checkBox_pan.setEnabled(true);
                 btn_send.setEnabled(true);
                 editText_send.setEnabled(true);
 
@@ -183,15 +197,32 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
+        // pan 开关
+        checkBox_pan.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) {
+                if (mDataPlane != null) {
+                    mDataPlane.send("enable_pan");
+                    app.setpan(true);
+                }
+            } else {
+                if (mDataPlane != null) {
+                    mDataPlane.send("disable_pan");
+                    app.setpan(false);
+                }
+            }
+        });
+
         // wifi 开关
-        switch_wifi.setOnCheckedChangeListener((buttonView, isChecked) -> {
+        checkBox_wifi.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
                 if (mDataPlane != null) {
                     mDataPlane.send("enable_wifi");
+                    app.setwifi(true);
                 }
             } else {
                 if (mDataPlane != null) {
                     mDataPlane.send("disable_wifi");
+                    app.setwifi(false);
                 }
             }
         });
@@ -284,9 +315,19 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         textView_rec.setText(app.getString("log", ""));
+
         // 检查服务是否运行
         if (isServiceRunning(GattService.class)) {
             btn_stop.setText("Stop");
+
+            checkBox_wifi.setEnabled(true);
+            checkBox_pan.setEnabled(true);
+            btn_send.setEnabled(true);
+            editText_send.setEnabled(true);
+
+            if(app.getpan()==true){checkBox_pan.setChecked(true);}
+            if(app.getwifi()==true){checkBox_wifi.setChecked(true);}
+
         } else {
             btn_stop.setText("Start");
         }

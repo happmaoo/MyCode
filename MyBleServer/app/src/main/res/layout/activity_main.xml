@@ -50,6 +50,32 @@
         android:textColor="@android:color/black"
         android:textIsSelectable="true"
         android:textSize="12sp" />
+
+
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:orientation="horizontal">
+
+    <EditText
+        android:id="@+id/editText_apps"
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="match_parent"
+        android:gravity=""
+        android:background="#eeeeee"
+        android:textSize="14sp"
+        android:inputType="textMultiLine" />
+
+    <Button
+        android:id="@+id/button_save"
+        android:layout_width="100dp"
+        android:layout_height="50dp"
+        android:text="save" />
+    </LinearLayout>
+
+
     <Button
         android:id="@+id/btn_stop"
         android:layout_width="100dp"

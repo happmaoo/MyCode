@@ -9,11 +9,18 @@ public class MyApp extends Application {
     private static MyApp instance;
     private SharedPreferences sharedPreferences;
 
+    // 全局变量
+    private Boolean pan;
+    private Boolean wifi;
+
     @Override
     public void onCreate() {
         super.onCreate();
         instance = this;
         sharedPreferences = getSharedPreferences("my_prefs", Context.MODE_PRIVATE);
+
+        pan = false;
+        wifi = false;
     }
 
     public static MyApp getInstance() {
@@ -54,4 +61,24 @@ public class MyApp extends Application {
     public void clearAll() {
         sharedPreferences.edit().clear().apply();
     }
+
+
+
+
+    // Getter和Setter方法
+    public Boolean getpan() {
+        return pan;
+    }
+
+    public void setpan(Boolean pan) {
+        this.pan = pan;
+    }
+    public Boolean getwifi() {
+        return wifi;
+    }
+
+    public void setwifi(Boolean wifi) {
+        this.wifi = wifi;
+    }
+
 }

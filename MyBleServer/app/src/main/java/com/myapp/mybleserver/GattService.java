@@ -95,7 +95,7 @@ public class GattService extends Service {
 
         // SharedPreferences
         app = (MyApp) getApplication();
-        app.remove("log");
+
     }
 
     private void setupForeground() {
@@ -139,7 +139,9 @@ public class GattService extends Service {
         BluetoothManager bm = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         if (bm != null && bm.getAdapter().getBluetoothLeAdvertiser() != null) {
             //自定义 ble 名称
-            bm.getAdapter().setName("MyBleServer");
+            if (!bm.getAdapter().getName().equals("MyBleServer")) {
+                bm.getAdapter().setName("MyBleServer");
+            }
             bm.getAdapter().getBluetoothLeAdvertiser().startAdvertising(
                     BleAdvertiser.settings(),
                     BleAdvertiser.scanResponseData(),
@@ -165,9 +167,11 @@ public class GattService extends Service {
 
     @Override
     public void onDestroy() {
+        stopForeground(true); // 移除前台通知
         super.onDestroy();
         unregisterReceiver(bluetoothObserver);
         disableBleServices();
+
 
 
 
@@ -176,6 +180,7 @@ public class GattService extends Service {
             unregisterReceiver(batteryReceiver);
         }
         Toast.makeText(this, "电池监听服务已停止", Toast.LENGTH_SHORT).show();
+        app.remove("log");
     }
 
     @Nullable
@@ -214,7 +219,12 @@ public class GattService extends Service {
             if("enable_pan".equals(data)){
                 //如果客户端发来 enable_pan 开启蓝牙共享 服务端
                 mBluetoothPanServer = new BluetoothPanServer();
-                mBluetoothPanServer.enableBtPan(getApplicationContext());
+                mBluetoothPanServer.enableBtPan(getApplicationContext(),true);
+            }
+            if("disable_pan".equals(data)){
+                //如果客户端发来 enable_pan 开启蓝牙共享 服务端
+                mBluetoothPanServer = new BluetoothPanServer();
+                mBluetoothPanServer.enableBtPan(getApplicationContext(),false);
             }
             if("enable_wifi".equals(data)){
                 //如果客户端发来 enable_wifi 开启wifi
@@ -245,7 +255,7 @@ public class GattService extends Service {
                     e.printStackTrace();
                 }
             }
-            serverManager.setMyCharacteristicValue("received");
+            serverManager.setMyCharacteristicValue("received:"+data);
 
         });
     }

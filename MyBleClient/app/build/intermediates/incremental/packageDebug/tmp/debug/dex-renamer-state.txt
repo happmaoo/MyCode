@@ -1,4 +1,4 @@
-#Thu Dec 25 12:08:37 CST 2025
+#Fri Dec 26 09:53:11 CST 2025
 base.0=/home/happmaoo/temp/lineage15.1/MyBleClient/app/build/intermediates/dex/debug/mergeExtDexDebug/out/classes.dex
 path.1=classes.dex
 renamed.1=classes2.dex

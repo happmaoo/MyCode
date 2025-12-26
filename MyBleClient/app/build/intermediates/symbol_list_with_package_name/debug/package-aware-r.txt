@@ -690,7 +690,9 @@ id center_horizontal
 id center_vertical
 id chains
 id checkBox_autoconn
+id checkBox_autopan
 id checkBox_pan
+id checkBox_wifi
 id checkbox
 id chronometer
 id clip_horizontal
@@ -783,7 +785,6 @@ id standard
 id start
 id submenuarrow
 id submit_area
-id switch_wifi
 id tabMode
 id tag_transition_group
 id tag_unhandled_key_event_manager

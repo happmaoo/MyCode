@@ -681,6 +681,7 @@ id bottom
 id btn_send
 id btn_stop
 id buttonPanel
+id button_save
 id center
 id center_horizontal
 id center_vertical
@@ -700,6 +701,7 @@ id dimensions
 id direct
 id disableHome
 id editText
+id editText_apps
 id edit_query
 id end
 id expand_activities_button

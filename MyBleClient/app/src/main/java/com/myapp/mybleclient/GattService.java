@@ -179,6 +179,20 @@ public class GattService extends Service {
 
             sendMessageToAll(message);
 
+            if ("enable_pan".equals(message)) {
+
+                if (!clientManagers.isEmpty()) {
+                    String firstAddress = clientManagers.keySet().iterator().next();
+                    BluetoothDevice device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice(firstAddress);
+                    Log.d(TAG, "DataPlane: Triggering PAN connection for " + firstAddress);
+                    connectPan(device);
+                } else {
+                    Log.e(TAG, "No device connected to perform PAN connection");
+                }
+            }
+            if("disable_pan".equals(message)){
+                disconnectPan();
+            }
             if("enable_wifi".equals(message)){
                 //打开服务端热点的同时还要打开本机 wifi
                 setWifiEnabled(true);
@@ -212,9 +226,9 @@ public class GattService extends Service {
             ClientManager manager = new ClientManager(this, device.getAddress());
 
             manager.connect(device)
-                    .retry(3, 1000)      // 如果失败（包括 status 22），重试 3 次，每次间隔
-                    .useAutoConnect(true)
-                    .timeout(30000)     // 设置 秒超时
+                    .retry(10, 2000)      // 如果连接失败，重试10次
+                    .useAutoConnect(false) // 保持 false，但配合 retry 使用
+                    .timeout(10000)        // 10秒超时
                     .enqueue();
 
             clientManagers.put(device.getAddress(), manager);
@@ -330,6 +344,17 @@ public class GattService extends Service {
             @Override
             protected void initialize() {
 
+                // 安卓最大 517, UTF-8 可发送 514 个英文 / 171 个中文
+                // 大的 mtu 也会导致传输可靠性易受干扰降低 158 比较折中
+                requestMtu(158)
+                        .with((device, mtu) -> {
+                            Log.d(TAG, "MTU 协商完成，当前 MTU: " + mtu);
+                        })
+                        .fail((device, status) -> {
+                            Log.e(TAG, "MTU 请求失败，状态码: " + status);
+                        })
+                        .enqueue();
+
                 // 数据通知
                 setNotificationCallback(myChar).with((device, data) -> {
                     byte[] bytes = data.getValue();
@@ -395,15 +420,15 @@ public class GattService extends Service {
                 }
 
                 //如果pan是勾选的，首先打开服务端的 bt-tether
-                boolean sp_pan = app.getBoolean("pan", false);
-                if(sp_pan){sendMessageToAll("enable_pan");}
+                boolean sp_autopan = app.getBoolean("autopan", false);
+                if(sp_autopan){sendMessageToAll("enable_pan");}
 
 
                 // 如果该设备支持 PAN，尝试连接
                 BluetoothDevice device = getBluetoothDevice();
                 if (device.getBondState() == BluetoothDevice.BOND_BONDED) {
                     // 调用外部类的 connectPan 方法
-                    if(sp_pan){connectPan(device);}
+                    if(sp_autopan){connectPan(device);}
                 }
             }
 

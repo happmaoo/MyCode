@@ -6,11 +6,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
@@ -28,9 +30,9 @@ import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
     private GattServiceConn gattServiceConn;
-    EditText editText;
+    EditText editText,editText_apps;
     TextView textView_rec;
-    Button btn_send,btn_stop;
+    Button btn_send,btn_stop,button_save;
 
     MyApp app;
 
@@ -64,8 +66,18 @@ public class MainActivity extends AppCompatActivity {
         btn_send = findViewById(R.id.btn_send);
         btn_stop = findViewById(R.id.btn_stop);
 
+        button_save = findViewById(R.id.button_save);
+        editText_apps = findViewById(R.id.editText_apps);
+
         // SharedPreferences
         app = (MyApp) getApplication();
+
+        String apps = app.getString("apps","");
+        editText_apps.setText(app.getString("apps",""));
+
+        //通知权限
+        checkAndRequestPermission(this);
+        setNotifServiceEnabled(this,true);
 
 
         // 异步检查 root 权限，避免阻塞主线程
@@ -103,16 +115,43 @@ public class MainActivity extends AppCompatActivity {
         btn_stop.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 1. 停止服务
+
+                // 命令监听器服务去主动解绑 GattService 不然停不掉服务
+                Intent unbindIntent = new Intent(MainActivity.this, MyNotificationListenerService.class);
+                unbindIntent.setAction("ACTION_FORCE_UNBIND");
+                startService(unbindIntent);
+
+
+
+                setNotifServiceEnabled(MainActivity.this, false);
+
+
+                // 2. 停止 GattService
+                Intent intent = new Intent(MainActivity.this, GattService.class);
                 stopService(intent);
-                // 3. 延迟退出，确保服务完全停止
-                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        finishAffinity();
-                        System.exit(0);
-                    }
-                }, 500); // 延迟500ms确保服务停止
+
+                // 3. Activity 自身解绑并退出
+                if (gattServiceConn != null) {
+                    unbindService(gattServiceConn);
+                    gattServiceConn = null;
+                }
+
+
+                finishAffinity();
+                //System.exit(0); // 强制退出当前进程 ,不然退不掉
+
+            }
+        });
+
+
+        //-----------Button save----------------
+        button_save.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String inputText = editText_apps.getText().toString().trim();
+                app.setString("apps",inputText);
+                Toast.makeText(MainActivity.this, "Saved.", Toast.LENGTH_SHORT).show();
+                //app.setString("apps","com.tencent.mobileqq,net.dinglisch.android.taskerm");
             }
         });
 
@@ -159,13 +198,23 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
 
-        // 这里不停止服务，只解绑和取消注册广播
+        // 统一在这里处理残留资源的释放
         if (gattServiceConn != null) {
-            unbindService(gattServiceConn);
+            try {
+                unbindService(gattServiceConn);
+            } catch (Exception e) {
+                // 防止重复解绑
+            }
             gattServiceConn = null;
         }
-        // 取消注册广播接收器
-        unregisterReceiver(bleDataReceiver);
+
+        // 使用 try-catch 保护，防止 Receiver 未注册时调用导致崩溃
+        try {
+            unregisterReceiver(bleDataReceiver);
+        } catch (IllegalArgumentException e) {
+            // 说明已经注销过了，忽略即可
+        }
+
     }
 
 
@@ -217,6 +266,49 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+
+    // 通知权限读取
+    // 检查权限是否开启
+    public static boolean isNotificationServiceEnabled(Context context) {
+        String enabledListeners = Settings.Secure.getString(
+                context.getContentResolver(),
+                "enabled_notification_listeners"
+        );
+        return enabledListeners != null && enabledListeners.contains(context.getPackageName());
+    }
+
+    // 跳转到通知访问权限设置
+    public static void requestNotificationPermission(Context context) {
+        Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        context.startActivity(intent);
+    }
+
+    // 检查并跳转（如果未开启）
+    public static boolean checkAndRequestPermission(Context context) {
+        if (!isNotificationServiceEnabled(context)) {
+            requestNotificationPermission(context);
+            return false;
+        }
+        return true;
+    }
+
+
+
+    // 启用 禁用 MyNotificationListenerService
+    public void setNotifServiceEnabled(Context context, boolean enable) {
+        ComponentName componentName = new ComponentName(context, MyNotificationListenerService.class);
+
+        int newState = enable ?
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED :
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
+
+        context.getPackageManager().setComponentEnabledSetting(
+                componentName,
+                newState,
+                PackageManager.DONT_KILL_APP);
+
+    }
 
 
 
