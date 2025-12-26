@@ -49,7 +49,7 @@ public class MainActivity extends AppCompatActivity {
 
                 // 在主线程更新UI
                 runOnUiThread(() -> {
-                    textView_rec.append(data + "\n");
+                    textView_rec.append(data);
                 });
 
             }

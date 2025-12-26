@@ -206,15 +206,15 @@ public class GattService extends Service {
 
         // 记录日志到文件
         String tm = getCurrentTime();
-        String logdata = tm + ":" + data + "\n";
+        String logdata = tm + ": " + data + "\n";
         allLog = allLog + logdata;
         app.setString("log", allLog);
 
         new Handler(Looper.getMainLooper()).post(() -> {
             Intent intent = new Intent("com.myapp.BLE_DATA_RECEIVED");
-            intent.putExtra("data", data);
+            intent.putExtra("data", logdata);
             sendBroadcast(intent);
-            Log.d(TAG, "已发送广播: " + data );
+            Log.d(TAG, "已发送广播: " + logdata );
 
             if("enable_pan".equals(data)){
                 //如果客户端发来 enable_pan 开启蓝牙共享 服务端

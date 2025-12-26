@@ -1,7 +1,7 @@
-#Fri Dec 26 09:53:11 CST 2025
-base.0=/home/happmaoo/temp/lineage15.1/MyBleClient/app/build/intermediates/dex/debug/mergeExtDexDebug/out/classes.dex
+#Fri Dec 26 10:07:52 CST 2025
+base.0=/home/happmaoo/AndroidStudioProjects/MyBleClient/app/build/intermediates/dex/debug/mergeExtDexDebug/out/classes.dex
 path.1=classes.dex
 renamed.1=classes2.dex
 path.0=classes.dex
 renamed.0=classes.dex
-base.1=/home/happmaoo/temp/lineage15.1/MyBleClient/app/build/intermediates/dex/debug/mergeProjectDexDebug/out/classes.dex
+base.1=/home/happmaoo/AndroidStudioProjects/MyBleClient/app/build/intermediates/dex/debug/mergeProjectDexDebug/out/classes.dex

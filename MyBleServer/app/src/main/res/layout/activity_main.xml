@@ -47,9 +47,10 @@
         android:padding="8dp"
         android:scrollbars="vertical"
         android:text=""
+        android:fontFamily="monospace"
         android:textColor="@android:color/black"
         android:textIsSelectable="true"
-        android:textSize="12sp" />
+        android:textSize="10sp" />
 
 
 
