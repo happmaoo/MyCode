@@ -16,8 +16,8 @@ https://github.com/happmaoo/MyCode/tree/main/clockwidget/app/release
 红米Note4x和lineageOS自带的收音机不好用，自己写的代码，需要root。
 
 # 测试用的项目:
-MyBluetooth 用于打开蓝牙网络共享的客户端和服务端
-blescan ble扫描代码
+MyBluetooth 用于打开蓝牙网络共享的客户端和服务端  
+blescan ble扫描代码  
 
 ---
 
