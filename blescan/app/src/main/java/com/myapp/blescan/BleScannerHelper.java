@@ -35,8 +35,10 @@ public class BleScannerHelper {
         void onNewDeviceFound(String info);
     }
 
+    //这是一个变量，用来保存“外部给我的那个人”
     private OnScanResultListener mListener;
 
+    //“外部把自己交给我，我帮你存起来”
     public void setOnScanResultListener(OnScanResultListener listener) {
         this.mListener = listener;
     }

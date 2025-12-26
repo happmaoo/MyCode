@@ -41,6 +41,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         textView_log = findViewById(R.id.textView_log);
 
+        //把自己“注册”给扫描器
         mBleScannerHelper = new BleScannerHelper(this);
 
 
