@@ -1,41 +1,48 @@
-// Top-level build file
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
 buildscript {
+    
     repositories {
-        // 1. 强制最优先使用阿里云镜像
-        // 腾讯云/阿里云 maven 镜像聚合了：central、jcenter、google、gradle-plugin
-        maven { url 'https://mirrors.cloud.tencent.com/gradle/'}
-        maven { url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/' }
-
-        maven { url 'https://maven.aliyun.com/repository/central' }
-        // jcenter & public
-        maven { url 'https://maven.aliyun.com/repository/public' }
-        maven { url 'https://maven.aliyun.com/repository/google' }
-        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
-
-        // 只有当前面镜像找不到时，才走官方（虽然在国内通常走不通）
-        google()
-        mavenCentral()
+         // 1. 强制最优先使用阿里云镜像  
+        // 腾讯云/阿里云 maven 镜像聚合了：central、jcenter、google、gradle-plugin  
+        maven { url 'https://mirrors.cloud.tencent.com/gradle/'}  
+        maven { url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/' }  
+  
+        maven { url 'https://maven.aliyun.com/repository/central' }  
+        // jcenter & public  
+        maven { url 'https://maven.aliyun.com/repository/public' }  
+        maven { url 'https://maven.aliyun.com/repository/google' }  
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }  
+        // 只有当前面镜像找不到时，才走官方（虽然在国内通常走不通）  
+        google()  
+        mavenCentral()  
+        
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:3.6.2'
+        
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
     }
 }
 
 allprojects {
     repositories {
-        // 2. 同样的，项目依赖也要走镜像
-        // 腾讯云/阿里云 maven 镜像聚合了：central、jcenter、google、gradle-plugin
-        maven { url 'https://mirrors.cloud.tencent.com/gradle/'}
-        maven { url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/' }
-
-        maven { url 'https://maven.aliyun.com/repository/central' }
-        // jcenter & public
-        maven { url 'https://maven.aliyun.com/repository/public' }
-        maven { url 'https://maven.aliyun.com/repository/google' }
-        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
-
-        google()
-        mavenCentral()
+        // 2. 同样的，项目依赖也要走镜像  
+        // 腾讯云/阿里云 maven 镜像聚合了：central、jcenter、google、gradle-plugin  
+        maven { url 'https://mirrors.cloud.tencent.com/gradle/'}  
+        maven { url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/' }  
+  
+        maven { url 'https://maven.aliyun.com/repository/central' }  
+        // jcenter & public  
+        maven { url 'https://maven.aliyun.com/repository/public' }  
+        maven { url 'https://maven.aliyun.com/repository/google' }  
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }  
+  
+        google()  
+        mavenCentral()  
+        
     }
 }
 
