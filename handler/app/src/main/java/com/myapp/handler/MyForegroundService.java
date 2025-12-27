@@ -21,7 +21,14 @@ public class MyForegroundService extends Service {
     private static final String CHANNEL_ID = "ForegroundServiceChannel";
 
     // 1. 服务端的邮递员：处理来自 Activity 的信件
+    // Handler 就是管家：外人只能把信件（Message）交给管家
+
     private final Handler serviceHandler = new Handler(Looper.getMainLooper()) {
+
+
+        // 你在 Activity 里调用 mServiceMessenger.send(msg) 这就像你把一封信投进了邮筒。
+        // 管理员发现收件人是你的 UiHandler，就会自动触发 handleMessage 方法
+
         @Override
         public void handleMessage(Message msgFromActivity) {
             // 收到 Activity 的信
@@ -43,6 +50,9 @@ public class MyForegroundService extends Service {
     };
 
     // 3. 把 Handler 包装成 Messenger（对外窗口）
+    // serviceMessenger (在服务里)： 这是本体。就像是 Service 在自己办公室里安装的一台固定基站。它连接着 serviceHandler（服务端的管家）。
+    // mServiceMessenger (在 Activity 里)： 这是副本（分机）。当 Activity 绑定服务成功时，Service 把“基站”的频道参数发给了 Activity，Activity 据此创建了一台一模一样的对讲机。
+
     private final Messenger serviceMessenger = new Messenger(serviceHandler);
 
 
@@ -65,6 +75,7 @@ public class MyForegroundService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         // 当 Activity 绑定时，返回这个 Messenger 的“地址”
+        // Service 说：这是我的对外窗口，拿着！
         return serviceMessenger.getBinder();
     }
 
