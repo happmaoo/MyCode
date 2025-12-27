@@ -18,6 +18,8 @@ https://github.com/happmaoo/MyCode/tree/main/clockwidget/app/release
 # 测试用的项目:
 MyBluetooth 用于打开蓝牙网络共享的客户端和服务端  
 blescan ble扫描代码  
+MyWiFiDirect 连接后可以手动运行 python ftp 收发文件  
+
 
 ---
 
