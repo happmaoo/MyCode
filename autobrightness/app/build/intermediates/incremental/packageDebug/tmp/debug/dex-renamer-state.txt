@@ -1,4 +1,4 @@
-#Tue Dec 30 15:51:31 CST 2025
+#Tue Dec 30 16:25:39 CST 2025
 base.0=/home/happmaoo/AndroidStudioProjects/autobrightness/app/build/intermediates/dex/debug/mergeExtDexDebug/out/classes.dex
 path.1=classes.dex
 renamed.1=classes2.dex

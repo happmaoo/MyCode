@@ -1291,6 +1291,7 @@ string abc_shareactionprovider_share_with
 string abc_shareactionprovider_share_with_application
 string abc_toolbar_collapse_description
 string app_name
+string sample_string
 string search_menu_title
 string status_bar_notification_info_overflow
 style AlertDialog_AppCompat
