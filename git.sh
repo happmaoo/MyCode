@@ -9,15 +9,13 @@ find . -name ".gitignore" -exec sed -i '/^\/build$/d' {} \;
 echo "完成"
 
 
+echo "apk 改名"
 find /home/happmaoo/MyCode -name "*.apk" -type f | while read file; do
     dir=$(dirname "$file")
-    
     # 提取项目名（MyCode目录下的第一级子目录名）
     project_name=$(echo "$file" | sed 's|/home/happmaoo/MyCode/||' | cut -d'/' -f1)
-    
     # 提取原文件名（不带路径和扩展名）
     old_name=$(basename "$file" .apk)
-    
     # 如果原文件名不是项目名，则重命名
     if [ "$old_name" != "$project_name" ]; then
         mv "$file" "$dir/${project_name}.apk"
