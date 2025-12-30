@@ -15,6 +15,12 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.provider.Settings;
+import android.telephony.PhoneStateListener;
+import android.telephony.ServiceState;
+import android.telephony.SignalStrength;
+import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -25,6 +31,7 @@ import java.io.DataOutputStream;
 import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -56,6 +63,11 @@ public class GattService extends Service {
 
     MyApp app;
     private String allLog = "";
+
+    private List<TelephonyManager> managerList = new ArrayList<>();
+    private List<MyPhoneStateListener> listenerList = new ArrayList<>();
+    private int SigLevel = -1; // 记录上次信号
+
 
     public static class MyServiceProfile {
         // 标准电池服务 UUID
@@ -96,6 +108,9 @@ public class GattService extends Service {
         // SharedPreferences
         app = (MyApp) getApplication();
 
+
+        startListening();
+
     }
 
     private void setupForeground() {
@@ -121,8 +136,8 @@ public class GattService extends Service {
 
         // 设置通知属性
         builder.setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setContentTitle("GATT Server")
-                .setContentText("服务正在后台运行")
+                .setContentTitle("MyBleServer")
+                .setContentText("running")
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setAutoCancel(true);
 
@@ -181,6 +196,11 @@ public class GattService extends Service {
         }
         Toast.makeText(this, "电池监听服务已停止", Toast.LENGTH_SHORT).show();
         app.remove("log");
+
+        // 取消信号监测
+        for (int i = 0; i < managerList.size(); i++) {
+            managerList.get(i).listen(listenerList.get(i), PhoneStateListener.LISTEN_NONE);
+        }
     }
 
     @Nullable
@@ -271,6 +291,12 @@ public class GattService extends Service {
         private final Context mContext;
 
         private final GattService gattService; // 新增：保存外部类引用
+
+        // 默认打印日志。不用调用
+        @Override
+        public void log(int priority, @NonNull String message) {
+            android.util.Log.println(priority, "GATT_SERVER", message);
+        }
 
 
         ServerManager(@NonNull Context context, GattService service) {
@@ -363,6 +389,10 @@ public class GattService extends Service {
 
             if (gattService != null) {
                 gattService.sendBroadcastData(device.getAddress() + " " + "Connected");
+                // ---  延迟 3 秒发送信号检测 ---
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    this.setMyCharacteristicValue("sig:" + gattService.SigLevel);
+                }, 3000);
             }
         }
 
@@ -380,6 +410,7 @@ public class GattService extends Service {
 
         // 内部类：管理单个连接
         private class ServerConnection extends BleManager {
+
             private final WeakReference<GattService> serviceRef; // 新增
             ServerConnection(GattService service) { // 修改构造函数
                 super(mContext);
@@ -483,4 +514,78 @@ public class GattService extends Service {
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
         return sdf.format(new Date());
     }
+
+
+
+
+
+
+    // 信号监测
+    private void startListening() {
+        SubscriptionManager subManager = (SubscriptionManager) getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+        TelephonyManager baseTM = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+
+        try {
+            List<SubscriptionInfo> subInfoList = subManager.getActiveSubscriptionInfoList();
+            if (subInfoList != null) {
+                for (SubscriptionInfo info : subInfoList) {
+                    // 只处理卡槽 1 = sim卡2
+                    if (info.getSimSlotIndex() == 1) {
+                        int subId = info.getSubscriptionId();
+
+                        TelephonyManager specificManager = baseTM.createForSubscriptionId(subId);
+                        MyPhoneStateListener listener = new MyPhoneStateListener(1);
+
+                        specificManager.listen(listener,
+                                PhoneStateListener.LISTEN_SIGNAL_STRENGTHS |
+                                        PhoneStateListener.LISTEN_SERVICE_STATE);
+
+                        managerList.add(specificManager);
+                        listenerList.add(listener);
+
+                        Log.d(TAG, "已成功开启卡槽 1 的信号监听 (SubId: " + subId + ")");
+                        break; // 找到卡槽 1 后跳出循环
+                    }
+                }
+            }
+        } catch (SecurityException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private class MyPhoneStateListener extends PhoneStateListener {
+        private int slotIndex;
+        private boolean isOutOfService = false;
+
+        public MyPhoneStateListener(int slotIndex) { this.slotIndex = slotIndex; }
+
+        @Override
+        public void onServiceStateChanged(ServiceState serviceState) {
+            isOutOfService = (serviceState.getState() != ServiceState.STATE_IN_SERVICE);
+            if (isOutOfService) {
+                handleLevelUpdate(0);
+            }
+        }
+
+        @Override
+        public void onSignalStrengthsChanged(SignalStrength signalStrength) {
+            int level = isOutOfService ? 0 : signalStrength.getLevel();
+            handleLevelUpdate(level);
+        }
+
+        // 只有数值变化才打印和发送
+        private void handleLevelUpdate(int currentLevel) {
+            if (currentLevel != SigLevel) {
+                SigLevel = currentLevel;
+                Log.i("signal:slot:", slotIndex + ":" + currentLevel);
+                serverManager.setMyCharacteristicValue("sig:"+ currentLevel);
+            }
+        }
+    }
+
+
+
+
+
+
 }

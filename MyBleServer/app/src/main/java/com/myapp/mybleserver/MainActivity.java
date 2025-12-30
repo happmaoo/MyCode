@@ -1,5 +1,6 @@
 package com.myapp.mybleserver;
 
+import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -22,6 +23,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 
 import java.io.DataOutputStream;
 import java.text.SimpleDateFormat;
@@ -82,7 +84,6 @@ public class MainActivity extends AppCompatActivity {
 
         // 异步检查 root 权限，避免阻塞主线程
         checkRootInBackground();
-
 
         // 启动 GattService
         Intent intent = new Intent(this, GattService.class);
@@ -285,7 +286,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // 检查并跳转（如果未开启）
-    public static boolean checkAndRequestPermission(Context context) {
+    public boolean checkAndRequestPermission(Context context) {
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.READ_PHONE_STATE}, 1);
+            return false;
+        }
+
+
         if (!isNotificationServiceEnabled(context)) {
             requestNotificationPermission(context);
             return false;

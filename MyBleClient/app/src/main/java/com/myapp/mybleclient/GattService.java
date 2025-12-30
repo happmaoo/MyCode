@@ -13,6 +13,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Color;
 import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
@@ -22,6 +23,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import java.io.DataOutputStream;
@@ -66,7 +68,10 @@ public class GattService extends Service {
     private boolean isDestroying = false;
 
     MyApp app;
-    private String allLog = "";
+    private static String allLog = "";
+    public static void clearlog() {
+        allLog = "";
+    }
 
     @Override
     public void onCreate() {
@@ -222,6 +227,7 @@ public class GattService extends Service {
     }
 
     private void addDevice(BluetoothDevice device) {
+
         if (!clientManagers.containsKey(device.getAddress())) {
             ClientManager manager = new ClientManager(this, device.getAddress());
 
@@ -252,9 +258,20 @@ public class GattService extends Service {
 
 
     /**
-     * 发送广播通知数据接收
+     * 数据接收, 发送广播通知
      */
     private void broadcastData(String value) {
+
+
+        // 如果消息是 notif 则弹出通知
+        if(value.startsWith("notif:")){
+            notif(value);
+        }
+        if(value.startsWith("sig:")){
+            int sigInt = Integer.parseInt(value.substring(4));
+            app.setInt("sig", sigInt);
+        }
+
 
         String tm = getCurrentTime();
         value = tm + ":" + value + "\n";
@@ -284,6 +301,12 @@ public class GattService extends Service {
         public ClientManager(@NonNull Context context, String address) {
             super(context);
             this.deviceAddress = address;
+        }
+
+        // 默认打印日志。不用调用
+        @Override
+        public void log(int priority, @NonNull String message) {
+            android.util.Log.println(priority, "GATT_Client", message);
         }
 
         // 辅助方法：确保任何时候都能拿到真实的设备对象
@@ -417,6 +440,11 @@ public class GattService extends Service {
                 // 读取初始电池电量
                 if (batteryChar != null) {
                     readBatteryLevel();
+                }
+
+                if (myChar != null) {
+                    enableNotifications(myChar).enqueue();
+                    Log.d(TAG, "重连成功：显式重新开启通知");
                 }
 
                 //如果pan是勾选的，首先打开服务端的 bt-tether
@@ -682,4 +710,42 @@ public class GattService extends Service {
     }
 
 
+    // 弹出通知方法
+    private void notif(String msg) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // 使用 IMPORTANCE_HIGH 或 IMPORTANCE_MAX 来弹出通知
+            NotificationChannel channel = new NotificationChannel(
+                    "notif",
+                    "notif",
+                    NotificationManager.IMPORTANCE_HIGH  // 这个级别会弹出通知
+            );
+            channel.setDescription("notif 通知");
+
+            // 设置弹出效果
+            channel.enableLights(true);
+            channel.setLightColor(Color.BLUE);
+
+
+            // 显示在锁屏上
+            channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, "notif")
+                    .setSmallIcon(R.drawable.ic_notif)
+                    .setContentTitle("notif")
+                    .setContentText(msg)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH) // 优先级设为 HIGH
+                    .setAutoCancel(true) // 点击后自动消失
+                    .setDefaults(NotificationCompat.DEFAULT_ALL); // 使用默认声音、震动等
+
+
+            // 发送通知
+            int notificationId = (int) System.currentTimeMillis(); // 使用时间戳作为唯一ID
+            NotificationManagerCompat.from(this).notify(notificationId, builder.build());
+        }
+    }
 }

@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "/home/happmaoo/temp/lineage15.1/MyBleClient/app/build/intermediates/incremental/mergeDebugResources/merged.dir/values-pl/values-pl.xml",
+            "outputFile": "/home/happmaoo/AndroidStudioProjects/MyBleClient/app/build/intermediates/incremental/mergeDebugResources/merged.dir/values-pl/values-pl.xml",
             "map": [
                 {
                     "source": "/home/happmaoo/.gradle/caches/transforms-2/files-2.1/9442e2deaa13c1c57ceecb67bd85baf8/appcompat-1.0.2/res/values-pl/values-pl.xml",

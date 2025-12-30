@@ -682,6 +682,7 @@ id barrier
 id beginning
 id blocking
 id bottom
+id btn_clear
 id btn_send
 id btn_stop
 id buttonPanel

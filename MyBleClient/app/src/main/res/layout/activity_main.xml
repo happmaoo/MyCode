@@ -154,7 +154,11 @@
             android:textColor="@android:color/black"
             android:textIsSelectable="true"
             android:textSize="12sp" />
-
+        <Button
+            android:id="@+id/btn_clear"
+            android:layout_width="70dp"
+            android:layout_height="wrap_content"
+            android:text="Clear" />
 
     </LinearLayout>
 

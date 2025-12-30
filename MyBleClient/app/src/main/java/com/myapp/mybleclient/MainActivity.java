@@ -37,7 +37,7 @@ public class MainActivity extends AppCompatActivity {
     private GattService.DataPlane mDataPlane;
     private EditText editText_send;
     private TextView textView_rec,textView_bt,textView_bat,textView_sig;
-    private Button btn_send,btn_stop;
+    private Button btn_send,btn_stop,btn_clear;
     private boolean mIsBound = false;
     private CheckBox checkBox_autoconn,checkBox_autopan,checkBox_pan,checkBox_wifi;
     private Switch switch_wifi;
@@ -54,6 +54,7 @@ public class MainActivity extends AppCompatActivity {
     Boolean conncted = false;
     String addr = "";
     int bat = 0;
+    int sig = -1;
 
 
     // 2. 定义服务连接器
@@ -83,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
         editText_send = findViewById(R.id.editText_send);
         btn_send = findViewById(R.id.btn_send);
         btn_stop = findViewById(R.id.btn_stop);
+        btn_clear = findViewById(R.id.btn_clear);
         checkBox_autoconn = findViewById(R.id.checkBox_autoconn);
         checkBox_autopan = findViewById(R.id.checkBox_autopan);
         checkBox_pan = findViewById(R.id.checkBox_pan);
@@ -132,6 +134,18 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+
+        //-----------Button clear----------------
+        btn_clear.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                textView_rec.setText("");
+                app.remove("log");
+                GattService.clearlog();
+
+            }
+        });
+
         // checkBox_autoconn
         checkBox_autoconn.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
@@ -178,9 +192,10 @@ public class MainActivity extends AppCompatActivity {
 
                 textView_bat.setText("0");
                 app.setInt("bat", 0);
+                app.setInt("sig", -1);
 
 
-                refreshicon();
+                refreshdata();
             } else {
                 startService(intent);
                 bindService(intent, mServiceConnection, Context.BIND_AUTO_CREATE);
@@ -201,6 +216,12 @@ public class MainActivity extends AppCompatActivity {
         checkBox_pan.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
                 if (mDataPlane != null) {
+                    //如果wifi选中，先取消
+                    if(checkBox_wifi.isChecked()==true){
+                        checkBox_wifi.setChecked(false);
+                        mDataPlane.send("disable_wifi");
+                        app.setwifi(false);
+                    }
                     mDataPlane.send("enable_pan");
                     app.setpan(true);
                 }
@@ -216,6 +237,12 @@ public class MainActivity extends AppCompatActivity {
         checkBox_wifi.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
                 if (mDataPlane != null) {
+                    //如果pan选中，先取消
+                    if(checkBox_pan.isChecked()==true){
+                        checkBox_pan.setChecked(false);
+                        mDataPlane.send("disable_pan");
+                        app.setpan(false);
+                    }
                     mDataPlane.send("enable_wifi");
                     app.setwifi(true);
                 }
@@ -245,21 +272,6 @@ public class MainActivity extends AppCompatActivity {
                     Log.d("MainActivity", "Received: " + data);
                     textView_rec.append(data);
 
-                    // textView_rec 滚动到底部
-                    textView_rec.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            int scrollAmount = textView_rec.getLayout().getLineTop(textView_rec.getLineCount())
-                                    - textView_rec.getHeight();
-                            if (scrollAmount > 0) {
-                                textView_rec.scrollTo(0, scrollAmount);
-                            } else {
-                                textView_rec.scrollTo(0, 0);
-                            }
-                        }
-                    });
-
-
                     // 提取 server 发来的内容
                     Pattern pattern = Pattern.compile("(\\d{2}:\\d{2}:\\d{2}):([a-zA-Z]+):");
                     Matcher matcher = pattern.matcher(data);
@@ -280,7 +292,8 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
 
-                refreshicon();
+                // 接收到通知后自动更新界面数值
+                refreshdata();
             }
         };
         if (!isReceiverRegistered) {
@@ -331,7 +344,7 @@ public class MainActivity extends AppCompatActivity {
         } else {
             btn_stop.setText("Start");
         }
-        refreshicon();
+        refreshdata();
     }
 
 
@@ -369,11 +382,13 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-    public void refreshicon(){
+    public void refreshdata(){
         conncted = app.getBoolean("connected",false);
 
         addr  = app.getString("addr","");
         bat  = app.getInt("bat",0);
+        sig  = app.getInt("sig",0);
+
         if(conncted){
             imageView_bt.setColorFilter(Color.parseColor(color1));
             textView_bt.setText(addr);
@@ -382,12 +397,19 @@ public class MainActivity extends AppCompatActivity {
             imageView_bat.setColorFilter(Color.parseColor(color1));
             textView_bat.setText(String.valueOf(bat));
             textView_bat.setTextColor(Color.parseColor(textcolor1));
+
+            imageView_sig.setColorFilter(Color.parseColor(color1));
+            textView_sig.setText(String.valueOf(sig));
+            textView_sig.setTextColor(Color.parseColor(textcolor1));
         }else{
             imageView_bt.setColorFilter(Color.parseColor(color2));
             textView_bt.setTextColor(Color.parseColor(textcolor2));
 
             imageView_bat.setColorFilter(Color.parseColor(color2));
             textView_bat.setTextColor(Color.parseColor(textcolor2));
+
+            imageView_sig.setColorFilter(Color.parseColor(color2));
+            textView_sig.setTextColor(Color.parseColor(textcolor2));
         }
     }
 
