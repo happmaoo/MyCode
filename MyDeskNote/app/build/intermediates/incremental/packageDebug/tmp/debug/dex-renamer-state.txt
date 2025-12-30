@@ -1,0 +1,7 @@
+#Tue Dec 30 13:41:37 CST 2025
+base.0=/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/build/intermediates/dex/debug/mergeExtDexDebug/out/classes.dex
+path.1=classes.dex
+renamed.1=classes2.dex
+path.0=classes.dex
+renamed.0=classes.dex
+base.1=/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/build/intermediates/dex/debug/mergeProjectDexDebug/out/classes.dex

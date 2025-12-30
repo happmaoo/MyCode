@@ -17,6 +17,10 @@ https://github.com/happmaoo/MyCode/tree/main/MyBleClient/app/build/outputs/apk/d
 ## MyFM 红米Note4x 的收音机APP
 红米Note4x和lineageOS自带的收音机不好用，自己写的代码，需要root。
 
+## MyDeskNote 超小的桌面便签APP
+功能简单，可以设置字体大小，可以很小，不占用桌面空间。
+https://github.com/happmaoo/MyCode/tree/main/MyDeskNote/app/build/outputs/apk/debug/
+
 # 测试用的项目:
 MyBluetooth 用于打开蓝牙网络共享的客户端和服务端  
 blescan ble扫描代码  
