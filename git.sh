@@ -9,6 +9,16 @@ find . -name ".gitignore" -exec sed -i '/^\/build$/d' {} \;
 echo "完成"
 
 
+for dir in /home/happmaoo/MyCode/*/app/build/outputs/apk/debug/; do
+    if [ -f "$dir/app-debug.apk" ]; then
+        project_name=$(basename "$(dirname "$(dirname "$(dirname "$(dirname "$dir")")")")")
+        mv "$dir/app-debug.apk" "$dir/${project_name}.apk"
+    fi
+done
+
+
+
+
 mdate=$(date +'%Y-%m-%d-%H-%M-%S')
 
 # 使用 head -n 10 限制输出行数，避免参数超长
