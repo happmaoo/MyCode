@@ -9,11 +9,10 @@ find . -name ".gitignore" -exec sed -i '/^\/build$/d' {} \;
 echo "完成"
 
 
-for dir in /home/happmaoo/MyCode/*/app/build/outputs/apk/debug/; do
-    if [ -f "$dir/app-debug.apk" ]; then
-        project_name=$(basename "$(dirname "$(dirname "$(dirname "$(dirname "$dir")")")")")
-        mv "$dir/app-debug.apk" "$dir/${project_name}.apk"
-    fi
+find /home/happmaoo/MyCode -name "*.apk" -type f | while read file; do
+    dir=$(dirname "$file")
+    parent_name=$(basename "$(dirname "$(dirname "$(dirname "$(dirname "$dir")")")")")
+    mv "$file" "$dir/${parent_name}.apk"
 done
 
 
