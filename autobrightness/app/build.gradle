@@ -1,17 +1,15 @@
-plugins {
-    alias(libs.plugins.android.application)
-}
+apply plugin: 'com.android.application'
 
 android {
-    namespace 'com.myapp.autobrightness'
-    compileSdk 34
+    compileSdkVersion 29
+    buildToolsVersion "29.0.3"
 
     defaultConfig {
         applicationId "com.myapp.autobrightness"
-        minSdk 25
-        targetSdk 34
+        minSdkVersion 25
+        targetSdkVersion 29
         versionCode 1
-        versionName "1.1"
+        versionName "2.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -26,16 +24,18 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
+
 }
 
 dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
 
-
-    implementation libs.appcompat
-    implementation libs.material
-    implementation libs.activity
-    implementation libs.constraintlayout
-    testImplementation libs.junit
-    androidTestImplementation libs.ext.junit
-    androidTestImplementation libs.espresso.core
+    implementation 'androidx.appcompat:appcompat:1.3.1'  
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.0'  
+	testImplementation 'junit:junit:4.12'  
+	androidTestImplementation 'androidx.test.ext:junit:1.1.3'  
+	androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'  
+  	
+	implementation 'androidx.activity:activity:1.2.4'
 }

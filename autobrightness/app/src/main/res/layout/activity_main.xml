@@ -1,41 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
-
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="20dp"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:padding="16dp"
     tools:context=".MainActivity">
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        tools:layout_editor_absoluteX="1dp"
-        tools:layout_editor_absoluteY="1dp">
-
+        android:orientation="vertical">
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:orientation="horizontal">
 
             <ImageView
                 android:id="@+id/imageView"
                 android:layout_width="100dp"
-                android:layout_height="wrap_content"
+                android:layout_height="100dp"
                 app:srcCompat="@mipmap/ic_launcher" />
 
             <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="280dp"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:paddingLeft="10dp"
                 android:orientation="vertical">
 
                 <TextView
                     android:id="@+id/text"
-                    android:layout_width="250dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Hello World!"
                     android:textColor="#000000"
@@ -43,17 +42,19 @@
 
                 <EditText
                     android:id="@+id/editTextTextMultiLine"
-                    android:layout_width="250dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:ems="10"
                     android:gravity="start|top"
+                    android:hint="请输入内容"
                     android:inputType="textMultiLine" />
             </LinearLayout>
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
             android:orientation="horizontal">
 
             <Button
@@ -62,21 +63,21 @@
                 android:layout_height="wrap_content"
                 android:onClick="save"
                 android:text="Save"
-                android:textAllCaps="false"
-                tools:layout_editor_absoluteX="163dp"
-                tools:layout_editor_absoluteY="434dp" />
-
-
+                android:textAllCaps="false" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/textView2"
-            android:layout_width="wrap_content"
-            android:layout_height="250dp"
-            android:lines="50"
-            android:scrollbars="vertical"
-            android:text="@string/sample_string" />
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <TextView
+                android:id="@+id/textView2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="10dp"
+                android:text="" />
+        </ScrollView>
 
     </LinearLayout>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</LinearLayout>

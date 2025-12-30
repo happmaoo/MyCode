@@ -1,23 +1,22 @@
 package com.myapp.autobrightness;
 
+import androidx.appcompat.app.AppCompatActivity;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
-
-import androidx.appcompat.app.AppCompatActivity;
-
-import android.content.IntentFilter;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.widget.TextView;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
-import android.os.Build;
-
 
 public class MainActivity extends AppCompatActivity {
     private ScreenOffReceiver screenOffReceiver;
@@ -59,6 +58,16 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "错误, 请在app权限里允许 修改系统设置.", Toast.LENGTH_LONG).show();
         }
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.System.canWrite(this)) {
+                // 如果没有权限，引导用户去设置页面
+                Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                Toast.makeText(this, "请开启修改系统设置权限", Toast.LENGTH_LONG).show();
+            }
+        }
 
         // 初始化SharedPreferences
         sharedPref = getSharedPreferences("app_config", MODE_PRIVATE);
