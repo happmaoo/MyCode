@@ -11,5 +11,5 @@
         android:text="点击输入内容..."
         android:textColor="#333333"
         android:textSize="12sp"
-        android:gravity="top" />
+        android:gravity="center" />
 </LinearLayout>
