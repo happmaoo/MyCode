@@ -998,6 +998,7 @@ id center
 id center_vertical
 id chain
 id chains
+id checkBox
 id checkbox
 id checked
 id chronometer

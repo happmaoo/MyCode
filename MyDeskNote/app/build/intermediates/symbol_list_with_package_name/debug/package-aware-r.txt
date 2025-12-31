@@ -990,6 +990,7 @@ id bounceBoth
 id bounceEnd
 id bounceStart
 id btn
+id btn_clear
 id buttonPanel
 id cache_measures
 id carryVelocity
@@ -1201,6 +1202,7 @@ id view_tree_view_model_store_owner
 id visible
 id visible_removing_fragment_view_tag
 id west
+id widget_root
 id widget_text
 id withText
 id wrap

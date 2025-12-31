@@ -6,9 +6,12 @@ import android.appwidget.AppWidgetProvider;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.widget.RemoteViews;
 
 public class SimpleWidget extends AppWidgetProvider {
+
+
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
         for (int appWidgetId : appWidgetIds) {
@@ -23,6 +26,13 @@ public class SimpleWidget extends AppWidgetProvider {
 
             views.setFloat(R.id.widget_text, "setTextSize", fontSize);
             views.setTextViewText(R.id.widget_text, text);
+
+
+            if (text == null || text.trim().isEmpty()) {
+                views.setInt(R.id.widget_root, "setBackgroundColor", Color.parseColor("#11FFFFE0"));
+            } else {
+                views.setInt(R.id.widget_root, "setBackgroundColor", Color.parseColor("#FFFFE0"));
+            }
 
             // 设置点击意图：跳转到主界面
             Intent intent = new Intent(context, MainActivity.class);

@@ -78,9 +78,9 @@ MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] /home/happm
 	android:testOnly
 		ADDED from /home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:16:9-33
 	android:roundIcon
-		ADDED from /home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:19:9-59
+		ADDED from /home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:19:9-54
 	android:icon
-		ADDED from /home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:17:9-54
+		ADDED from /home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:17:9-49
 	android:allowBackup
 		ADDED from /home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:15:9-35
 	android:theme

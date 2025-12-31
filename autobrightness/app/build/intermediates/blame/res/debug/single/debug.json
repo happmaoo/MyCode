@@ -8,12 +8,12 @@
         "source": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png"
     },
     {
-        "merged": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/build/intermediates/res/merged/debug/drawable_ic_launcher_background.xml.flat",
-        "source": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/res/drawable/ic_launcher_background.xml"
-    },
-    {
         "merged": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/build/intermediates/res/merged/debug/mipmap-hdpi_ic_launcher_foreground.png.flat",
         "source": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/build/intermediates/res/merged/debug/drawable_ic_launcher_background.xml.flat",
+        "source": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/res/drawable/ic_launcher_background.xml"
     },
     {
         "merged": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/build/intermediates/res/merged/debug/mipmap-xxhdpi_ic_launcher_round.png.flat",

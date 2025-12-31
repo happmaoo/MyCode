@@ -14,6 +14,7 @@ import android.os.Handler;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -24,7 +25,7 @@ public class MainActivity extends AppCompatActivity {
 
     SharedPreferences sharedPref;
     SharedPreferences.Editor editor;
-
+    Boolean enableapp;
 
     private BroadcastReceiver lightLevelReceiver = new BroadcastReceiver() {
         @Override
@@ -80,30 +81,32 @@ public class MainActivity extends AppCompatActivity {
         // 首次运行写入配置文件
         if (config == null) {
             editor.putString("config", "lmd:3/2\n0 50\n20 250");
+            editor.putBoolean("enable", false);
             editor.apply();
             config = sharedPref.getString("config", null);
         }
 
+
+        CheckBox checkbox = findViewById(R.id.checkBox);
+
         EditText editText = findViewById(R.id.editTextTextMultiLine);
         editText.setText(config);
+
+
+
 
         // 初始化并注册屏幕状态广播接收器
         screenOffReceiver = new ScreenOffReceiver();
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_SCREEN_OFF); // 监听屏幕关闭
         filter.addAction(Intent.ACTION_SCREEN_ON);  // 监听屏幕开启
-        registerReceiver(screenOffReceiver, filter);
+        //registerReceiver(screenOffReceiver, filter);
 
 
         Intent serviceIntent = new Intent(this, autobrightness.class);
         serviceIntent.putExtra("arg-config", config);
 
-        // 针对 API 26 及更高版本，使用 startForegroundService
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent);
-        } else {
-            startService(serviceIntent);
-        }
+
 
 /*
         Intent broadcastIntent = new Intent("com.myapp.ACTION");
@@ -117,9 +120,54 @@ public class MainActivity extends AppCompatActivity {
 
         // 注册广播接收器
         IntentFilter filter2 = new IntentFilter("com.myapp.LIGHT_LEVEL_UPDATE");
-        registerReceiver(lightLevelReceiver, filter2);
+        //registerReceiver(lightLevelReceiver, filter2);
 
 
+        enableapp = sharedPref.getBoolean("enable", false);
+
+        if(enableapp){
+
+            checkbox.setChecked(true);
+            registerReceiver(screenOffReceiver, filter);
+            // 针对 API 26 及更高版本，使用 startForegroundService
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
+            registerReceiver(lightLevelReceiver, filter2);
+
+        }else{
+            checkbox.setChecked(false);
+        }
+
+
+        // checkBox
+        checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) {
+                editor.putBoolean("enable", true);
+                editor.apply();
+                Toast.makeText(MainActivity.this, "已启用.", Toast.LENGTH_SHORT).show();
+
+                registerReceiver(screenOffReceiver, filter);
+                // 针对 API 26 及更高版本，使用 startForegroundService
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent);
+                } else {
+                    startService(serviceIntent);
+                }
+                registerReceiver(lightLevelReceiver, filter2);
+
+
+            }else{
+                editor.putBoolean("enable", false);
+                editor.apply();
+                Toast.makeText(MainActivity.this, "已停用.", Toast.LENGTH_SHORT).show();
+
+                stopService(serviceIntent);
+                unregisterReceiver(lightLevelReceiver);
+            }
+        });
 
 
     }
@@ -168,16 +216,19 @@ public class MainActivity extends AppCompatActivity {
         //Intent serviceIntent = new Intent(this, MyForegroundService.class);
         //serviceIntent.putExtra("arg1", "run");
         //startService(serviceIntent);
-        // 注册广播接收器
-        IntentFilter filter2 = new IntentFilter("com.myapp.LIGHT_LEVEL_UPDATE");
-        registerReceiver(lightLevelReceiver, filter2);
+        if(enableapp) {// 注册广播接收器
+            IntentFilter filter2 = new IntentFilter("com.myapp.LIGHT_LEVEL_UPDATE");
+            registerReceiver(lightLevelReceiver, filter2);
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         Log.d("TAG", "MainActivity, onPause");
-        unregisterReceiver(lightLevelReceiver);
+        if(enableapp) {
+            unregisterReceiver(lightLevelReceiver);
+        }
         //Intent serviceIntent = new Intent(this, MyForegroundService.class);
         //stopService(serviceIntent);
     }
@@ -185,6 +236,5 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-
     }
 }

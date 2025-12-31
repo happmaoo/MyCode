@@ -17,7 +17,7 @@ public class MainActivity extends Activity {
     EditText editText,editText_fontsize;
     String oldText;
     int font_size;
-    Button btn;
+    Button btn,btn_clear;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -28,6 +28,7 @@ public class MainActivity extends Activity {
         editText_fontsize = findViewById(R.id.editText_fontsize);
 
         btn = findViewById(R.id.btn);
+        btn_clear = findViewById(R.id.btn_clear);
 
         oldText = getSharedPreferences("pref", MODE_PRIVATE).getString("note", "");
         editText.setText(oldText);
@@ -54,6 +55,10 @@ public class MainActivity extends Activity {
             sendBroadcast(intent);
 
             finish(); // 关闭界面
+        });
+
+        btn_clear.setOnClickListener(v -> {
+            editText.setText("");
         });
     }
 }

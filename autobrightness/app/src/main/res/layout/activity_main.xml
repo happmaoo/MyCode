@@ -31,7 +31,11 @@
                 android:layout_weight="1"
                 android:paddingLeft="10dp"
                 android:orientation="vertical">
-
+                <CheckBox
+                    android:id="@+id/checkBox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="启用" />
                 <TextView
                     android:id="@+id/text"
                     android:layout_width="match_parent"
@@ -49,6 +53,8 @@
                     android:hint="请输入内容"
                     android:inputType="textMultiLine" />
             </LinearLayout>
+
+
         </LinearLayout>
 
         <LinearLayout
