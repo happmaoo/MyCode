@@ -63,6 +63,8 @@ public class FMService extends Service implements FMClient.MessageCallback {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private short[] shortBuffer; // 复用 buffer 减少 GC
 
+    public static final String ACTION_STOP_SERVICE = "com.myapp.myfm.STOP_SERVICE";
+    private boolean isStopping = false;
 
 
     public class LocalBinder extends Binder {
@@ -89,6 +91,8 @@ public class FMService extends Service implements FMClient.MessageCallback {
         myapp = (MyFmApp) getApplicationContext();
         currentFreq = Float.parseFloat(myapp.getString("freq","93"));
 
+        registerReceiver(actionReceiver, new android.content.IntentFilter(ACTION_STOP_SERVICE));
+
     }
 
     @Override
@@ -113,6 +117,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
             sendFmCommand("TUNE "+currentFreq);
             Log.d(TAG, "onStartCommand");
             sendFmCommand("UNTUNE");
+            sendFmCommand("PUSH 1");
         }, 1000); // 延迟1秒
 
         // 确保服务重启机制
@@ -145,6 +150,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
         if (fmProcess != null) {
             fmProcess.destroy(); // 杀死 su 进程
         }
+        unregisterReceiver(actionReceiver); // 别忘了注销广播
         super.onDestroy();
     }
 
@@ -185,6 +191,10 @@ public class FMService extends Service implements FMClient.MessageCallback {
         // 启动前台服务
         startForeground(NOTIFICATION_ID, notification);
     }
+
+
+
+
 
     // --- 代理 FMClient 方法供 Activity 调用 ---
 
@@ -236,28 +246,40 @@ public class FMService extends Service implements FMClient.MessageCallback {
         sendBroadcast(intent);
     }
 
-    private void updateNotificationText(String freq,String name) {
+    private void updateNotificationText(String freq, String name) {
+
+        if (isStopping) return;
+
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if (manager != null) {
-            Intent notificationIntent = new Intent(this, MainActivity.class);
-            int pendingFlags =  PendingIntent.FLAG_UPDATE_CURRENT;
-            PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, pendingFlags);
+        if (manager == null) return;
 
-            // ⭐ 使用当前频率和名称构建通知内容
-            String contentTitle = freq;
-            String contentText = name;
+        // 点击通知跳转 Activity
+        Intent mainIntent = new Intent(this, MainActivity.class);
+        PendingIntent mainPI = PendingIntent.getActivity(this, 0, mainIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-            Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setContentTitle(contentTitle)
-                    .setContentText(contentText)
-                    .setSmallIcon(R.drawable.ic_radio)
-                    .setContentIntent(pendingIntent)
-                    .setPriority(NotificationCompat.PRIORITY_LOW)
-                    .setOngoing(true)
-                    .setOnlyAlertOnce(true) // 防止每次更新都震动/闪烁
-                    .build();
-            manager.notify(NOTIFICATION_ID, notification);
-        }
+        // 停止服务按钮
+        Intent stopIntent = new Intent(ACTION_STOP_SERVICE);
+        stopIntent.setPackage(getPackageName());
+        PendingIntent stopPI = PendingIntent.getBroadcast(this, 2, stopIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_radio)
+                .setContentTitle("正在直播: " + freq + " MHz")
+                .setContentText(name.isEmpty() ? "点击管理电台" : name)
+                .setContentIntent(mainPI)
+                .setOngoing(true)
+                // --- 核心优化部分 ---
+                .setPriority(NotificationCompat.PRIORITY_HIGH) // 提高优先级
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC) // 锁屏可见
+                // 关键：即使没文字也添加 BigTextStyle，这能强制通知在某些机型上默认展开
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(name.isEmpty() ? "电台正在后台运行" : name))
+                .setStyle(new androidx.media.app.NotificationCompat.MediaStyle().setShowActionsInCompactView(0))
+                // 添加按钮
+                .addAction(android.R.drawable.ic_menu_close_clear_cancel, "停止并退出服务", stopPI);
+
+        manager.notify(NOTIFICATION_ID, builder.build());
     }
 
 
@@ -445,7 +467,23 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
 
 
+    private final android.content.BroadcastReceiver actionReceiver = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (ACTION_STOP_SERVICE.equals(intent.getAction())) {
+                Log.d(TAG, "通过通知栏停止服务");
+                isStopping = true; // 锁定状态，禁止再弹通知
+                // 1. 立即取消通知栏
+                NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                if (manager != null) manager.cancel(NOTIFICATION_ID);
 
+                // 2. 停止服务
+                stopForeground(true);
+                myapp.saveBoolean("running",false);
+                stopSelf();
+            }
+        }
+    };
 
 
 

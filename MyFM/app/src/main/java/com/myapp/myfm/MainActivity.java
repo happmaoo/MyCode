@@ -133,6 +133,10 @@ public class MainActivity extends AppCompatActivity {
             FMService.LocalBinder binder = (FMService.LocalBinder) service;
             fmService = binder.getService();
             isBound = true;
+
+            if (isFmServiceRunning && isAppInForeground) {
+                fmService.sendFmCommand("PUSH 1");
+            }
             //statusTextView.setText("状态: 服务已绑定");
 
             // 如果是点击“连接”按钮进来的，绑定成功后立即建立 Socket 连接
@@ -365,10 +369,18 @@ public class MainActivity extends AppCompatActivity {
             btnPower.setText("Stop");
             btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(color1)));
         }
+        if (fmService != null) {
+            fmService.sendFmCommand("PUSH 1");
+        }
     }
 
     @Override
     protected void onPause() {
+        if (isFmServiceRunning) {
+            if (fmService != null) {
+                fmService.sendFmCommand("PUSH 0");
+            }
+        }
         super.onPause();
         isAppInForeground = false;
 

@@ -245,9 +245,11 @@ void get_signal_info(int radio_fd, char* buffer, int size) {
 // 处理客户端（带实时推送）
 void handle_client(int radio_fd, int client_fd) {
     char cmd[1024];
+    int push_enabled = 0;
     long long last_push_time = get_time_ms();
     // 初始化为 0，意味着程序刚启动时处于静默状态，直到收到第一条指令
     long long last_command_time = 0; 
+
 
     float freq_mhz = 0;
     int dir = 0;
@@ -276,14 +278,21 @@ void handle_client(int radio_fd, int client_fd) {
             if (cr) *cr = '\0';
 
             if (strlen(cmd) > 0) {
-                LOGI("📨 收到命令: [%s]，重置1分钟计时器\n", cmd);
-                // *** 核心逻辑：收到任何有效指令就刷新激活时间 ***
-                last_command_time = now; 
+
 
                 // --- 指令处理开始 ---
                 if (strcmp(cmd, "QUIT") == 0) {
                     write(client_fd, "OK|SHUTDOWN\n", 12);
                     break;
+                }
+                else if (strncmp(cmd, "PUSH", 4) == 0) {
+                    int val = 0;
+                    if (sscanf(cmd + 4, "%d", &val) == 1) {
+                        push_enabled = (val == 1);
+                        LOGI("PUSH: %s\n", push_enabled ? "ON" : "OFF");
+                        char* resp = push_enabled ? "OK|PUSH_ON\n" : "OK|PUSH_OFF\n";
+                        write(client_fd, resp, strlen(resp));
+                    }
                 }
                 else if (strncmp(cmd, "TUNE", 4) == 0) {
                     if (sscanf(cmd + 5, "%f", &freq_mhz) == 1) {
@@ -322,28 +331,23 @@ void handle_client(int radio_fd, int client_fd) {
             // len < 0 (EAGAIN), 无数据，继续执行推送逻辑
         }
 
-        // === 2. 检查是否在“激活窗口”内并执行推送 ===
-        long long elapsed_since_last_cmd = now - last_command_time;
+
         long long elapsed_since_last_push = now - last_push_time;
 
         if (elapsed_since_last_push >= PUSH_INTERVAL_MS) {
-            // 如果最后一次指令发生在 60 秒内，则推送数据
-            if (last_command_time > 0 && elapsed_since_last_cmd < 60000) {
+            if (push_enabled) {
                 char signal_msg[256];
                 get_signal_info(radio_fd, signal_msg, sizeof(signal_msg));
                 
                 char push_msg[300];
                 int push_len = snprintf(push_msg, sizeof(push_msg), "%s\n", signal_msg);
                 
-                // 写入数据并检查 Socket 是否正常
                 if (write(client_fd, push_msg, push_len) < 0) {
                     if (errno == EPIPE || errno == ECONNRESET) {
-                        LOGI("写入失败，客户端已断开\n");
                         break;
                     }
                 } else {
-                    LOGI("📡 推送: %s (窗口剩余: %llds)\n", 
-                         signal_msg, (60000 - elapsed_since_last_cmd) / 1000);
+                    LOGI("📡 实时推送: %s\n", signal_msg);
                 }
             }
             last_push_time = now;

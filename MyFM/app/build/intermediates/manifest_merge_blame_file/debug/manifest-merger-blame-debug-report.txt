@@ -6,91 +6,91 @@
 6
 7    <uses-sdk
 8        android:minSdkVersion="25"
-8-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml
+8-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml
 9        android:targetSdkVersion="29" />
-9-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml
+9-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml
 10
 11    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-11-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:5:5-71
-11-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:5:22-68
+11-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:5:5-71
+11-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:5:22-68
 12    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-12-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:6:5-80
-12-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:6:22-77
+12-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:6:5-80
+12-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:6:22-77
 13    <uses-permission android:name="android.permission.INTERNET" />
-13-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:7:5-67
-13-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:7:22-64
+13-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:7:5-67
+13-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:7:22-64
 14    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-14-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:8:5-77
-14-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:8:22-74
+14-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:8:5-77
+14-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:8:22-74
 15    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-15-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:9:5-88
-15-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:9:22-85
+15-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:9:5-88
+15-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:9:22-85
 16    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-16-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:5:5-71
-16-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:5:22-68
+16-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:5:5-71
+16-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:5:22-68
 17    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-17-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:6:5-80
-17-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:6:22-77
+17-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:6:5-80
+17-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:6:22-77
 18    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-18-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:12:5-80
-18-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:12:22-77
+18-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:12:5-80
+18-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:12:22-77
 19    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-19-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:13:5-81
-19-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:13:22-78
+19-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:13:5-81
+19-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:13:22-78
 20
 21    <application
-21-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:15:5-42:19
+21-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:15:5-42:19
 22        android:name="com.myapp.myfm.MyFmApp"
-22-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:22:9-32
+22-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:22:9-32
 23        android:allowBackup="true"
-23-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:16:9-35
+23-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:16:9-35
 24        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
-24-->[androidx.core:core:1.0.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/aa782ce88e4a65071c9b22f6f1fd262a/core-1.0.1/AndroidManifest.xml:22:18-86
+24-->[androidx.core:core:1.6.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/22398bac318b43860c740d0df5d9af4a/core-1.6.0/AndroidManifest.xml:24:18-86
 25        android:debuggable="true"
 26        android:extractNativeLibs="false"
 27        android:icon="@mipmap/ic_launcher"
-27-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:18:9-43
+27-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:18:9-43
 28        android:label="@string/app_name"
-28-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:19:9-41
+28-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:19:9-41
 29        android:roundIcon="@mipmap/ic_launcher_round"
-29-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:20:9-54
+29-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:20:9-54
 30        android:supportsRtl="true"
-30-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:21:9-35
-31        android:testOnly="true"
-31-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:17:9-33
+30-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:21:9-35
+31        android:testOnly="false"
+31-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:17:9-33
 32        android:theme="@style/AppTheme" >
-32-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:23:9-40
+32-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:23:9-40
 33        <activity android:name="com.myapp.myfm.MainActivity" >
-33-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:24:9-30:20
-33-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:24:19-47
+33-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:24:9-30:20
+33-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:24:19-47
 34            <intent-filter>
-34-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:25:13-29:29
+34-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:25:13-29:29
 35                <action android:name="android.intent.action.MAIN" />
-35-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:26:17-69
-35-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:26:25-66
+35-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:26:17-69
+35-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:26:25-66
 36
 37                <category android:name="android.intent.category.LAUNCHER" />
-37-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:28:17-77
-37-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:28:27-74
+37-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:28:17-77
+37-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:28:27-74
 38            </intent-filter>
 39        </activity>
 40        <activity
-40-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:32:9-33:57
+40-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:32:9-33:57
 41            android:name="com.myapp.myfm.FileEdit"
-41-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:32:19-43
+41-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:32:19-43
 42            android:windowSoftInputMode="adjustResize" />
-42-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:33:13-55
+42-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:33:13-55
 43
 44        <service
-44-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:35:9-39:61
+44-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:35:9-39:61
 45            android:name="com.myapp.myfm.FMService"
-45-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:36:13-38
+45-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:36:13-38
 46            android:enabled="true"
-46-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:37:13-35
+46-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:37:13-35
 47            android:exported="false"
-47-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:38:13-37
+47-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:38:13-37
 48            android:foregroundServiceType="mediaPlayback" />
-48-->/home/happmaoo/temp/lineage15.1/MyFM/app/src/main/AndroidManifest.xml:39:13-58
+48-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:39:13-58
 49    </application>
 50
 51</manifest>
