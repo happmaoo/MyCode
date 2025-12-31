@@ -27,7 +27,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
+import java.io.BufferedReader;
 import java.io.DataOutputStream;
+import java.io.InputStreamReader;
 import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
@@ -64,18 +66,21 @@ public class GattService extends Service {
     MyApp app;
     private String allLog = "";
 
-    private List<TelephonyManager> managerList = new ArrayList<>();
-    private List<MyPhoneStateListener> listenerList = new ArrayList<>();
-    private int SigLevel = -1; // 记录上次信号
+    int sig;
 
 
     public static class MyServiceProfile {
-        // 标准电池服务 UUID
+        // 服务1：标准电池服务 UUID
         public static final UUID BATTERY_SERVICE_UUID = UUID.fromString("0000180F-0000-1000-8000-00805f9b34fb");
         public static final UUID BATTERY_LEVEL_CHARACTERISTIC_UUID = UUID.fromString("00002A19-0000-1000-8000-00805f9b34fb");
 
-        public static final UUID MY_SERVICE_UUID = UUID.fromString("80323644-3537-4F0B-A53B-CF494ECEAAB3");
-        public static final UUID MY_CHARACTERISTIC_UUID = UUID.fromString("80323644-3537-4F0B-A53B-CF494ECEAAB3");
+        // 服务2: UUID
+        public static final UUID MY_SERVICE_UUID = UUID.fromString("77770000-3537-1F0B-A53B-CF000ECEAAB3");
+
+        // 特征 1
+        public static final UUID MY_CHARACTERISTIC_UUID1 = UUID.fromString("77770001-3537-1F0B-A53B-CF000ECEAAB3");
+        // 特征 2
+        public static final UUID MY_CHARACTERISTIC_UUID2 = UUID.fromString("77770002-3537-1F0B-A53B-CF000ECEAAB3");
     }
 
     @Override
@@ -107,9 +112,6 @@ public class GattService extends Service {
 
         // SharedPreferences
         app = (MyApp) getApplication();
-
-
-        startListening();
 
     }
 
@@ -197,10 +199,6 @@ public class GattService extends Service {
         Toast.makeText(this, "电池监听服务已停止", Toast.LENGTH_SHORT).show();
         app.remove("log");
 
-        // 取消信号监测
-        for (int i = 0; i < managerList.size(); i++) {
-            managerList.get(i).listen(listenerList.get(i), PhoneStateListener.LISTEN_NONE);
-        }
     }
 
     @Nullable
@@ -275,6 +273,28 @@ public class GattService extends Service {
                     e.printStackTrace();
                 }
             }
+            // 信号检测 红米note9特定参数
+            if("sig".equals(data)) {
+                try {
+                    Process p = Runtime.getRuntime().exec("su");
+                    DataOutputStream os = new DataOutputStream(p.getOutputStream());
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                    os.writeBytes("dumpsys telephony.registry | grep \"mSignalStrength\" | tail -n 1 | sed -n 's/.* level=\\([0-9]\\).*/\\1/p'\n");
+                    os.flush();
+                    String line = reader.readLine();
+                    if (line != null) {
+                        sig = Integer.parseInt(line.trim());
+                    }
+                    os.writeBytes("exit\n");
+                    os.flush();
+                    p.waitFor();
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                serverManager.setMyCharacteristicValue("sig:"+sig);
+
+            }
             serverManager.setMyCharacteristicValue("received:"+data);
 
         });
@@ -307,7 +327,7 @@ public class GattService extends Service {
 
 
             myGattCharacteristic = sharedCharacteristic(
-                    MyServiceProfile.MY_CHARACTERISTIC_UUID,
+                    MyServiceProfile.MY_CHARACTERISTIC_UUID1,
                     BluetoothGattCharacteristic.PROPERTY_READ |
                             BluetoothGattCharacteristic.PROPERTY_NOTIFY |
                             BluetoothGattCharacteristic.PROPERTY_WRITE|
@@ -389,11 +409,7 @@ public class GattService extends Service {
 
             if (gattService != null) {
                 gattService.sendBroadcastData(device.getAddress() + " " + "Connected");
-                // ---  延迟 3 秒发送信号检测 ---
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    this.setMyCharacteristicValue("sig:" + gattService.SigLevel);
-                }, 3000);
-            }
+                }
         }
 
         @Override
@@ -514,78 +530,5 @@ public class GattService extends Service {
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
         return sdf.format(new Date());
     }
-
-
-
-
-
-
-    // 信号监测
-    private void startListening() {
-        SubscriptionManager subManager = (SubscriptionManager) getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
-        TelephonyManager baseTM = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-
-        try {
-            List<SubscriptionInfo> subInfoList = subManager.getActiveSubscriptionInfoList();
-            if (subInfoList != null) {
-                for (SubscriptionInfo info : subInfoList) {
-                    // 只处理卡槽 1 = sim卡2
-                    if (info.getSimSlotIndex() == 1) {
-                        int subId = info.getSubscriptionId();
-
-                        TelephonyManager specificManager = baseTM.createForSubscriptionId(subId);
-                        MyPhoneStateListener listener = new MyPhoneStateListener(1);
-
-                        specificManager.listen(listener,
-                                PhoneStateListener.LISTEN_SIGNAL_STRENGTHS |
-                                        PhoneStateListener.LISTEN_SERVICE_STATE);
-
-                        managerList.add(specificManager);
-                        listenerList.add(listener);
-
-                        Log.d(TAG, "已成功开启卡槽 1 的信号监听 (SubId: " + subId + ")");
-                        break; // 找到卡槽 1 后跳出循环
-                    }
-                }
-            }
-        } catch (SecurityException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private class MyPhoneStateListener extends PhoneStateListener {
-        private int slotIndex;
-        private boolean isOutOfService = false;
-
-        public MyPhoneStateListener(int slotIndex) { this.slotIndex = slotIndex; }
-
-        @Override
-        public void onServiceStateChanged(ServiceState serviceState) {
-            isOutOfService = (serviceState.getState() != ServiceState.STATE_IN_SERVICE);
-            if (isOutOfService) {
-                handleLevelUpdate(0);
-            }
-        }
-
-        @Override
-        public void onSignalStrengthsChanged(SignalStrength signalStrength) {
-            int level = isOutOfService ? 0 : signalStrength.getLevel();
-            handleLevelUpdate(level);
-        }
-
-        // 只有数值变化才打印和发送
-        private void handleLevelUpdate(int currentLevel) {
-            if (currentLevel != SigLevel) {
-                SigLevel = currentLevel;
-                Log.i("signal:slot:", slotIndex + ":" + currentLevel);
-                serverManager.setMyCharacteristicValue("sig:"+ currentLevel);
-            }
-        }
-    }
-
-
-
-
-
 
 }

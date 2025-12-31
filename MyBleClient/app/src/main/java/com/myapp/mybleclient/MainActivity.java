@@ -55,6 +55,7 @@ public class MainActivity extends AppCompatActivity {
     String addr = "";
     int bat = 0;
     int sig = -1;
+    Boolean autopan;
 
 
     // 2. 定义服务连接器
@@ -116,12 +117,15 @@ public class MainActivity extends AppCompatActivity {
         setupBroadcastReceiver();
 
         boolean autoconn = app.getBoolean("autoconn", false);
+        boolean autopan = app.getBoolean("autopan", false);
 
         if (autoconn) {
             checkBox_autoconn.setChecked(true);
             startService(intent);
             bindService(intent, mServiceConnection, Context.BIND_AUTO_CREATE);
         }
+
+
 
         //-----------Button send----------------
         btn_send.setOnClickListener(new View.OnClickListener() {
@@ -134,6 +138,17 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+
+        //----------- icon sig click ----------------
+        // 点击 信号图标 获取信号
+        imageView_sig.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if(mIsBound){
+                    mDataPlane.send("sig");
+                }
+            }
+        });
 
         //-----------Button clear----------------
         btn_clear.setOnClickListener(new View.OnClickListener() {
@@ -156,7 +171,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // checkBox_pan
+        // checkBox_autopan
         checkBox_autopan.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
                 app.setBoolean("autopan", true);
@@ -164,9 +179,10 @@ public class MainActivity extends AppCompatActivity {
             }else{
                 app.setBoolean("autopan", false);
             }
+
         });
 
-        // btn_stop
+        // btn_stop 总开关
         btn_stop.setOnClickListener((View view) -> {
             boolean running = isServiceRunning(GattService.class);
             if (running) {
@@ -204,6 +220,9 @@ public class MainActivity extends AppCompatActivity {
                 btn_stop.setText("Stop");
                 checkBox_wifi.setEnabled(true);
                 checkBox_pan.setEnabled(true);
+                if (autopan) {
+                    checkBox_pan.setChecked(true);
+                }
                 btn_send.setEnabled(true);
                 editText_send.setEnabled(true);
 
@@ -388,6 +407,7 @@ public class MainActivity extends AppCompatActivity {
         addr  = app.getString("addr","");
         bat  = app.getInt("bat",0);
         sig  = app.getInt("sig",0);
+
 
         if(conncted){
             imageView_bt.setColorFilter(Color.parseColor(color1));

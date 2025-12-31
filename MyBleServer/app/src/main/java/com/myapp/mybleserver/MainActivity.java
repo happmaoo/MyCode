@@ -16,6 +16,7 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -74,8 +75,8 @@ public class MainActivity extends AppCompatActivity {
         // SharedPreferences
         app = (MyApp) getApplication();
 
-        String apps = app.getString("apps","");
-        editText_apps.setText(app.getString("apps",""));
+        String apps = app.getString("apps","com.tencent.mobileqq\ncom.tencent.mm");
+        editText_apps.setText(app.getString("apps","com.tencent.mobileqq\ncom.tencent.mm"));
 
         //通知权限
         checkAndRequestPermission(this);

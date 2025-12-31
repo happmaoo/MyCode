@@ -338,10 +338,10 @@ public class GattService extends Service {
 
 
                 BluetoothGattService service =
-                        gatt.getService(UUID.fromString("80323644-3537-4F0B-A53B-CF494ECEAAB3"));
+                        gatt.getService(UUID.fromString("77770000-3537-1F0B-A53B-CF000ECEAAB3"));
                 if (service != null) {
                     // 赋值给外部类的 myChar
-                    myChar = service.getCharacteristic(UUID.fromString("80323644-3537-4F0B-A53B-CF494ECEAAB3"));
+                    myChar = service.getCharacteristic(UUID.fromString("77770001-3537-1F0B-A53B-CF000ECEAAB3"));
                 }
                 // 2. 同时检查电池服务
                 BluetoothGattService batteryService =

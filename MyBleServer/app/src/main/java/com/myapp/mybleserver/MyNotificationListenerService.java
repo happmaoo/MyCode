@@ -28,7 +28,7 @@ public class MyNotificationListenerService extends NotificationListenerService {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
             gattBinding = (DeviceAPI) service;
-            Log.d(TAG, "成功绑定到 GattService");
+            //Log.d(TAG, "成功绑定到 GattService");
         }
 
         @Override
