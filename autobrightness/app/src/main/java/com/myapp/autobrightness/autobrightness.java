@@ -90,7 +90,7 @@ public class autobrightness extends Service {
             Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                     .setContentTitle("AutoBrightness")
                     .setContentText("服务运行中")
-                    .setSmallIcon(R.mipmap.ic_launcher)
+                    .setSmallIcon(R.drawable.ic_stat_name)
                     .setContentIntent(pendingIntent)
                     .build();
 
