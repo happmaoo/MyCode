@@ -134,7 +134,7 @@ public class MainActivity extends AppCompatActivity {
             fmService = binder.getService();
             isBound = true;
 
-            if (isFmServiceRunning && isAppInForeground) {
+            if (myapp.running && isAppInForeground) {
                 fmService.sendFmCommand("PUSH 1");
             }
             //statusTextView.setText("状态: 服务已绑定");
@@ -204,8 +204,6 @@ public class MainActivity extends AppCompatActivity {
         // SharedPreferences 全局保存
         myapp = (MyFmApp) getApplicationContext();
         myapp.saveBoolean("btnPower", true);
-
-        isFmServiceRunning = myapp.getBoolean("running",false);
 
         freq = myapp.getString("freq","");
 
@@ -364,8 +362,7 @@ public class MainActivity extends AppCompatActivity {
         isAppInForeground = true;
 
         tvFreq.setText(myapp.getString("freq",""));
-        isFmServiceRunning = myapp.getBoolean("running", false);
-        if(isFmServiceRunning){
+        if(myapp.running){
             btnPower.setText("Stop");
             btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(color1)));
         }
@@ -376,7 +373,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onPause() {
-        if (isFmServiceRunning) {
+        if (myapp.running) {
             if (fmService != null) {
                 fmService.sendFmCommand("PUSH 0");
             }
@@ -413,7 +410,7 @@ public class MainActivity extends AppCompatActivity {
      * 切换FM服务的启动和停止状态。
      */
     private void toggleFmService() {
-        if (isFmServiceRunning) {
+        if (myapp.running) {
             // --- 停止逻辑 ---
             if (fmService != null) {
                 fmService.sendFmCommand("QUIT");
@@ -431,8 +428,7 @@ public class MainActivity extends AppCompatActivity {
             stopService(new Intent(MainActivity.this, FMService.class));
 
             // 更新 UI 和状态
-            isFmServiceRunning = false;
-            myapp.saveBoolean("running",false);
+            myapp.running = false;
             btnPower.setText("ON");
             tvInfo.setText("FM Stopped");
             volumeMeterView.setLevel(0);
@@ -454,7 +450,7 @@ public class MainActivity extends AppCompatActivity {
 
 
             isFmServiceRunning = true;
-            myapp.saveBoolean("running",true);
+            myapp.running = true;
         }
     }
 
@@ -587,7 +583,7 @@ public class MainActivity extends AppCompatActivity {
                             //解决有时候声音小,已经在首次启动服务时设置了
                             //fmService.sendFmCommand("UNMUTE");
                             isFmServiceRunning = true;
-                            myapp.saveBoolean("running",true);
+                            myapp.running = true;
                             btnPower.setText("Stop");
                             btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(color1)));
 

@@ -1,19 +1,32 @@
+# 这行必须放在第一行
 cmake_minimum_required(VERSION 3.10.2)
 
-# 1. 必须在 project 之前设置工具链和基本参数
+# 设置 Android 参数
+#set(CMAKE_TOOLCHAIN_FILE ${ANDROID_NDK}/build/cmake/android.toolchain.cmake)
+set(ANDROID_ABI armeabi-v8a)      # 或者 armeabi-v7a, x86, x86_64
+set(ANDROID_PLATFORM android-25)
+
+
+
+project(fm_service)
 set(ANDROID_NDK /home/happmaoo/Android/Sdk/ndk/20.0.5594570)
+include_directories(${ANDROID_NDK}/sysroot/usr/include)
+
+
+# 使用NDK的toolchain
 set(CMAKE_TOOLCHAIN_FILE ${ANDROID_NDK}/build/cmake/android.toolchain.cmake)
+
+# 设置Android属性
 set(ANDROID_ABI arm64-v8a)
 set(ANDROID_PLATFORM android-24)
 set(ANDROID_STL c++_static)
 
-project(test)
+# 设置工具链
+set(CMAKE_C_COMPILER ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang)
+set(CMAKE_CXX_COMPILER ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++)
 
-# 2. 删掉之前所有的 CMAKE_C_COMPILER 手动设置
-# 3. 删掉所有 /usr/include 的引用
+# 创建可执行文件
+add_executable(fm_service fm_service.c)
 
-# 4. 强制指定 Sysroot（如果工具链没生效，这是最后的保险）
-include_directories(${ANDROID_NDK}/sysroot/usr/include)
-
-add_executable(test test.c)
-target_link_libraries(test android log)
+# 链接 Android 日志库
+target_link_libraries(fm_service android log)

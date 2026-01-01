@@ -154,7 +154,7 @@ public class FMClient {
                         Log.d(TAG, "已发送: " + command);
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "发送异常", e);
+                    Log.e(TAG, "发送异常"+command, e);
                     closeSocketResources();
                 }
             }

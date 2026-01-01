@@ -79,4 +79,6 @@ public class MyFmApp extends Application {
     }
 
 
+    public boolean running;
+
 }

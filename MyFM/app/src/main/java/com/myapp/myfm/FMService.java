@@ -472,6 +472,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
         public void onReceive(Context context, Intent intent) {
             if (ACTION_STOP_SERVICE.equals(intent.getAction())) {
                 Log.d(TAG, "通过通知栏停止服务");
+                sendFmCommand("QUIT");
                 isStopping = true; // 锁定状态，禁止再弹通知
                 // 1. 立即取消通知栏
                 NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -481,6 +482,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
                 stopForeground(true);
                 myapp.saveBoolean("running",false);
                 stopSelf();
+                System.exit(0);
             }
         }
     };

@@ -59,7 +59,7 @@ struct v4l2_hw_freq_seek v4l_seek;
 struct v4l2_frequency    v4l_freq = {0};
 float curr_freq_mhz = 0.0;
 int dir;
-
+int push_enabled = 0;
 
 
 
@@ -92,7 +92,7 @@ int check_init_property() {
 
 // =========== seek =========
 int seek(int fd,int dir) {
-    
+    push_enabled = 0;
     // 1. 获取并保存原始频率
     struct v4l2_frequency orig_freq = {0};
     orig_freq.tuner = 0;
@@ -160,6 +160,7 @@ int seek(int fd,int dir) {
     } else {
         LOGI("⚠️ Search timeout or no station found. Still at:  %.2f MHz\n", curr_freq_mhz);
     }
+    push_enabled = 1;
     return curr_freq_mhz;
 }
 
@@ -245,7 +246,6 @@ void get_signal_info(int radio_fd, char* buffer, int size) {
 // 处理客户端（带实时推送）
 void handle_client(int radio_fd, int client_fd) {
     char cmd[1024];
-    int push_enabled = 0;
     long long last_push_time = get_time_ms();
     // 初始化为 0，意味着程序刚启动时处于静默状态，直到收到第一条指令
     long long last_command_time = 0; 
@@ -318,7 +318,7 @@ void handle_client(int radio_fd, int client_fd) {
                     if (sscanf(cmd + 5, "%d", &dir) == 1) {
                         float new_freq = seek(radio_fd, dir);
                         char buf[32];
-                        snprintf(buf, sizeof(buf), "OK|SEEK:%2.f\n", new_freq);
+                        snprintf(buf, sizeof(buf), "OK|SEEK:%.2f\n", new_freq);
                         write(client_fd, buf, strlen(buf));
                     }
                 }
