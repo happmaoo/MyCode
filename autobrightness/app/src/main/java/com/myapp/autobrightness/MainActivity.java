@@ -165,6 +165,7 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(MainActivity.this, "已停用.", Toast.LENGTH_SHORT).show();
 
                 stopService(serviceIntent);
+                unregisterReceiver(screenOffReceiver);
                 unregisterReceiver(lightLevelReceiver);
             }
         });
@@ -226,8 +227,12 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         Log.d("TAG", "MainActivity, onPause");
-        if(enableapp) {
+        try {
             unregisterReceiver(lightLevelReceiver);
+            unregisterReceiver(screenOffReceiver);
+        } catch (IllegalArgumentException e) {
+            // 已经注销过了，无视即可
+
         }
         //Intent serviceIntent = new Intent(this, MyForegroundService.class);
         //stopService(serviceIntent);
