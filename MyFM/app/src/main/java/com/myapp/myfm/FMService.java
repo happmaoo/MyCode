@@ -108,7 +108,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
         }
 
 
-        try { Thread.sleep(3000);} catch (InterruptedException e) {e.printStackTrace();}
+        try { Thread.sleep(1500);} catch (InterruptedException e) {e.printStackTrace();}
 
         // 启动音频循环
         startLoopback();
@@ -118,7 +118,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
             Log.d(TAG, "onStartCommand");
             sendFmCommand("UNTUNE");
             sendFmCommand("PUSH 1");
-        }, 1000); // 延迟1秒
+        }, 500); // 延迟秒
 
         // 确保服务重启机制
         return START_STICKY;

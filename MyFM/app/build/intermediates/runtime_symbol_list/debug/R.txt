@@ -748,7 +748,7 @@ int id btnNext 0x7f070047
 int id btnPower 0x7f070048
 int id btnPre 0x7f070049
 int id btnSave 0x7f07004a
-int id btnSearch 0x7f07004b
+int id btnScan 0x7f07004b
 int id btnToggleInfo 0x7f07004c
 int id btnTuneDown 0x7f07004d
 int id btnTuneUp 0x7f07004e

@@ -103,15 +103,25 @@ CMakeFiles/fm_service.dir/fm_service.c.o: fm_service.c \
   /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/asm-generic/errno.h \
   /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/asm-generic/errno-base.h \
   /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/android/legacy_errno_inlines.h \
+  /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/math.h \
   /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/sys/stat.h \
   /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/android/legacy_sys_stat_inlines.h \
   /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/android/log.h \
+  /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/pthread.h \
+  /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/sched.h \
+  /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/linux/sched.h \
   /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/dlfcn.h
 
 
 /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/dlfcn.h:
 
+/home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/sched.h:
+
+/home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/pthread.h:
+
 /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/android/log.h:
+
+/home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/math.h:
 
 /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/asm-generic/errno-base.h:
 
@@ -258,6 +268,8 @@ CMakeFiles/fm_service.dir/fm_service.c.o: fm_service.c \
 /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/linux/termios.h:
 
 /home/happmaoo/Android/Sdk/ndk/20.0.5594570/toolchains/llvm/prebuilt/linux-x86_64/lib64/clang/8.0.7/include/stddef.h:
+
+/home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/linux/sched.h:
 
 /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/asm-generic/signal.h:
 

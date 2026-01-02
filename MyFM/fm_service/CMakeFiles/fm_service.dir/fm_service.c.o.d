@@ -101,7 +101,11 @@ CMakeFiles/fm_service.dir/fm_service.c.o: \
   /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/asm-generic/errno.h \
   /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/asm-generic/errno-base.h \
   /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/android/legacy_errno_inlines.h \
+  /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/math.h \
   /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/sys/stat.h \
   /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/android/legacy_sys_stat_inlines.h \
   /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/android/log.h \
+  /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/pthread.h \
+  /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/sched.h \
+  /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/linux/sched.h \
   /home/happmaoo/Android/Sdk/ndk/20.0.5594570/sysroot/usr/include/dlfcn.h

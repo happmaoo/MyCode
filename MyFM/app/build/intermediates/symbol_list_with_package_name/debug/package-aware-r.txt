@@ -749,7 +749,7 @@ id btnNext
 id btnPower
 id btnPre
 id btnSave
-id btnSearch
+id btnScan
 id btnToggleInfo
 id btnTuneDown
 id btnTuneUp

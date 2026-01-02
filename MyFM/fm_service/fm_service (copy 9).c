@@ -1,4 +1,3 @@
-#define _POSIX_C_SOURCE 199309L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -137,18 +136,6 @@ enum iris_evt_t {
 	IRIS_EVT_SPUR_TBL,
 };
 
-/* Search options */
-enum search_t {
-	SEEK,
-	SCAN,
-	SCAN_FOR_STRONG,
-	SCAN_FOR_WEAK,
-	RDS_SEEK_PTY,
-	RDS_SCAN_PTY,
-	RDS_SEEK_PI,
-	RDS_AF_JUMP,
-};
-
 const char* iris_event_names[] = {
     "IRIS_EVT_RADIO_READY",    // 0x00
     "IRIS_EVT_TUNE_SUCC",      // 0x01
@@ -215,10 +202,7 @@ int var_V4L2_CID_PRIVATE_INTF_LOW_THRESHOLD = 0;//110
 int var_V4L2_CID_PRIVATE_INTF_HIGH_THRESHOLD = 0;//150
 int var_V4L2_CID_PRIVATE_SINR_THRESHOLD = 0;
 
-// 定义扫描列表存储
-#define MAX_SCAN_LIST 20
-float scan_list[MAX_SCAN_LIST];
-int scan_count = 0;
+
 
 //-----------------------------------------------------------------
 
@@ -239,12 +223,6 @@ long long get_time_ms() {
     return ts.tv_sec * 1000LL + ts.tv_nsec / 1000000LL;
 }
 
-// 比较函数：用于升序排列
-int compare_freq(const void *a, const void *b) {
-    float fa = *(const float *)a;
-    float fb = *(const float *)b;
-    return (fa > fb) - (fa < fb);
-}
 
 int enable_transport_layer() {
     int fd = open("/sys/module/radio_iris_transport/parameters/fmsmd_set", O_WRONLY);
@@ -305,39 +283,51 @@ int init_firmware(int fd) {
 
 int get_events(int fd, int type) {
     struct v4l2_buffer buf;
-    // 使用静态或堆分配缓冲区，确保读取 IRIS_BUF_SRCH_LIST 时安全
-    unsigned char *mbuf = malloc(STD_BUF_SIZE); 
-    if (!mbuf) return -1;
-
+    void *mbuf = malloc(128);
+    
+    if (!mbuf) {
+        perror("malloc failed");
+        return -1;
+    }
+    
     memset(&buf, 0, sizeof(buf));
+    
+    // 配置缓冲区参数
     buf.index = type;
     buf.type = V4L2_BUF_TYPE_PRIVATE;
     buf.memory = V4L2_MEMORY_USERPTR;
     buf.m.userptr = (unsigned long)mbuf;
-    buf.length = STD_BUF_SIZE;
-
-    if (ioctl(fd, VIDIOC_DQBUF, &buf) < 0) {
+    buf.length = 256;
+    
+    // 从驱动队列中取出数据
+    int ret = ioctl(fd, VIDIOC_DQBUF, &buf);
+    if (ret < 0) {
+    if (errno == EAGAIN) {
         free(mbuf);
-        return -1;
+        return -1; // 没有事件，不是错误
+    }
+    perror("VIDIOC_DQBUF failed");
     }
 
+    
+    // 成功获取到数据
+    LOGI("获取到 %d 字节数据 (类型: %d):\n", buf.bytesused, type);
+    
+    // 处理数据（根据类型）
     switch(type) {
         case IRIS_BUF_EVENTS:
             if (buf.bytesused > 0) {
-                unsigned char event_type = mbuf[0];
-                if (event_type < sizeof(iris_event_names)/sizeof(char*))
-                    LOGI("收到事件: %s (0x%02X)\n", iris_event_names[event_type], event_type);
-
-                // 情况 1: 发现搜索列表准备好了
-                if (event_type == IRIS_EVT_NEW_SRCH_LIST) {
-                    LOGI("检测到搜台完成，正在请求提取列表缓冲区...\n");
-                    // 递归调用自身去拉取 SRCH_LIST 缓冲区的数据
-                    // 这会进入本函数的 case IRIS_BUF_SRCH_LIST 分支
-                    get_events(fd, IRIS_BUF_SRCH_LIST);
-                }
+                unsigned char event_type = *(unsigned char *)mbuf;
+                LOGI("事件类型: 0x%02X\n", event_type);
                 
-                // 情况 2: 单次 Seek 完成或搜索结束的通用通知
-                if (event_type == IRIS_EVT_SEEK_COMPLETE || event_type == IRIS_EVT_NEW_SRCH_LIST) {
+               // 自动输出事件名
+            if (event_type < sizeof(iris_event_names) / sizeof(iris_event_names[0])) {
+                LOGI("事件类型: 0x%02X (%s)\n", event_type, iris_event_names[event_type]);
+            } else {
+                LOGI("事件类型: 0x%02X (未知事件)\n", event_type);
+            }
+            
+            if (event_type == IRIS_EVT_SEEK_COMPLETE) {
                     pthread_mutex_lock(&seek_mutex);
                     seek_done = 1;
                     pthread_cond_signal(&seek_cond);
@@ -345,51 +335,16 @@ int get_events(int fd, int type) {
                 }
             }
             break;
-
-        case IRIS_BUF_SRCH_LIST:
-            if (buf.bytesused > 0) {
-                unsigned char *data = (unsigned char *)mbuf;
-                int num_found = data[0]; 
-                int valid_count = 0;
-                float temp_list[MAX_SCAN_LIST];
-
-                for (int i = 0; i < num_found && valid_count < MAX_SCAN_LIST; i++) {
-                    int raw_h = data[1 + i * 2];
-                    int raw_l = data[2 + i * 2];
-                    int f_index = (raw_h << 8) | raw_l;
-
-                    // 过滤无效索引 (如 0 或超出频段的索引)
-                    if (f_index <= 0 || f_index > 410) continue; 
-
-                    float freq = (87500 + (f_index * 50)) / 1000.0f;
-
-                    // 简单的去重检查
-                    int is_duplicate = 0;
-                    for (int j = 0; j < valid_count; j++) {
-                        if (temp_list[j] == freq) {
-                            is_duplicate = 1;
-                            break;
-                        }
-                    }
-
-                    if (!is_duplicate) {
-                        temp_list[valid_count++] = freq;
-                    }
-                }
-
-                // 执行排序：让电台按 87.5 -> 108.0 排列
-                qsort(temp_list, valid_count, sizeof(float), compare_freq);
-
-                // 更新到全局列表并打印
-                scan_count = valid_count;
-                for (int i = 0; i < scan_count; i++) {
-                    scan_list[i] = temp_list[i];
-                    LOGI("  - [电台 %d]: %.2f MHz\n", i + 1, scan_list[i]);
-                }
+                        
+        default:
+            // 非IRIS_BUF_EVENTS事件, 打印原始数据
+            LOGI("非IRIS_BUF_EVENTS事件，原始数据: ");
+            for (int i = 0; i < buf.bytesused && i < 16; i++) {
+                LOGI("%02X ", ((unsigned char *)mbuf)[i]);
             }
-            break;
+            LOGI("\n");
     }
-
+    
     free(mbuf);
     return 0;
 }
@@ -404,13 +359,20 @@ void* loop_event(void *arg) {
         if (get_events(radio_fd, IRIS_BUF_EVENTS) == 0) {
             // 成功获取事件，可以在这里根据事件类型获取详细信息
 
+            
+            //set_control(radio_fd, V4L2_CID_PRIVATE_IRIS_RDSON, 1, "");
+            //set_control(radio_fd, V4L2_CID_PRIVATE_INTF_LOW_THRESHOLD, 108, "other");//seek时 108 可以
+            //set_control(radio_fd, V4L2_CID_PRIVATE_INTF_HIGH_THRESHOLD, 150, "other");
+            //set_control(radio_fd, V4L2_CID_PRIVATE_SINR_THRESHOLD, 0, "SIGNAL_TH");
+       
    
-        } else {
+    } else {
             // 获取失败，可能是没有数据
-            usleep(100000);
+            usleep(100000); // 等待100ms避免CPU占用过高
         }
-
-        usleep(50000); // 50ms 添加延时，避免过快循环
+        
+        // 添加延时，避免过快循环
+        usleep(50000); // 50ms
     }
     return NULL;
 }
@@ -623,49 +585,6 @@ int seek(int fd, int dir) {
 
 
 
-int scan(int fd) {
-    // 1. 强制先关闭一次搜索，确保状态机复位
-    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
-    usleep(50000);
-    LOGI("开始扫描 (SCAN)...\n");
-    push_enabled = 0;
-    scan_count = 0;
-    seek_done = 0;
-    memset(scan_list, 0, sizeof(scan_list));
-
-
-    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHMODE, SCAN_FOR_STRONG, "SRCH_MODE"); 
-    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCH_CNT, MAX_SCAN_LIST, "SRCH_CNT");
-
-    // 启动扫描
-    if (set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 1, "SRCH_ON") < 0) {
-        LOGI("开启 SRCHO 失败\n");
-        push_enabled = 1;
-        return -1;
-    }
-
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_sec += 30; // 扫描时间s
-
-    pthread_mutex_lock(&seek_mutex);
-    while (!seek_done) {
-        if (pthread_cond_timedwait(&seek_cond, &seek_mutex, &ts) == ETIMEDOUT) {
-            LOGI("扫描超时\n");
-            break;
-        }
-    }
-    pthread_mutex_unlock(&seek_mutex);
-    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
-
-    // 5. 扫描结束后，需要通过 VIDIOC_DQBUF 获取 IRIS_BUF_SRCH_LIST
-    // 这部分逻辑建议放在 loop_event 里的获取数据部分
-    
-    push_enabled = 1;
-    LOGI("扫描结束\n");
-    return 0;
-}
-
 
 //-----------------------------------------------------------------
 
@@ -778,26 +697,6 @@ void handle_client(int radio_fd, int client_fd) {
                         write(client_fd, buf, strlen(buf));
                     }
                 }
-                else if (strncmp(cmd, "SCAN", 4) == 0) {
-                    int ret = scan(radio_fd);
-
-                    if (ret != 0) {
-                        //LOGI("MyFM: 扫描异常退出\n");
-                    }else {
-                        char res_buf[256];
-                        memset(res_buf, 0, sizeof(res_buf));
-                        int pos = snprintf(res_buf, sizeof(res_buf), "SCANED:");
-                        
-                        for (int i = 0; i < scan_count; i++) {
-                            if (pos < (int)sizeof(res_buf) - 15) {
-                                pos += snprintf(res_buf + pos, sizeof(res_buf) - pos, "%.1f%s", 
-                                                scan_list[i], (i == scan_count - 1 ? "" : ","));
-                            }
-                        }
-                        strncat(res_buf, "\n", sizeof(res_buf) - strlen(res_buf) - 1);
-                        write(client_fd, res_buf, strlen(res_buf));
-                    }
-                }
                 // --- 指令处理结束 ---
             }
         } else if (len == 0) {
@@ -823,7 +722,7 @@ void handle_client(int radio_fd, int client_fd) {
                         break;
                     }
                 } else {
-                    LOGI("PUSH: %s\n", signal_msg);
+                    LOGI("📡 实时推送: %s\n", signal_msg);
                 }
             }
             last_push_time = now;
@@ -872,11 +771,6 @@ int main() {
 
     pthread_t tid;
     pthread_create(&tid, NULL, loop_event, &radio_fd);
-
-
-
-    //scan(radio_fd);
-
 
     // 默认先静音，等待指令
     //set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 1, "MUTE");

@@ -56,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
 
     private TextView tvFreq;
     private TextView tvInfo;
-    private Button btnPower,btnPre,btnNext,btnTuneDown,btnTuneUp,btnEdit;
+    private Button btnPower,btnPre,btnNext,btnTuneDown,btnTuneUp,btnEdit,btnScan;
     private FlexboxLayout flexboxLayoutButtons;
     Button selectedButton = null;
     private LinearLayout rssi_meter_wrap;
@@ -88,12 +88,11 @@ public class MainActivity extends AppCompatActivity {
                 // 获取 live update 数据
                 tvInfo.setText(msg);
 
-                Pattern pattern = Pattern.compile("RSSI:(\\d+)");
-                Matcher matcher = pattern.matcher(msg);
+                Matcher matcher_RSSI = Pattern.compile("RSSI:(\\d+)").matcher(msg);
 
-                if (matcher.find()) {
+                if (matcher_RSSI.find()) {
                     try {
-                        String rssiStr = matcher.group(1);
+                        String rssiStr = matcher_RSSI.group(1);
                         int rssi = Integer.parseInt(rssiStr);
                         //Log.d("---------------", String.valueOf(rssi));
                         updateRSSIView(rssi_meter_wrap, rssi_meter, rssi);
@@ -103,19 +102,36 @@ public class MainActivity extends AppCompatActivity {
                 }
 
 
+                Matcher matcher_FREQ = Pattern.compile("FREQ:(\\d+\\.?\\d*)").matcher(msg);
 
-                Pattern pattern2 = Pattern.compile("FREQ:(\\d+\\.?\\d*)");
-                Matcher matcher2 = pattern2.matcher(msg);
-
-                if (matcher2.find()) {
+                if (matcher_FREQ.find()) {
                     try {
-                        String freqStr = matcher2.group(1);
+                        String freqStr = matcher_FREQ.group(1);
                         tvFreq.setText(freqStr);
+                        freq = freqStr;
+                        myapp.saveString("freq", freqStr);
                     } catch (NumberFormatException e) {
                         //Log.e(TAG, "RSSI格式错误: " + message);
                     }
                 }
 
+                Matcher matcher_SCAN = Pattern.compile("SCANED:(.*)").matcher(msg);
+
+                if (matcher_SCAN.find()) {
+                    try {
+                        String scanlist = matcher_SCAN.group(1);
+                        btnScan.setEnabled(true);
+                        String[] parts = scanlist.split(",");
+                        Toast.makeText(MainActivity.this, String.format("找到 %d 个电台.", parts.length), Toast.LENGTH_LONG).show();
+
+                        addScanList(scanlist);
+                        //tvFreq.setText(freqStr);
+                        //freq = freqStr;
+                        //myapp.saveString("freq", freqStr);
+                    } catch (NumberFormatException e) {
+                        //Log.e(TAG, "RSSI格式错误: " + message);
+                    }
+                }
 
 
 
@@ -184,7 +200,7 @@ public class MainActivity extends AppCompatActivity {
         tvFreq = findViewById(R.id.tvFreq);
         tvInfo = findViewById(R.id.tvInfo);
         btnPower = findViewById(R.id.btnPower);
-        //btnSearch = findViewById(R.id.btnSearch);
+        btnScan = findViewById(R.id.btnScan);
         //btnToggleInfo = findViewById(R.id.btnToggleInfo);
         btnTuneDown = findViewById(R.id.btnTuneDown);
         btnTuneUp = findViewById(R.id.btnTuneUp);
@@ -278,6 +294,17 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
 
                 fmService.sendFmCommand("SEEK 1");
+            }
+        });
+
+        //-----------Button Search----------------
+        btnScan.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+
+                fmService.sendFmCommand("SCAN");
+                tvInfo.setText("SCANING...");
+                btnScan.setEnabled(false);
             }
         });
 
@@ -431,6 +458,7 @@ public class MainActivity extends AppCompatActivity {
             myapp.running = false;
             btnPower.setText("ON");
             tvInfo.setText("FM Stopped");
+            btnScan.setEnabled(false);
             volumeMeterView.setLevel(0);
             btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#e5e5e5")));
             updateRSSIView(rssi_meter_wrap, rssi_meter, 0);
@@ -439,6 +467,7 @@ public class MainActivity extends AppCompatActivity {
             // --- 启动 ---
             tvInfo.setText("FM Service Starting...");
             btnPower.setText("Stop");
+            btnScan.setEnabled(true);
             btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(color1)));
 
 
@@ -533,6 +562,10 @@ public class MainActivity extends AppCompatActivity {
             // 为两行文字设置不同颜色
             String line1 = station.getNumber();
             String line2 = station.getName();
+            int line2Color = Color.parseColor("#aaaaaa");
+            if (line2.startsWith("新电台")) {
+                line2Color = Color.parseColor("#00af00");
+            }
             String text = line1 + "\n" + line2;
             SpannableString spannable = new SpannableString(text);
             spannable.setSpan(
@@ -542,7 +575,7 @@ public class MainActivity extends AppCompatActivity {
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
             );
             spannable.setSpan(
-                    new ForegroundColorSpan(Color.parseColor("#aaaaaa")),
+                    new ForegroundColorSpan(line2Color),
                     line1.length() + 1,   // +1 是 \n
                     text.length(),
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -599,6 +632,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void addSingleButton(RadioStation station) {
+        List<RadioStation> singleStationList = new ArrayList<>();
+        singleStationList.add(station);
+        createAndAddButtons(singleStationList);
+    }
 
 
 
@@ -673,6 +711,23 @@ public class MainActivity extends AppCompatActivity {
             // 写入失败处理
         }
     }
+
+
+
+    // 添加扫描到的电台到按钮
+    private void addScanList(String list){
+        String frequencies = list;
+        String[] parts = frequencies.split(",");
+
+        for (int i = 0; i < parts.length; i++) {
+            String freq = parts[i].trim();
+            String name = "新电台 " + (i + 1);
+
+            RadioStation station = new RadioStation(freq, name);
+            addSingleButton(station);
+        }
+    }
+
 
 
     private void checkAndRequestPermissions() {

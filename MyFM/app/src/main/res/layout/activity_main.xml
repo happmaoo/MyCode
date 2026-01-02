@@ -132,12 +132,12 @@
                 android:gravity="right">
 
                 <Button
-                    android:id="@+id/btnSearch"
+                    android:id="@+id/btnScan"
                     android:layout_width="80dp"
-                    android:textSize="10sp"
+                    android:textSize="12sp"
                     android:layout_height="wrap_content"
                     android:enabled="false"
-                    android:text="Search"/>
+                    android:text="Scan"/>
 
                 <Button
                     android:id="@+id/btnPre"

@@ -6,7 +6,7 @@ cat > "$cmd_script" << 'EOF'
 #!/bin/bash
 rm fm_service
 make
-read -n 1
+sleep 10
 EOF
 
 chmod +x "$cmd_script"
