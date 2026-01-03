@@ -149,6 +149,14 @@ enum search_t {
 	RDS_AF_JUMP,
 };
 
+enum iris_region_t {
+	IRIS_REGION_US,
+	IRIS_REGION_EU,
+	IRIS_REGION_JAPAN,
+	IRIS_REGION_JAPAN_WIDE,
+	IRIS_REGION_OTHER
+};
+
 const char* iris_event_names[] = {
     "IRIS_EVT_RADIO_READY",    // 0x00
     "IRIS_EVT_TUNE_SUCC",      // 0x01
@@ -174,6 +182,21 @@ const char* iris_event_names[] = {
     "IRIS_EVT_NEW_ERT",        // 0x15
     "IRIS_EVT_SPUR_TBL",       // 0x16
 };
+
+
+#define REGION_US_EU_BAND_LOW              87500
+#define REGION_US_EU_BAND_HIGH             108000
+
+
+/*Search Station list */
+#define PARAMS_PER_STATION 0x08
+#define STN_NUM_OFFSET     0x01
+#define STN_FREQ_OFFSET    0x02
+#define KHZ_TO_MHZ         1000
+#define GET_MSB(x)((x >> 8) & 0xFF)
+#define GET_LSB(x)((x) & 0xFF)
+
+
 
 #define SOCKET_NAME "fm_service"
 #define PUSH_INTERVAL_MS 1000  // 1秒推送一次
@@ -210,17 +233,29 @@ volatile int seek_done = 0;
 pthread_mutex_t seek_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t  seek_cond  = PTHREAD_COND_INITIALIZER;
 
-// 用来存储各种客户端可以修改的参数 为 0 使用系统默认
-int var_V4L2_CID_PRIVATE_INTF_LOW_THRESHOLD = 0;//110
-int var_V4L2_CID_PRIVATE_INTF_HIGH_THRESHOLD = 0;//150
+// scan
+volatile int scan_done = 0;
+pthread_mutex_t scan_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t  scan_cond  = PTHREAD_COND_INITIALIZER;
+
+// 用来存储各种客户端可以修改的参数 为 0 使用系统默认 !!! 最好不要改，因为改了容易搜台不稳定，频率漂移。!!!
+int var_V4L2_CID_PRIVATE_INTF_LOW_THRESHOLD = 0; // 最好配合下面的 HIGH_THRESHOLD 不然100多就 Invalid argument
+int var_V4L2_CID_PRIVATE_INTF_HIGH_THRESHOLD = 0;// 必须配合上面的LOW_THRESHOLD
 int var_V4L2_CID_PRIVATE_SINR_THRESHOLD = 0;
+
+
 
 // 定义扫描列表存储
 #define MAX_SCAN_LIST 20
 float scan_list[MAX_SCAN_LIST];
 int scan_count = 0;
+int scan_status = 0;
+int seek_status = 0;
+
 
 //-----------------------------------------------------------------
+
+
 
 // === 辅助函数 ===
 int run_cmd(const char *cmd) { return system(cmd); }
@@ -328,20 +363,44 @@ int get_events(int fd, int type) {
                 if (event_type < sizeof(iris_event_names)/sizeof(char*))
                     LOGI("收到事件: %s (0x%02X)\n", iris_event_names[event_type], event_type);
 
-                // 情况 1: 发现搜索列表准备好了
                 if (event_type == IRIS_EVT_NEW_SRCH_LIST) {
-                    LOGI("检测到搜台完成，正在请求提取列表缓冲区...\n");
-                    // 递归调用自身去拉取 SRCH_LIST 缓冲区的数据
-                    // 这会进入本函数的 case IRIS_BUF_SRCH_LIST 分支
-                    get_events(fd, IRIS_BUF_SRCH_LIST);
+
+                    if(scan_status == 1){
+                        LOGI("检测到搜台完成，正在请求提取列表缓冲区...\n");
+                        // 递归调用自身去拉取 SRCH_LIST 缓冲区的数据
+                        // 这会进入本函数的 case IRIS_BUF_SRCH_LIST 分支
+                        get_events(fd, IRIS_BUF_SRCH_LIST);
+                        scan_status = 0;
+                        // 2. 解锁阻塞在 scan() 的主线程
+                        pthread_mutex_lock(&scan_mutex);
+                        scan_done = 1;
+                        pthread_cond_signal(&scan_cond);
+                        pthread_mutex_unlock(&scan_mutex);
+                    }
                 }
-                
-                // 情况 2: 单次 Seek 完成或搜索结束的通用通知
-                if (event_type == IRIS_EVT_SEEK_COMPLETE || event_type == IRIS_EVT_NEW_SRCH_LIST) {
+
+                if (event_type == IRIS_EVT_SEEK_COMPLETE) {
+
+                    // IRIS_EVT_SEEK_COMPLETE 的时候根本没有搜索完成，不要用，坑。
+
+                    // LOGI("收到 IRIS_EVT_SEEK_COMPLETE，搜索彻底完成\n");
+                    // pthread_mutex_lock(&seek_mutex);
+                    // seek_done = 1;
+                    // pthread_cond_signal(&seek_cond);
+                    // pthread_mutex_unlock(&seek_mutex);
+
+                }
+                if (event_type == IRIS_EVT_TUNE_SUCC) {
+
+                    //是在搜索状态时的 IRIS_EVT_TUNE_SUCC
+                    if(seek_status == 1){
+                    LOGI("收到 IRIS_EVT_TUNE_SUCC\n");
+                    seek_status = 0;
                     pthread_mutex_lock(&seek_mutex);
                     seek_done = 1;
                     pthread_cond_signal(&seek_cond);
                     pthread_mutex_unlock(&seek_mutex);
+                    }
                 }
             }
             break;
@@ -382,6 +441,7 @@ int get_events(int fd, int type) {
 
                 // 更新到全局列表并打印
                 scan_count = valid_count;
+                if(scan_count==0){LOGI("电台列表为空.");}
                 for (int i = 0; i < scan_count; i++) {
                     scan_list[i] = temp_list[i];
                     LOGI("  - [电台 %d]: %.2f MHz\n", i + 1, scan_list[i]);
@@ -418,6 +478,8 @@ void* loop_event(void *arg) {
 // ================================================================
 
 
+/*
+
 float measure_rssi(int fd, float mhz) {
     struct v4l2_frequency f = {
         .tuner = 0,
@@ -427,25 +489,29 @@ float measure_rssi(int fd, float mhz) {
     ioctl(fd, VIDIOC_S_FREQUENCY, &f);
     usleep(200000); //100ms
 
+    float myf = f.frequency / 16 / 1000.0;
+
     struct v4l2_tuner tuner = { .index = 0 };
     if (ioctl(fd, VIDIOC_G_TUNER, &tuner) == 0)
+        LOGI("refine_freq: ===%.2f = %d===\n", myf, tuner.signal-139);
         return tuner.signal;
 
     return -1;
 }
 
 
-float refine_freq(int fd, float base) {
+float refine_freq1(int fd, float base) {
     float candidates[] = {
     base - 0.1f,
     base,
-    base + 0.1f
+    base + 0.1f,
+    base + 0.2f
     };
 
     float best = base;
     float best_rssi = -1;
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         float rssi = measure_rssi(fd, candidates[i]);
         if (rssi > best_rssi) {
             best_rssi = rssi;
@@ -455,32 +521,82 @@ float refine_freq(int fd, float base) {
     return best;
 }
 
+// ----------------------------------------------------------------------
 
+// 定义一个结构体来存储测量结果
+struct signal_metrics {
+    int rssi;
+    int sinr;
+    float freq;
+};
 
-static void adjust_seek_start(int fd, int dir) {
-    struct v4l2_frequency f;
-    memset(&f, 0, sizeof(f));
-    f.tuner = 0;
-    f.type = V4L2_TUNER_RADIO;
+// 测量函数：现在同时获取 RSSI 和 SINR
+struct signal_metrics measure_metrics(int fd, float mhz) {
+    struct signal_metrics metrics = { .rssi = 0, .sinr = 0, .freq = mhz };
 
-    if (ioctl(fd, VIDIOC_G_FREQUENCY, &f) < 0)
-        return;
+    // 1. 设置频率
+    struct v4l2_frequency f = {
+        .tuner = 0,
+        .type = V4L2_TUNER_RADIO,
+        .frequency = (int)(mhz * 16000)
+    };
+    ioctl(fd, VIDIOC_S_FREQUENCY, &f);
+    
+    // 等待硬件稳定 (200ms)
+    usleep(200000); 
 
-    int step = 16000 / 10; // 0.1 MHz
-
-    if (dir == 0) {
-        // 向左：先退一格，避免命中当前频点
-        f.frequency -= step;
-        LOGI("Adjust SEEK start: -0.1MHz\n");
-    } else {
-        // 向右：先进一格（可选，但建议对称）
-        f.frequency += step;
-        LOGI("Adjust SEEK start: +0.1MHz\n");
+    // 2. 获取 RSSI
+    struct v4l2_tuner tuner = { .index = 0 };
+    if (ioctl(fd, VIDIOC_G_TUNER, &tuner) == 0) {
+        metrics.rssi = tuner.signal - 139;
     }
 
-    ioctl(fd, VIDIOC_S_FREQUENCY, &f);
-    usleep(40000); // 给 PLL 稳定时间
+    // 3. 获取 SINR
+    struct v4l2_control ctrl = { .id = V4L2_CID_PRIVATE_IRIS_GET_SINR };
+    if (ioctl(fd, VIDIOC_G_CTRL, &ctrl) == 0) {
+        metrics.sinr = ctrl.value;
+    }
+
+    LOGI("Measure Freq: %.2f | RSSI: %d | SINR: %d\n", mhz, metrics.rssi, metrics.sinr);
+    return metrics;
 }
+
+// 优化频率函数：比较多个候选点
+float refine_freq(int fd, float base) {
+    float candidates[] = { base - 0.1f, base, base + 0.1f, base + 0.2f };
+    
+    struct signal_metrics best_metrics = { .rssi = 0, .sinr = 0, .freq = base };
+
+    for (int i = 0; i < 4; i++) {
+        struct signal_metrics current = measure_metrics(fd, candidates[i]);
+
+        // 比较逻辑：
+        // 优先判断 SINR（信噪比是音频质量的关键）
+        // 如果 SINR 更大，或者 SINR 相等但 RSSI 更强，则更新
+        if (current.sinr > best_metrics.sinr || 
+           (current.sinr == best_metrics.sinr && current.rssi > best_metrics.rssi)) {
+            
+            best_metrics = current;
+        }
+    }
+
+    //LOGI("Refine Result -> Best Freq: %.2f (SINR: %d, RSSI: %d)\n", 
+          //best_metrics.freq, best_metrics.sinr, best_metrics.rssi);
+
+    // 强制对齐到 0.1 MHz
+    best_metrics.freq = roundf(best_metrics.freq * 10.0f) / 10.0f;
+    return best_metrics.freq;
+}
+
+
+// ----------------------------------------------------------------------
+
+
+
+
+
+
+
 
 
 //---------------------------------------
@@ -508,90 +624,98 @@ static int is_severe_densense(float freq, int rssi) {
     return 0;
 }
 
-// refine 基频
-float refine_freq2(int fd, float base) {
-    float best_freq = base;
-    int best_rssi = -9999;
-    const int step_khz = 10;   // 0.01 MHz 步进
-    const int steps = 2;       // ±2 steps
-    struct v4l2_frequency freq = {0};
-    struct v4l2_tuner tuner = {0};
+*/
 
-    freq.tuner = 0;
-    freq.type = V4L2_TUNER_RADIO;
-    tuner.index = 0;
 
-    for (int i = -steps; i <= steps; i++) {
-        float f = base + i * 0.1f;   // ±0.1 MHz
-        if (f < 87.5f || f > 108.0f) continue;
+static void adjust_seek_start(int fd, int dir) {
+    struct v4l2_frequency f;
+    memset(&f, 0, sizeof(f));
+    f.tuner = 0;
+    f.type = V4L2_TUNER_RADIO;
 
-        freq.frequency = (int)(f * 16000); // V4L2 frequency
-        if (ioctl(fd, VIDIOC_S_FREQUENCY, &freq) < 0) continue;
-        usleep(50000); // 50ms PLL 稳定
+    if (ioctl(fd, VIDIOC_G_FREQUENCY, &f) < 0)
+        return;
 
-        if (ioctl(fd, VIDIOC_G_TUNER, &tuner) < 0) continue;
+    int step = 16000 / 10; // 0.1 MHz
 
-        int rssi = tuner.signal - 139; // IRIS 标准
-        if (is_severe_densense(f, rssi)) continue;
-
-        LOGI("Refine check: %.2f MHz RSSI=%d\n", f, rssi);
-
-        if (rssi > best_rssi) {
-            best_rssi = rssi;
-            best_freq = f;
-        }
+    if (dir == 0) {
+        // 向左：先退一格，避免命中当前频点
+        f.frequency -= step;
+        LOGI("Adjust SEEK start: -0.1MHz\n");
+    } else {
+        // 向右：先进一格（可选，但建议对称）
+        f.frequency += step;
+        LOGI("Adjust SEEK start: +0.1MHz\n");
     }
 
-    LOGI("Refine result: %.2f MHz (RSSI=%d)\n", best_freq, best_rssi);
-    return best_freq;
+    ioctl(fd, VIDIOC_S_FREQUENCY, &f);
+    usleep(50000); // 给 PLL 稳定时间
 }
-
-
 
 
 // =========== seek =========
 int seek(int fd, int dir) {
     push_enabled = 0;
+    seek_status = 1;
+
+
+    //adjust_seek_start(fd,dir);
+
     set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 1, "MUTE");
 
-    struct v4l2_hw_freq_seek v4l_seek;
-    memset(&v4l_seek, 0, sizeof(v4l_seek));
+    // 1. 关键：先强制停止任何可能存在的搜索任务，重置状态机
+    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
+    usleep(100000); // 给驱动一点反应时间
 
-    v4l_seek.tuner = 0;
-    v4l_seek.type = V4L2_TUNER_RADIO;
-    v4l_seek.wrap_around = 1;
-    v4l_seek.seek_upward = (dir != 0);
-    v4l_seek.spacing = 0;
+    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCH_CNT, 1, "RESET_SRCH_CNT"); // 重置为1
 
-    // 清除旧状态
+    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHMODE, SEEK, "SRCHMODE_SEEK");
+
+
+
+
+    // 2. 重置同步变量
     pthread_mutex_lock(&seek_mutex);
     seek_done = 0;
     pthread_mutex_unlock(&seek_mutex);
 
-    LOGI("开始 SEEK, dir=%d\n", dir);
-    adjust_seek_start(fd, dir);
+    // 3. 配置 SEEK 参数
+    struct v4l2_hw_freq_seek v4l_seek;
+    memset(&v4l_seek, 0, sizeof(v4l_seek));
+    v4l_seek.tuner = 0;
+    v4l_seek.type = V4L2_TUNER_RADIO;
+    v4l_seek.wrap_around = 1;
+    v4l_seek.seek_upward = (dir == 0) ? 0 : 1;
 
+    // 必须参数设置完才能开始搜索
+    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 1, "SRCH_ON");
+
+    LOGI("开始执行 VIDIOC_S_HW_FREQ_SEEK...\n");
     if (ioctl(fd, VIDIOC_S_HW_FREQ_SEEK, &v4l_seek) < 0) {
-        LOGI("VIDIOC_S_HW_FREQ_SEEK failed: %s\n", strerror(errno));
+        LOGI("SEEK ioctl 失败: %s\n", strerror(errno));
         push_enabled = 1;
         return -1;
     }
 
-    // ===== 等待 SEEK_COMPLETE 事件 =====
+    // 4. 等待信号
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_sec += 5;   // 最多等 5 秒，防死锁
+    ts.tv_sec += 10; 
 
     pthread_mutex_lock(&seek_mutex);
-    while (!seek_done) {
-        if (pthread_cond_timedwait(&seek_cond, &seek_mutex, &ts) == ETIMEDOUT) {
-            LOGI("⚠️ SEEK 超时\n");
+    if (!seek_done) { // 双重检查，防止信号早于等待发生
+        int ret = pthread_cond_timedwait(&seek_cond, &seek_mutex, &ts);
+        if (ret == ETIMEDOUT) {
+            LOGI("SEEK TIMEDOUT\n");
             pthread_mutex_unlock(&seek_mutex);
+            // 超时也要关闭搜索状态
+            set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
             push_enabled = 1;
             return -1;
         }
     }
     pthread_mutex_unlock(&seek_mutex);
+    
 
     // ===== SEEK 完成，读取新频率 =====
     struct v4l2_frequency freq;
@@ -609,14 +733,22 @@ int seek(int fd, int dir) {
 
 
     curr_freq_mhz = freq.frequency / 16 / 1000.0;
-    LOGI("✅ SEEK 完成，当前频率 %.2f MHz\n", curr_freq_mhz);
 
+    // 其实不用这些方法，因为当时我参数设置乱了，所以很不稳定.参数乱了，不稳定，记得重启手机
+    // 强制避免出现 93.05 这种频率
+    //curr_freq_mhz = floorf(curr_freq_mhz * 10.0f + 0.5f) / 10.0f;
+
+    LOGI("---SEEK 完成 %.2f ---\n", curr_freq_mhz);
+
+    // 其实不用这些方法，因为当时我参数设置乱了，所以很不稳定.参数乱了，不稳定，记得重启手机
     // 邻频择优（±100kHz）
-    curr_freq_mhz = refine_freq(fd, curr_freq_mhz);
-    LOGI("🎯 校正后频率 %.2f MHz\n", curr_freq_mhz);
-
+    //curr_freq_mhz = refine_freq(fd, curr_freq_mhz);
+    //LOGI("----------校正后 %.2f ----------\n", curr_freq_mhz);
+    
+    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
     set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 0, "UNMUTE");
     push_enabled = 1;
+    seek_status = 0;
     return curr_freq_mhz;
 }
 
@@ -624,18 +756,34 @@ int seek(int fd, int dir) {
 
 
 int scan(int fd) {
+
+
+    // scan 时从最低频率开始
+    struct v4l2_frequency freq = { 
+    .tuner = 0, 
+    .type = V4L2_TUNER_RADIO, 
+    .frequency = (int)(87.5 * TUNE_MULT) 
+    };
+    ioctl(fd, VIDIOC_S_FREQUENCY, &freq);
+
+
+
     // 1. 强制先关闭一次搜索，确保状态机复位
     set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
     usleep(50000);
     LOGI("开始扫描 (SCAN)...\n");
     push_enabled = 0;
     scan_count = 0;
-    seek_done = 0;
+    scan_done = 0;
     memset(scan_list, 0, sizeof(scan_list));
+
+    scan_status = 1;
 
 
     set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHMODE, SCAN_FOR_STRONG, "SRCH_MODE"); 
     set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCH_CNT, MAX_SCAN_LIST, "SRCH_CNT");
+
+
 
     // 启动扫描
     if (set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 1, "SRCH_ON") < 0) {
@@ -646,17 +794,18 @@ int scan(int fd) {
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_sec += 30; // 扫描时间s
+    ts.tv_sec += 60; // 扫描时间s
 
-    pthread_mutex_lock(&seek_mutex);
-    while (!seek_done) {
-        if (pthread_cond_timedwait(&seek_cond, &seek_mutex, &ts) == ETIMEDOUT) {
+    pthread_mutex_lock(&scan_mutex);
+    while (!scan_done) {
+        if (pthread_cond_timedwait(&scan_cond, &scan_mutex, &ts) == ETIMEDOUT) {
             LOGI("扫描超时\n");
             break;
         }
     }
-    pthread_mutex_unlock(&seek_mutex);
+    pthread_mutex_unlock(&scan_mutex);
     set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
+    set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 0, "UNMUTE");
 
     // 5. 扫描结束后，需要通过 VIDIOC_DQBUF 获取 IRIS_BUF_SRCH_LIST
     // 这部分逻辑建议放在 loop_event 里的获取数据部分
@@ -856,8 +1005,9 @@ int main() {
     usleep(100000); 
     // 默认设置
     set_control(radio_fd, V4L2_CID_PRIVATE_IRIS_SET_AUDIO_PATH, AUDIO_DIGITAL_PATH, "DIGITAL_PATH");
-    set_control(radio_fd, V4L2_CID_PRIVATE_IRIS_REGION, 0, "REGION");
     set_control(radio_fd, V4L2_CID_PRIVATE_IRIS_SPACING, 1, "SPACING");
+    set_control(radio_fd, V4L2_CID_PRIVATE_IRIS_EMPHASIS, 1,"EMPHASIS");  // 50μs去加重（中国）
+    set_control(radio_fd, V4L2_CID_PRIVATE_IRIS_REGION, IRIS_REGION_OTHER,"REGION_OTHER");  // 其他区域
 
 
     if(var_V4L2_CID_PRIVATE_INTF_LOW_THRESHOLD != 0){
@@ -874,8 +1024,65 @@ int main() {
     pthread_create(&tid, NULL, loop_event, &radio_fd);
 
 
+    // sleep(2);
+    // set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 1, "MUTE");
 
-    //scan(radio_fd);
+    /*
+
+     // 4. 关闭收音机
+    set_control(radio_fd, V4L2_CID_PRIVATE_IRIS_STATE, FM_OFF, "FM_OFF");
+    usleep(200000);  // 200ms
+    
+    // 5. 重新打开收音机
+    set_control(radio_fd, V4L2_CID_PRIVATE_IRIS_STATE, FM_RECV, "FM_RECV");
+    usleep(600000);  // 300ms 等待硬件初始化
+
+
+    //  重置到默认状态（IRIS特有）
+    struct v4l2_control ctrl = { .id = V4L2_CID_PRIVATE_IRIS_READ_DEFAULT };
+    if (ioctl(radio_fd, VIDIOC_G_CTRL, &ctrl) == 0) {
+        LOGI("读取默认配置完成\n");
+    }else{
+        LOGI("读取默认配置  error\n");
+    }
+
+    */
+
+
+
+
+
+
+
+    
+    // scan(radio_fd);
+    // close(radio_fd);
+    // return 0;
+
+
+
+    // struct v4l2_frequency freq = { 
+    // .tuner = 0, 
+    // .type = V4L2_TUNER_RADIO, 
+    // .frequency = (int)(108 * TUNE_MULT) 
+    // };
+    // ioctl(radio_fd, VIDIOC_S_FREQUENCY, &freq);
+
+    // seek(radio_fd,0);
+    // sleep(2);
+    // seek(radio_fd,0);
+    // sleep(2);
+    // seek(radio_fd,0);
+    // sleep(2);
+    // seek(radio_fd,0);
+    // sleep(2);
+    // seek(radio_fd,0);
+    // sleep(2);
+
+    // close(radio_fd);
+    // return 0;
+
+
 
 
     // 默认先静音，等待指令
@@ -922,6 +1129,6 @@ int main() {
     close(server_fd);
     close(radio_fd);
     
-    LOGI("👋 服务关闭\n");
+    LOGI("服务关闭\n");
     return 0;
 }

@@ -391,6 +391,7 @@ public class MainActivity extends AppCompatActivity {
         tvFreq.setText(myapp.getString("freq",""));
         if(myapp.running){
             btnPower.setText("Stop");
+            btnScan.setEnabled(true);
             btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(color1)));
         }
         if (fmService != null) {

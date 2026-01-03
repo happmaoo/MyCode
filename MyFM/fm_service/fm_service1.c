@@ -497,22 +497,25 @@ int main(int argc, char **argv) {
     //int antenna = get_antenna(radio_fd);
     //LOGI("ANTENNA: %d\n", antenna);
 
-    // int myseek = seek(radio_fd,1);
-    // int sinr1 = get_sinr(radio_fd);
-    // LOGI("sinr2: %d\n", sinr1);
-    // sleep(5);
+    int myseek = seek(radio_fd,0);
+    int sinr1 = get_sinr(radio_fd);
+    LOGI("sinr2: %d\n", sinr1);
+    sleep(5);
 
-    // int myseek2 = seek(radio_fd,1);
-    // int sinr2 = get_sinr(radio_fd);
-    // LOGI("sinr2: %d\n", sinr2);
-    // sleep(5);
+    int myseek2 = seek(radio_fd,0);
+    int sinr2 = get_sinr(radio_fd);
+    LOGI("sinr2: %d\n", sinr2);
+    sleep(5);
 
-    // int myseek3 = seek(radio_fd,1);
-    // int sinr3 = get_sinr(radio_fd);
-    // LOGI("sinr2: %d\n", sinr3);
-    // sleep(5);
+    int myseek3 = seek(radio_fd,0);
+    int sinr3 = get_sinr(radio_fd);
+    LOGI("sinr2: %d\n", sinr3);
+    sleep(5);
 
-
+    
+    close(radio_fd);
+    return 0;
+    
 
     // 2. 创建 Socket
     socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
