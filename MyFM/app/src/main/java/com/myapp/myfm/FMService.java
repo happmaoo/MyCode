@@ -14,6 +14,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import androidx.core.app.NotificationCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import android.os.Looper;
 import android.util.Log;
@@ -26,9 +27,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-
-
-
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 
 public class FMService extends Service implements FMClient.MessageCallback {
@@ -37,10 +37,18 @@ public class FMService extends Service implements FMClient.MessageCallback {
     private static final int NOTIFICATION_ID = 101;
     private static final String CHANNEL_ID = "FM_SERVICE_CHANNEL";
 
-    // 广播 Action
-    public static final String ACTION_LOG_UPDATE = "com.myapp.myfm2.LOG_UPDATE";
-    public static final String ACTION_STATUS_UPDATE = "com.myapp.myfm2.STATUS_UPDATE";
+    // 广播 Actions 发到 Activity
+    public static final String ACTION_LOG_UPDATE = "com.myapp.myfm.LOG_UPDATE";
+    public static final String ACTION_STATUS_UPDATE = "com.myapp.myfm.STATUS_UPDATE";
+    public static final String ACTION_VOLUME_UPDATE = "com.myapp.myfm.VOLUME_UPDATE";
+
+    // 从 主界面和通知栏 发送服务启动停止命令
+    public static final String ACTION_SERVICE_CMD = "com.myapp.myfm.SERVICE_CMD";
+
+    // Extra 键名
     public static final String EXTRA_MESSAGE = "extra_message";
+    public static final String EXTRA_VOLUME_LEVEL = "volume_level";
+
 
     // ⭐ 新增状态变量用于通知栏显示
     private float currentFreq = 0.0f;
@@ -60,12 +68,8 @@ public class FMService extends Service implements FMClient.MessageCallback {
     private final IBinder binder = new LocalBinder();
     MyFmApp myapp;
 
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private short[] shortBuffer; // 复用 buffer 减少 GC
-
-    public static final String ACTION_STOP_SERVICE = "com.myapp.myfm.STOP_SERVICE";
+    private String playstatus = "PAUSE";
     private boolean isStopping = false;
-
 
     public class LocalBinder extends Binder {
         FMService getService() {
@@ -91,7 +95,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
         myapp = (MyFmApp) getApplicationContext();
         currentFreq = Float.parseFloat(myapp.getString("freq","93"));
 
-        registerReceiver(actionReceiver, new android.content.IntentFilter(ACTION_STOP_SERVICE));
+        registerReceiver(actionReceiver, new android.content.IntentFilter(ACTION_SERVICE_CMD));
 
     }
 
@@ -99,31 +103,16 @@ public class FMService extends Service implements FMClient.MessageCallback {
     public int onStartCommand(Intent intent, int flags, int startId) {
 
 
-
-        if (!isRunning) {
-            String fmPath = installFMExecutable();
-            if (fmPath != null) {
-                runFMRoot(fmPath);
-            }
-        }
-
-
-        try { Thread.sleep(1500);} catch (InterruptedException e) {e.printStackTrace();}
-
-        // 启动音频循环
-        startLoopback();
-
-        new android.os.Handler().postDelayed(() -> {
-            sendFmCommand("TUNE "+currentFreq);
-            Log.d(TAG, "onStartCommand");
-            sendFmCommand("UNTUNE");
-            sendFmCommand("PUSH 1");
-        }, 500); // 延迟秒
-
         // 确保服务重启机制
         return START_STICKY;
     }
 
+
+
+
+    public String getCurrentState() {
+        return playstatus;
+    }
 
     private void runFMRoot(String path) {
         try {
@@ -203,6 +192,14 @@ public class FMService extends Service implements FMClient.MessageCallback {
     }
 
     public void sendFmCommand(String cmd) {
+
+        //如果正在停止不再接收命令
+        if (isStopping) return;
+
+        if ("QUIT".equals(cmd)){
+            isStopping = true;
+        }
+
         if (fmClient != null) {
             // 检查是否已连接（假设 FMClient 有 isConnected() 方法，如果没有见下方补充）
             if (!fmClient.isConnected()) {
@@ -228,15 +225,24 @@ public class FMService extends Service implements FMClient.MessageCallback {
     @Override
     public void onMessageReceived(String message) {
         Intent intent = new Intent(ACTION_LOG_UPDATE);
+
+        // 这里需要优化，频率改变才更新，不然会卡
+//        if (current_freq != last_notified_freq) {
+//            String freqtext = myapp.getString("freq", "93");
+//            updateNotificationText(freqtext, "");
+//        }
+
         intent.putExtra(EXTRA_MESSAGE, message);
         intent.setPackage(getPackageName()); // 明确包名，安全且符合 Android 14 要求
         sendBroadcast(intent);
     }
 
+    // 通知主界面状态改变
     @Override
     public void onStatusChanged(String status) {
-        // 更新通知栏文字（可选）
 
+        playstatus = status;
+        // 更新通知栏文字（可选）
         String freqtext = myapp.getString("freq","93");
         updateNotificationText(freqtext,"");
         Log.d(TAG, "onStatusChanged:"+status);
@@ -259,8 +265,9 @@ public class FMService extends Service implements FMClient.MessageCallback {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         // 停止服务按钮
-        Intent stopIntent = new Intent(ACTION_STOP_SERVICE);
+        Intent stopIntent = new Intent(ACTION_SERVICE_CMD);
         stopIntent.setPackage(getPackageName());
+        stopIntent.putExtra("cmd", "stop");
         PendingIntent stopPI = PendingIntent.getBroadcast(this, 2, stopIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
@@ -305,18 +312,6 @@ public class FMService extends Service implements FMClient.MessageCallback {
     }
 
 
-    // 1. 定义回调接口
-    public interface OnVolumeChangeListener {
-        void onVolumeChanged(int level);
-    }
-
-    private OnVolumeChangeListener volumeChangeListener;
-
-    // 2. 暴露给 Activity 设置监听器
-    public void setOnVolumeChangeListener(OnVolumeChangeListener listener) {
-        this.volumeChangeListener = listener;
-    }
-
 
 
 
@@ -349,68 +344,43 @@ public class FMService extends Service implements FMClient.MessageCallback {
             audioTrack.play();
 
             loopbackThread = new Thread(new Runnable() {
-                private float smoothedLevel = 0f;
-                private final float alpha = 0.2f;
-                private long lastUiUpdateTime = 0; // 用于控制 UI 刷新频率
-
                 @Override
                 public void run() {
                     byte[] buffer = new byte[bufferSize];
+                    short[] shortBuffer = new short[bufferSize / 2];
 
                     while (isRunning) {
                         int readBytes = audioRecord.read(buffer, 0, buffer.length);
+
                         if (readBytes > 0) {
                             audioTrack.write(buffer, 0, readBytes);
 
-                            // 计算峰值而非RMS，波动更剧烈
-                            int maxAmplitude = 0;
-                            for (int i = 0; i < readBytes; i += 2) {
-                                short sample = (short)((buffer[i + 1] << 8) | (buffer[i] & 0xFF));
-                                int amplitude = Math.abs(sample);
-                                if (amplitude > maxAmplitude) {
-                                    maxAmplitude = amplitude;
-                                }
+                            // ⭐ byte → short
+                            ByteBuffer.wrap(buffer)
+                                    .order(ByteOrder.LITTLE_ENDIAN)
+                                    .asShortBuffer()
+                                    .get(shortBuffer, 0, readBytes / 2);
+
+                            // ⭐ 计算 RMS
+                            double sum = 0;
+                            int samples = readBytes / 2;
+
+                            for (int i = 0; i < samples; i++) {
+                                sum += shortBuffer[i] * shortBuffer[i];
                             }
 
-                            // 直接使用峰值，不使用log计算，波动更大
-                            int level;
-                            if (maxAmplitude < 100) {
-                                level = 0;
-                            } else if (maxAmplitude > 30000) {
-                                level = 100;
-                            } else {
-                                // 非线性放大：低音量部分放大更多
-                                level = (int)(Math.pow(maxAmplitude / 30000.0, 0.5) * 80);
-                            }
+                            double rms = Math.sqrt(sum / samples);
 
-                            // 添加随机波动（±10%）
-                            int randomFactor = (int)(Math.random() * 20) - 10;
-                            level = Math.max(0, Math.min(100, level + randomFactor));
+                            // ⭐ 映射到 0~100
+                            int level = (int) (rms / 32768.0 * 100);
+                            if (level > 100) level = 100;
 
-                            // 更新UI（每16ms更新一次，更快刷新）
-                            long currentTime = System.currentTimeMillis();
-                            if (currentTime - lastUiUpdateTime > 30) {
-                                final int finalLevel = level;
+                            // ⭐ 通知 UI
+                            sendVolumeBroadcast(level);
 
-                                // --- 核心修复开始 ---
-                                final OnVolumeChangeListener listener = volumeChangeListener;
-                                if (listener != null) {
-                                    mainHandler.post(() -> {
-                                        try {
-                                            // 即使此时全局变量 volumeChangeListener 被设为 null 了
-                                            // 这里的局部变量 listener 依然指向之前的对象，不会 NPE
-                                            listener.onVolumeChanged(finalLevel);
-                                        } catch (Exception e) {
-                                            Log.e(TAG, "Callback failed", e);
-                                        }
-                                    });
-                                }
-                                lastUiUpdateTime = currentTime;
-                            }
                         }
                     }
                 }
-
             });
             loopbackThread.start();
 
@@ -421,7 +391,11 @@ public class FMService extends Service implements FMClient.MessageCallback {
     }
 
 
-
+    private void sendVolumeBroadcast(int level) {
+        Intent intent = new Intent(ACTION_VOLUME_UPDATE);
+        intent.putExtra(EXTRA_VOLUME_LEVEL, level);
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+    }
 
 
     private void stopLoopback() {
@@ -470,19 +444,53 @@ public class FMService extends Service implements FMClient.MessageCallback {
     private final android.content.BroadcastReceiver actionReceiver = new android.content.BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (ACTION_STOP_SERVICE.equals(intent.getAction())) {
-                Log.d(TAG, "通过通知栏停止服务");
-                sendFmCommand("QUIT");
-                isStopping = true; // 锁定状态，禁止再弹通知
-                // 1. 立即取消通知栏
-                NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-                if (manager != null) manager.cancel(NOTIFICATION_ID);
+            if (ACTION_SERVICE_CMD.equals(intent.getAction())) {
+                String cmd = intent.getStringExtra("cmd");
+                if("stop".equals(cmd)){
+                    Log.d(TAG, "通过通知栏停止服务");
+                    sendFmCommand("QUIT");
+                    isStopping = true; // 锁定状态，禁止再弹通知
+                    // 1. 立即取消通知栏
+                    NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                    if (manager != null) manager.cancel(NOTIFICATION_ID);
 
-                // 2. 停止服务
-                stopForeground(true);
-                myapp.saveBoolean("running",false);
-                stopSelf();
-                System.exit(0);
+                    // 2. 停止服务
+                    stopForeground(true);
+                    myapp.saveBoolean("running",false);
+                    stopSelf();
+                    System.exit(0);
+                }
+                if("start".equals(cmd)){
+
+
+
+                    if (!isRunning) {
+                        String fmPath = installFMExecutable();
+                        runFMRoot(fmPath);
+                    }
+
+
+                    try { Thread.sleep(1500);} catch (InterruptedException e) {e.printStackTrace();}
+
+                    // 启动音频循环
+                    startLoopback();
+
+                    new android.os.Handler().postDelayed(() -> {
+                        sendFmCommand("TUNE "+currentFreq);
+                        Log.d(TAG, "onStartCommand");
+                        sendFmCommand("UNTUNE");
+                        sendFmCommand("PUSH 1");
+                    }, 500); // 延迟秒
+                    onStatusChanged("PLAY");
+
+                }
+                if("pause".equals(cmd)){
+                    sendFmCommand("QUIT");
+                    stopLoopback();
+
+                    onStatusChanged("PAUSE");
+
+                }
             }
         }
     };

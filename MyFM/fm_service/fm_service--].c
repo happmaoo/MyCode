@@ -224,8 +224,8 @@ struct v4l2_hw_freq_seek v4l_seek;
 struct v4l2_frequency    v4l_freq = {0};
 float curr_freq_mhz = 0.0;
 int dir;
-volatile int push_enabled = 0;
-volatile int event_enabled = 1;
+int push_enabled = 0;
+int event_enabled = 1;
 
 
 // seek
@@ -233,10 +233,8 @@ volatile int seek_done = 0;
 pthread_mutex_t seek_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t  seek_cond  = PTHREAD_COND_INITIALIZER;
 
-// 用于记录第二次 IRIS_EVT_SEEK_COMPLETE 事件才是真的
 volatile int seek_complete_count = 0;
 pthread_mutex_t seek_complete_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 
 // scan
 volatile int scan_done = 0;
@@ -257,15 +255,10 @@ int scan_count = 0;
 int scan_status = 0;
 int seek_status = 0;
 
-// 全局退出标志
-volatile sig_atomic_t should_exit = 0;
-
 
 //-----------------------------------------------------------------
 
-void signal_handler(int sig) {
-    should_exit = 1;
-}
+
 
 // === 辅助函数 ===
 int run_cmd(const char *cmd) { return system(cmd); }
@@ -316,6 +309,7 @@ int check_init_property() {
 int set_control(int fd, int id, int value, const char* name) {
     struct v4l2_control ctrl = { .id = id, .value = value };
     if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) < 0) {
+        LOGI("Error setting %s: %s\n", name, strerror(errno));
         LOGI("Error setting %s: %s\n", name, strerror(errno));
         return -1;
     }
@@ -389,6 +383,8 @@ int get_events(int fd, int type) {
                 }
 
                 if (event_type == IRIS_EVT_SEEK_COMPLETE) {
+
+                    // IRIS_EVT_SEEK_COMPLETE 的时候根本没有搜索完成，不要用，坑。
 
                     pthread_mutex_lock(&seek_complete_mutex);
                     seek_complete_count++;
@@ -680,7 +676,11 @@ int seek(int fd, int dir) {
     push_enabled = 0;
     seek_status = 1;
 
-
+// 重置 SEEK_COMPLETE 计数器
+    pthread_mutex_lock(&seek_complete_mutex);
+    seek_complete_count = 0;
+    pthread_mutex_unlock(&seek_complete_mutex);
+    
     //adjust_seek_start(fd,dir);
 
     set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 1, "MUTE");
@@ -699,6 +699,7 @@ int seek(int fd, int dir) {
     // 2. 重置同步变量
     pthread_mutex_lock(&seek_mutex);
     seek_done = 0;
+    
     pthread_mutex_unlock(&seek_mutex);
 
     // 3. 配置 SEEK 参数
@@ -870,168 +871,117 @@ void get_signal_info(int radio_fd, char* buffer, int size) {
         snprintf(buffer, size, "PUSH|ERROR:无法获取频率和信号");
     }
 }
-
-
-
-// 分离命令处理逻辑
-void process_command(int radio_fd, int client_fd, const char* cmd) {
-    float freq_mhz = 0;
-    int dir = 0;
-    char response[256];
-    
-    if (strcmp(cmd, "QUIT") == 0) {
-        LOGI("QUIT退出程序\n");
-        event_enabled = 0;
-        usleep(100000);
-        if (radio_fd >= 0) {
-            set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 1, "MUTE");
-            set_control(radio_fd, V4L2_CID_PRIVATE_IRIS_STATE, FM_OFF, "FM_OFF");
-            usleep(100000);
-            close(radio_fd);
-            radio_fd = -1;
-        }
-        if (client_fd >= 0) {
-            close(client_fd);
-            client_fd = -1;
-        }
-        pthread_mutex_destroy(&seek_mutex);
-        pthread_cond_destroy(&seek_cond);
-        pthread_mutex_destroy(&scan_mutex);
-        pthread_cond_destroy(&scan_cond);
-        _exit(0);
-    }
-    else if (strncmp(cmd, "PUSH", 4) == 0) {
-        int val = 0;
-        if (sscanf(cmd + 4, "%d", &val) == 1) {
-            push_enabled = (val == 1);
-            LOGI("PUSH: %s\n", push_enabled ? "ON" : "OFF");
-            char* resp = push_enabled ? "PUSH_ON\n" : "PUSH_OFF\n";
-            write(client_fd, resp, strlen(resp));
-        }
-    }
-    else if (strncmp(cmd, "TUNE", 4) == 0) {
-        if (sscanf(cmd + 5, "%f", &freq_mhz) == 1) {
-            struct v4l2_frequency freq = { 
-                .tuner = 0, 
-                .type = V4L2_TUNER_RADIO, 
-                .frequency = (int)(freq_mhz * TUNE_MULT) 
-            };
-            if (ioctl(radio_fd, VIDIOC_S_FREQUENCY, &freq) == 0) {
-                set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 0, "UNMUTE");
-                write(client_fd, "TUNED\n", 9);
-            } else {
-                snprintf(response, sizeof(response), "ERROR|TUNE_FAILED:%s\n", strerror(errno));
-                write(client_fd, response, strlen(response));
-            }
-        }
-    }
-    else if (strcmp(cmd, "MUTE") == 0) {
-        set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 1, "MUTE");
-        write(client_fd, "MUTED\n", 9);
-    }
-    else if (strcmp(cmd, "UNMUTE") == 0) {
-        set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 0, "UNMUTE");
-        write(client_fd, "UNMUTED\n", 11);
-    }
-    else if (strncmp(cmd, "SEEK", 4) == 0) {
-        if (sscanf(cmd + 5, "%d", &dir) == 1) {
-            float new_freq = seek(radio_fd, dir);
-            char buf[32];
-            snprintf(buf, sizeof(buf), "SEEK:%.2f\n", new_freq);
-            write(client_fd, buf, strlen(buf));
-        }
-    }
-    else if (strncmp(cmd, "SCAN", 4) == 0) {
-        int ret = scan(radio_fd);
-
-        if (ret != 0) {
-            //LOGI("MyFM: 扫描异常退出\n");
-        }else {
-            char res_buf[256];
-            memset(res_buf, 0, sizeof(res_buf));
-            int pos = snprintf(res_buf, sizeof(res_buf), "SCANED:");
-            
-            for (int i = 0; i < scan_count; i++) {
-                if (pos < (int)sizeof(res_buf) - 15) {
-                    pos += snprintf(res_buf + pos, sizeof(res_buf) - pos, "%.1f%s", 
-                                    scan_list[i], (i == scan_count - 1 ? "" : ","));
-                }
-            }
-            strncat(res_buf, "\n", sizeof(res_buf) - strlen(res_buf) - 1);
-            write(client_fd, res_buf, strlen(res_buf));
-        }
-    }
-    // --- 指令处理结束 ---
-}
-
-
-
 // 处理客户端（带实时推送）
 void handle_client(int radio_fd, int client_fd) {
     char cmd[1024];
     long long last_push_time = get_time_ms();
-    fd_set read_fds;
-    struct timeval timeout;
+    // 初始化为 0，意味着程序刚启动时处于静默状态，直到收到第一条指令
+    long long last_command_time = 0; 
+
+
+    float freq_mhz = 0;
+    int dir = 0;
     
-    LOGI("FM Service handle_client: 准备就绪\n");
+    LOGI("FM Service handle_client: 准备就绪，等待指令以激活推送\n");
     
-    // 设置非阻塞
+    // 设置非阻塞，确保 read 不会卡住整个循环
     set_nonblock(client_fd);
     
-    // 发送欢迎消息
+    // 发送欢迎消息给客户端
     write(client_fd, "FM_SERVICE|STATE:READY\n", 40);
     
     while (1) {
         long long now = get_time_ms();
         
-        // === 使用 select 监听多个事件 ===
-        FD_ZERO(&read_fds);
-        FD_SET(client_fd, &read_fds);
+        // === 1. 检查并处理客户端发来的指令 ===
+        memset(cmd, 0, sizeof(cmd));
+        int len = read(client_fd, cmd, sizeof(cmd) - 1);
         
-        // 设置超时（100ms），这样不会阻塞推送
-        timeout.tv_sec = 0;
-        timeout.tv_usec = 100000; // 100ms
-        
-        int ret = select(client_fd + 1, &read_fds, NULL, NULL, &timeout);
-        
-        if (ret < 0) {
-            if (errno == EINTR) continue; // 被信号中断
-            LOGI("select error: %s\n", strerror(errno));
-            break;
-        }
-        
-        // === 1. 处理客户端命令 ===
-        if (ret > 0 && FD_ISSET(client_fd, &read_fds)) {
-            memset(cmd, 0, sizeof(cmd));
-            int len = read(client_fd, cmd, sizeof(cmd) - 1);
-            
-            if (len > 0) {
-                cmd[len] = '\0';
-                // 移除换行符
-                char *nl = strchr(cmd, '\n');
-                if (nl) *nl = '\0';
-                char *cr = strchr(cmd, '\r');
-                if (cr) *cr = '\0';
-                
-                if (strlen(cmd) > 0) {
-                    LOGI("收到命令: %s\n", cmd);
-                    process_command(radio_fd, client_fd, cmd);
-                }
-            } else if (len == 0) {
-                LOGI("客户端断开连接.\n");
-                break;
-            } else {
-                // EAGAIN 或其他错误
-                if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                    LOGI("读取错误: %s\n", strerror(errno));
+        if (len > 0) {
+            cmd[len] = '\0';
+            // 移除换行符
+            char *nl = strchr(cmd, '\n');
+            if (nl) *nl = '\0';
+            char *cr = strchr(cmd, '\r');
+            if (cr) *cr = '\0';
+
+            if (strlen(cmd) > 0) {
+
+
+                // --- 指令处理开始 ---
+                if (strcmp(cmd, "QUIT") == 0) {
+                    write(client_fd, "OK|SHUTDOWN\n", 12);
                     break;
                 }
+                else if (strncmp(cmd, "PUSH", 4) == 0) {
+                    int val = 0;
+                    if (sscanf(cmd + 4, "%d", &val) == 1) {
+                        push_enabled = (val == 1);
+                        LOGI("PUSH: %s\n", push_enabled ? "ON" : "OFF");
+                        char* resp = push_enabled ? "OK|PUSH_ON\n" : "OK|PUSH_OFF\n";
+                        write(client_fd, resp, strlen(resp));
+                    }
+                }
+                else if (strncmp(cmd, "TUNE", 4) == 0) {
+                    if (sscanf(cmd + 5, "%f", &freq_mhz) == 1) {
+                        struct v4l2_frequency freq = { 
+                            .tuner = 0, 
+                            .type = V4L2_TUNER_RADIO, 
+                            .frequency = (int)(freq_mhz * TUNE_MULT) 
+                        };
+                        ioctl(radio_fd, VIDIOC_S_FREQUENCY, &freq);
+                        set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 0, "UNMUTE");
+                        write(client_fd, "OK|TUNED\n", 9);
+                    }
+                }
+                else if (strcmp(cmd, "MUTE") == 0) {
+                    set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 1, "MUTE");
+                    write(client_fd, "OK|MUTED\n", 9);
+                }
+                else if (strcmp(cmd, "UNMUTE") == 0) {
+                    set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 0, "UNMUTE");
+                    write(client_fd, "OK|UNMUTED\n", 11);
+                }
+                else if (strncmp(cmd, "SEEK", 4) == 0) {
+                    if (sscanf(cmd + 5, "%d", &dir) == 1) {
+                        float new_freq = seek(radio_fd, dir);
+                        char buf[32];
+                        snprintf(buf, sizeof(buf), "OK|SEEK:%.2f\n", new_freq);
+                        write(client_fd, buf, strlen(buf));
+                    }
+                }
+                else if (strncmp(cmd, "SCAN", 4) == 0) {
+                    int ret = scan(radio_fd);
+
+                    if (ret != 0) {
+                        //LOGI("MyFM: 扫描异常退出\n");
+                    }else {
+                        char res_buf[256];
+                        memset(res_buf, 0, sizeof(res_buf));
+                        int pos = snprintf(res_buf, sizeof(res_buf), "SCANED:");
+                        
+                        for (int i = 0; i < scan_count; i++) {
+                            if (pos < (int)sizeof(res_buf) - 15) {
+                                pos += snprintf(res_buf + pos, sizeof(res_buf) - pos, "%.1f%s", 
+                                                scan_list[i], (i == scan_count - 1 ? "" : ","));
+                            }
+                        }
+                        strncat(res_buf, "\n", sizeof(res_buf) - strlen(res_buf) - 1);
+                        write(client_fd, res_buf, strlen(res_buf));
+                    }
+                }
+                // --- 指令处理结束 ---
             }
+        } else if (len == 0) {
+            LOGI("客户端断开连接\n");
+            break;
+        } else {
+            // len < 0 (EAGAIN), 无数据，继续执行推送逻辑
         }
-        
-        // === 2. 处理推送 ===
+
+
         long long elapsed_since_last_push = now - last_push_time;
-        
+
         if (elapsed_since_last_push >= PUSH_INTERVAL_MS) {
             if (push_enabled) {
                 char signal_msg[256];
@@ -1040,31 +990,20 @@ void handle_client(int radio_fd, int client_fd) {
                 char push_msg[300];
                 int push_len = snprintf(push_msg, sizeof(push_msg), "%s\n", signal_msg);
                 
-                // 检查连接是否仍然有效
-                int error = 0;
-                socklen_t len = sizeof(error);
-                getsockopt(client_fd, SOL_SOCKET, SO_ERROR, &error, &len);
-                
-                if (error == 0) {
-                    ssize_t written = write(client_fd, push_msg, push_len);
-                    if (written < 0) {
-                        if (errno == EPIPE || errno == ECONNRESET || errno == EBADF) {
-                            LOGI("推送失败，连接已断开\n");
-                            break;
-                        }
-                    } else {
-                        LOGI("PUSH: %s\n", signal_msg);
+                if (write(client_fd, push_msg, push_len) < 0) {
+                    if (errno == EPIPE || errno == ECONNRESET) {
+                        break;
                     }
                 } else {
-                    LOGI("socket错误: %s\n", strerror(error));
-                    break;
+                    LOGI("PUSH: %s\n", signal_msg);
                 }
             }
             last_push_time = now;
         }
-        
-        // === 3. 检查线程事件 ===
-        // 这里可以添加对其他线程状态的检查
+
+        // === 3. 休眠，防止空转导致 CPU 使用率过高 ===
+        // 10ms 的精度足够处理 1s 一次的推送和交互
+        usleep(10000); 
     }
     
     close(client_fd);
@@ -1073,11 +1012,8 @@ void handle_client(int radio_fd, int client_fd) {
 
 // 主函数
 int main() {
-    signal(SIGINT, signal_handler);
-    signal(SIGTERM, signal_handler);
     signal(SIGPIPE, SIG_IGN);
-    
-   // 1. 初始化 FM 硬件
+    // 1. 初始化 FM 硬件
     radio_fd = open("/dev/radio0", O_RDWR);
     if (radio_fd < 0) { perror("Open Radio"); return -1; }
 
@@ -1197,52 +1133,25 @@ int main() {
     
     listen(server_fd, 1);  // 只允许1个客户端等待
     
+    LOGI("等待FM App连接...\n");
+
     
-    // 使用带有超时的 accept
-    struct timeval tv;
-    tv.tv_sec = 1;  // 1秒超时
-    tv.tv_usec = 0;
-    setsockopt(server_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    
-    LOGI("等待FM App连接（1秒超时）...\n");
-    
-    while (!should_exit) {
-        int client_fd = accept(server_fd, NULL, NULL);
-        if (client_fd < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                // 超时，检查是否需要退出
-                continue;
-            } else if (errno == EINTR) {
-                // 被信号中断
-                continue;
-            } else {
-                perror("接受连接失败");
-                break;
-            }
-        }
-        
-        LOGI("✅ 客户端已连接\n");
-        handle_client(radio_fd, client_fd);
-        
-        if (should_exit) break;
+    // 3. 接受客户端连接
+    int client_fd = accept(server_fd, NULL, NULL);
+    if (client_fd < 0) {
+        perror("接受连接失败");
+        return -1;
     }
     
-    // 清理代码
-    LOGI("服务关闭，开始清理...\n");
+    LOGI("✅ 客户端已连接\n");
     
-    // 等待线程退出
-    // pthread_join(tid, NULL);
+    // 4. 处理客户端（带实时推送）
+    handle_client(radio_fd, client_fd);
     
-    // 销毁互斥锁和条件变量
-    pthread_mutex_destroy(&seek_mutex);
-    pthread_cond_destroy(&seek_cond);
-    pthread_mutex_destroy(&scan_mutex);
-    pthread_cond_destroy(&scan_cond);
-    pthread_mutex_unlock(&seek_complete_mutex);
-    
+    // 5. 清理
     close(server_fd);
     close(radio_fd);
     
-    LOGI("服务完全退出\n");
+    LOGI("服务关闭\n");
     return 0;
 }

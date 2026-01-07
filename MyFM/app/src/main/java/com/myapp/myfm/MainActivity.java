@@ -14,7 +14,9 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
@@ -28,6 +30,7 @@ import android.widget.Toast; // 方便提示用户
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.google.android.flexbox.FlexboxLayout;
 
@@ -44,33 +47,38 @@ import java.util.regex.Pattern;
 
 public class MainActivity extends AppCompatActivity {
 
+    private BroadcastReceiver responseReceiver;
+
     private static final int PERMISSION_REQUEST_CODE = 10;
 
     private FMService fmService;
     private boolean isBound = false;
 
-    // 新增标记：用于判断是否需要在绑定成功后立即连接 Socket
-    // 只有点击“Connect”按钮启动服务时，才置为 true
-    private boolean shouldConnectOnBind = false;
-    private boolean isFmServiceRunning = false;
+    private FMStateManager stateManager;
 
-    private TextView tvFreq;
-    private TextView tvInfo;
-    private Button btnPower,btnPre,btnNext,btnTuneDown,btnTuneUp,btnEdit,btnScan;
-    private FlexboxLayout flexboxLayoutButtons;
+    // 从 主界面和通知栏 发送服务启动停止命令
+    public static final String ACTION_SERVICE_CMD = "com.myapp.myfm.SERVICE_CMD";
+
+
+    TextView tvFreq;
+    TextView tvInfo;
+    Button btnPower,btnPre,btnNext,btnTuneDown,btnTuneUp,btnEdit,btnScan;
+    FlexboxLayout flexboxLayoutButtons;
     Button selectedButton = null;
-    private LinearLayout rssi_meter_wrap;
-    private View rssi_meter;
+    LinearLayout rssi_meter_wrap;
+    View rssi_meter;
 
-    private String freq;
-    private String color1="#bffac1";
+    String freq;
+    String color1="#bffac1";
 
-    private VolumeMeterView volumeMeterView;
-    private volatile boolean isListenerActive = true;
 
 
     MyFmApp myapp;
-    private boolean isAppInForeground = true;
+
+
+    LinearLayout vol_meter_wrap;
+    View vol_meter;
+    int lastLevel = -1;
 
 
 
@@ -84,63 +92,64 @@ public class MainActivity extends AppCompatActivity {
             if (msg == null) msg = "";
 
             if (FMService.ACTION_LOG_UPDATE.equals(intent.getAction())) {
-
-                // 获取 live update 数据
-                tvInfo.setText(msg);
-
-                Matcher matcher_RSSI = Pattern.compile("RSSI:(\\d+)").matcher(msg);
-
-                if (matcher_RSSI.find()) {
-                    try {
-                        String rssiStr = matcher_RSSI.group(1);
-                        int rssi = Integer.parseInt(rssiStr);
-                        //Log.d("---------------", String.valueOf(rssi));
-                        updateRSSIView(rssi_meter_wrap, rssi_meter, rssi);
-                    } catch (NumberFormatException e) {
-                        //Log.e(TAG, "RSSI格式错误: " + message);
-                    }
-                }
-
-
-                Matcher matcher_FREQ = Pattern.compile("FREQ:(\\d+\\.?\\d*)").matcher(msg);
-
-                if (matcher_FREQ.find()) {
-                    try {
-                        String freqStr = matcher_FREQ.group(1);
-                        tvFreq.setText(freqStr);
-                        freq = freqStr;
-                        myapp.saveString("freq", freqStr);
-                    } catch (NumberFormatException e) {
-                        //Log.e(TAG, "RSSI格式错误: " + message);
-                    }
-                }
-
-                Matcher matcher_SCAN = Pattern.compile("SCANED:(.*)").matcher(msg);
-
-                if (matcher_SCAN.find()) {
-                    try {
-                        String scanlist = matcher_SCAN.group(1);
-                        btnScan.setEnabled(true);
-                        String[] parts = scanlist.split(",");
-                        Toast.makeText(MainActivity.this, String.format("找到 %d 个电台.", parts.length), Toast.LENGTH_LONG).show();
-
-                        addScanList(scanlist);
-                        //tvFreq.setText(freqStr);
-                        //freq = freqStr;
-                        //myapp.saveString("freq", freqStr);
-                    } catch (NumberFormatException e) {
-                        //Log.e(TAG, "RSSI格式错误: " + message);
-                    }
-                }
-
-
-
-
+                handleLogMessage(msg);
+                Log.d("ACTION_LOG_UPDATE", msg);
             } else if (FMService.ACTION_STATUS_UPDATE.equals(intent.getAction())) {
-                //statusTextView.setText("状态: " + msg);
+                handleStatusMessage(msg);
+                Log.d("ACTION_STATUS_UPDATE", msg);
             }
         }
     };
+
+    private void handleLogMessage(String message) {
+
+
+        tvInfo.setText(message);
+
+        // RSSI 处理
+        Matcher matcher_RSSI = Pattern.compile("RSSI:(\\d+)").matcher(message);
+        if (matcher_RSSI.find()) {
+            try {
+                int rssi = Integer.parseInt(matcher_RSSI.group(1));
+                updateRSSIView(rssi_meter_wrap, rssi_meter, rssi);
+            } catch (NumberFormatException e) {
+                Log.e("MainActivity", "RSSI format error");
+            }
+        }
+
+        // 频率处理
+        Matcher matcher_FREQ = Pattern.compile("FREQ:(\\d+\\.?\\d*)").matcher(message);
+        if (matcher_FREQ.find()) {
+            String freqStr = matcher_FREQ.group(1);
+            tvFreq.setText(freqStr);
+            myapp.saveString("freq", freqStr);
+        }
+
+        // 扫描结果处理
+        Matcher matcher_SCAN = Pattern.compile("SCANED:(.*)").matcher(message);
+        if (matcher_SCAN.find()) {
+            String scanlist = matcher_SCAN.group(1);
+            btnScan.setEnabled(true);
+            String[] parts = scanlist.split(",");
+            Toast.makeText(this, String.format("找到 %d 个电台", parts.length), Toast.LENGTH_LONG).show();
+            addScanList(scanlist);
+        }
+    }
+
+    // 接收服务发送的状态
+    private void handleStatusMessage(String status) {
+        switch (status) {
+            case "PLAY":
+                stateManager.setState(FMState.PLAY);
+                break;
+            case "PAUSE":
+                stateManager.setState(FMState.PAUSE);
+                break;
+            case "ERROR":
+                stateManager.setState(FMState.ERROR);
+                break;
+        }
+    }
 
     // --- Service 连接回调 (核心逻辑修改) ---
     private final ServiceConnection connection = new ServiceConnection() {
@@ -150,50 +159,40 @@ public class MainActivity extends AppCompatActivity {
             fmService = binder.getService();
             isBound = true;
 
-            if (myapp.running && isAppInForeground) {
+            // 获取服务的真实状态
+            String serviceState = fmService.getCurrentState();
+            if (serviceState != null) {
+                try {
+                    FMState actualState = FMState.valueOf(serviceState);
+                    stateManager.setState(actualState);  // 同步服务状态
+                } catch (Exception e) {
+                    //stateManager.setState(FMState.PAUSE);  // 默认
+                }
+            } else {
+                //stateManager.setState(FMState.PAUSE);
+            }
+
+            // 如果是播放状态，恢复数据推送
+            if (stateManager.getCurrentState() == FMState.PLAY) {
                 fmService.sendFmCommand("PUSH 1");
             }
-            //statusTextView.setText("状态: 服务已绑定");
 
-            // 如果是点击“连接”按钮进来的，绑定成功后立即建立 Socket 连接
-            if (shouldConnectOnBind) {
-                if (fmService != null) {
-                    fmService.connectFm();
-                }
-                shouldConnectOnBind = false; // 重置标记
-            }
-
-            // 2. 注册音量回调
-            fmService.setOnVolumeChangeListener(new FMService.OnVolumeChangeListener() {
-                @Override
-                public void onVolumeChanged(int level) {
-                    if (!isListenerActive) return; // 检查是否活跃
-
-                    runOnUiThread(() -> {
-                        try {
-                            if (volumeMeterView != null) {
-                                volumeMeterView.setLevel(level);
-                            }
-                        } catch (Exception e) {
-                            // 忽略异常
-                        }
-                    });
-                }
-            });
-
+            Log.d("MainActivity", "Service connected. State: " + stateManager.getCurrentState());
         }
-
-
 
         @Override
         public void onServiceDisconnected(ComponentName arg0) {
+            Log.w("MainActivity", "Service disconnected unexpectedly");
             isBound = false;
             fmService = null;
+            stateManager.setState(FMState.ERROR);
         }
     };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -210,22 +209,18 @@ public class MainActivity extends AppCompatActivity {
         flexboxLayoutButtons = findViewById(R.id.flexboxLayoutButtons);
         rssi_meter_wrap = findViewById(R.id.rssi_meter_wrap);
         rssi_meter = findViewById(R.id.rssi_meter);
-        volumeMeterView = findViewById(R.id.volumeMeter);
-        //quitButton = findViewById(R.id.quit_button);
+        vol_meter_wrap = findViewById(R.id.vol_meter_wrap);
+        vol_meter = findViewById(R.id.vol_meter);
 
-        // 【修改点 1】：onCreate 中不再直接调用 startFMService()
-        // 界面打开时，服务默认为空，等待用户操作
-        //statusTextView.setText("状态: 等待连接...");
+
 
         // SharedPreferences 全局保存
         myapp = (MyFmApp) getApplicationContext();
-        myapp.saveBoolean("btnPower", true);
+        stateManager = new FMStateManager(this, myapp);
 
-        freq = myapp.getString("freq","");
 
         // 检查并请求权限
         checkAndRequestPermissions();
-
 
 
         // --- 设置按钮点击事件 ---
@@ -294,10 +289,11 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
 
                 fmService.sendFmCommand("SEEK 1");
+                tvInfo.setText("SEEKing...");
             }
         });
 
-        //-----------Button Search----------------
+        //-----------Button Scan----------------
         btnScan.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -308,106 +304,130 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        FMState currentState = stateManager.getCurrentState();
+        if (currentState == FMState.STOPPED) {
 
+        stateManager.setState(FMState.CONNECTING);
 
+            // 启动服务
+            Intent intent = new Intent(this, FMService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent);
+            } else {
+                startService(intent);
+            }
 
-
-    }
-
-    /**
-     * 启动并绑定服务（只有点击按钮时才调用）
-     */
-    private void startAndBindService() {
-        Intent intent = new Intent(this, FMService.class);
-
-        // 1. 启动前台服务 (保证后台存活)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent);
-        } else {
-            startService(intent);
         }
-
-        // 2. 绑定服务 (为了通信)
-        bindService(intent, connection, Context.BIND_AUTO_CREATE);
     }
 
-    /**
-     * 【修改点 3】：onStart 生命周期处理
-     * 如果用户退出了 App 但服务还在跑，回来时我们要重新绑定，显示日志
-     * 但如果服务没跑，我们不要启动它。
-     */
+
+
+
+/*
+
+
+
+FM APP生命周期方法概览
+
+onCreate():StartService
+onStart():RegisterReceiver,BindService
+onStop():UnbindService,UnregisterReceiver
+onDestroy():判断是否正在播放，如果没有就 stopService();
+
+不必担心 startService 会导致播放器重启。Android 系统的机制是：如果 Service 已经在运行，调用 startService 只会发送一个新的指令到 onStartCommand，而不会重新执行 onCreate 里的初始化逻辑。
+永远记得在 onStop 或 onDestroy 中调用 unbindService，否则 Activity 无法被回收。
+
+
+
+            // 注册顺序：
+            1. startService
+            2. registerReceiver(receiver1);    // 第一个注册
+            3. registerReceiver(receiver2);    // 第二个注册
+            4. bindService(serviceConn);       // 绑定服务
+
+            // 注销顺序（必须反向）：
+            1. unbindService(serviceConn);     // 解绑服务
+            2. unregisterReceiver(receiver2);  // 注销倒数第二个
+            3. unregisterReceiver(receiver1);  // 注销第一个
+            4. stopService
+
+
+
+
+
+
+
+*/
     @Override
     protected void onStart() {
         super.onStart();
 
-        // 注册广播
+
+        // 1. 注册广播
         IntentFilter filter = new IntentFilter();
         filter.addAction(FMService.ACTION_LOG_UPDATE);
         filter.addAction(FMService.ACTION_STATUS_UPDATE);
         registerReceiver(fmReceiver, filter);
+        LocalBroadcastManager.getInstance(this).registerReceiver(volumeReceiver, new IntentFilter(FMService.ACTION_VOLUME_UPDATE));
 
-        // 尝试绑定现有的服务（如果服务正在运行）
-        if (!isBound) {
-            Intent intent = new Intent(this, FMService.class);
-            // 关键：使用 flag 0 而不是 BIND_AUTO_CREATE
-            // 如果服务已在运行，bindService 返回 true 并绑定
-            // 如果服务未运行，bindService 返回 false，且不启动服务
-            boolean serviceRunning = bindService(intent, connection, 0);
-            if (serviceRunning) {
-                //statusTextView.setText("状态: 恢复后台连接...");
-            }
+
+        // 绑定服务
+        Intent intent = new Intent(this, FMService.class);
+        bindService(intent, connection, Context.BIND_AUTO_CREATE);
+
+        if (stateManager.getCurrentState() == FMState.PLAY) {
+            //stateManager.setState(FMState.PAUSE);
         }
+
+        // 因为需要再次更新UI，不然不会更新
+        stateManager.setState(stateManager.getCurrentState());
+
+
     }
 
     @Override
     protected void onStop() {
-        super.onStop();
+
+
+
+        unbindService(connection);
+
         unregisterReceiver(fmReceiver);
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(volumeReceiver);
+
+
+        super.onStop();
+
     }
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
-        isListenerActive = false;
 
-        // 界面销毁时解绑，但服务依然在后台运行（因为之前调用了 startService）
-        if (isBound) {
-
-            // 解除监听器防止 Service 尝试回调已销毁的 Activity
-            if (fmService != null) {
-                fmService.setOnVolumeChangeListener(null);
-            }
-
-            unbindService(connection);
-            isBound = false;
+        FMState currentState = stateManager.getCurrentState();
+        if (currentState == FMState.PAUSE) {
+            stopFMService();
         }
+
+
+        //最后调用 super.onDestroy()
+        super.onDestroy();
+
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        isAppInForeground = true;
 
-        tvFreq.setText(myapp.getString("freq",""));
-        if(myapp.running){
-            btnPower.setText("Stop");
-            btnScan.setEnabled(true);
-            btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(color1)));
-        }
-        if (fmService != null) {
-            fmService.sendFmCommand("PUSH 1");
-        }
     }
 
     @Override
     protected void onPause() {
-        if (myapp.running) {
-            if (fmService != null) {
-                fmService.sendFmCommand("PUSH 0");
-            }
+
+        FMState currentState = stateManager.getCurrentState();
+        if (currentState == FMState.PLAY) {
+            fmService.sendFmCommand("PUSH 0");
         }
         super.onPause();
-        isAppInForeground = false;
 
     }
 
@@ -415,8 +435,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     //---------rssi meter---------------
-    //updateRSSIView(rssi_meter_wrap, rssi_meter, sinr2);
-    private void updateRSSIView(final LinearLayout progressContainer, final View progressView,
+    void updateRSSIView(final LinearLayout progressContainer, final View progressView,
                                     int currentProgress) {
 
         // 确保在布局完成后执行，以获取正确的父容器宽度
@@ -438,55 +457,79 @@ public class MainActivity extends AppCompatActivity {
      * 切换FM服务的启动和停止状态。
      */
     private void toggleFmService() {
-        if (myapp.running) {
-            // --- 停止逻辑 ---
-            if (fmService != null) {
-                fmService.sendFmCommand("QUIT");
-            }
-
-            // 核心修复 1: 必须解除绑定，否则 stopService 可能无效
-            if (isBound) {
-                fmService.setOnVolumeChangeListener(null);
-                unbindService(connection);
-                isBound = false;
-                fmService = null;
-            }
-
-            // 停止前台服务
-            stopService(new Intent(MainActivity.this, FMService.class));
-
-            // 更新 UI 和状态
-            myapp.running = false;
-            btnPower.setText("ON");
-            tvInfo.setText("FM Stopped");
-            btnScan.setEnabled(false);
-            volumeMeterView.setLevel(0);
-            btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#e5e5e5")));
-            updateRSSIView(rssi_meter_wrap, rssi_meter, 0);
-
-        } else {
-            // --- 启动 ---
-            tvInfo.setText("FM Service Starting...");
-            btnPower.setText("Stop");
-            btnScan.setEnabled(true);
-            btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(color1)));
 
 
-            shouldConnectOnBind = true;
+        Intent Intent = new Intent(ACTION_SERVICE_CMD);
+        Intent.setPackage(getPackageName());
 
-            // 重新启动并绑定
-            startAndBindService();
-
-
-
-            isFmServiceRunning = true;
-            myapp.running = true;
+        if (!stateManager.canOperate()) {
+            Log.d("MainActivity", "Operation not allowed in current state: " + stateManager.getCurrentState());
+            return;
         }
+
+        FMState currentState = stateManager.getCurrentState();
+
+        switch (currentState) {
+            case PAUSE:
+                stateManager.setState(FMState.CONNECTING);
+                Intent.putExtra("cmd", "start");
+                sendBroadcast(Intent);
+                break;
+
+            case PLAY:
+                Intent.putExtra("cmd", "pause");
+                sendBroadcast(Intent);
+                break;
+
+            default:
+                Log.w("MainActivity", "Unhandled state in toggle: " + currentState);
+        }
+    }
+
+    private void startFMService() {
+
+
+    }
+
+
+    private void stopFMService() {
+        stateManager.setState(FMState.STOPPING);
+
+        stopService(new Intent(this, FMService.class));
+        stateManager.setState(FMState.STOPPED);
+    }
+
+
+
+
+    // --------- Volume Meter---------------
+    void updateVolumeView(final LinearLayout volumeContainer,
+                                  final View volumeView,
+                                  int volumeLevel) {
+        // 先算出一个最终值
+        final int level;
+        if (volumeLevel < 0) {
+            level = 0;
+        } else if (volumeLevel > 100) {
+            level = 100;
+        } else {
+            level = volumeLevel;
+        }
+        volumeContainer.post(() -> {
+            int containerHeight = volumeContainer.getHeight();
+            if (containerHeight <= 0) return;
+
+            float fraction = level / 100.0f;
+            int height = (int) (containerHeight * fraction);
+
+            volumeView.getLayoutParams().height = height;
+            volumeView.requestLayout();
+        });
     }
 
 
     // ----------------电台列表按钮 存储------------------------
-    private void loadAndSetupButtons() {
+    void loadAndSetupButtons() {
         MyFmApp application = (MyFmApp) getApplication();
         List<RadioStation> stations;
 
@@ -614,11 +657,7 @@ public class MainActivity extends AppCompatActivity {
                             myapp.saveString("freq",freqStr);
                             freq = freqStr;
                             fmService.sendFmCommand("TUNE "+freqStr);
-                            //解决有时候声音小,已经在首次启动服务时设置了
-                            //fmService.sendFmCommand("UNMUTE");
-                            isFmServiceRunning = true;
                             myapp.running = true;
-                            btnPower.setText("Stop");
                             btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(color1)));
 
                     } catch (NumberFormatException e) {
@@ -745,12 +784,39 @@ public class MainActivity extends AppCompatActivity {
                     new String[]{Manifest.permission.RECORD_AUDIO, Manifest.permission.MODIFY_AUDIO_SETTINGS,
                             Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE},
                     PERMISSION_REQUEST_CODE);
+            finish();
         } else {
             // 所有权限都已授予
             //Toast.makeText(this, "All permissions granted", Toast.LENGTH_SHORT).show();
             loadAndSetupButtons();
         }
     }
+
+
+
+    // --------------volume meter Receiver----------------------
+    private BroadcastReceiver volumeReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (stateManager.getCurrentState() != FMState.PLAY) {
+                lastLevel = 0;
+                updateVolumeView(vol_meter_wrap, vol_meter, 0);
+                return;
+            }
+
+            if (FMService.ACTION_VOLUME_UPDATE.equals(intent.getAction())) {
+                int level = intent.getIntExtra("volume_level", 0);
+
+                // ⭐ 节流：变化太小就不刷新 UI
+                if (lastLevel >= 0 && Math.abs(level - lastLevel) < 3) {
+                    return;
+                }
+
+                lastLevel = level;
+                updateVolumeView(vol_meter_wrap, vol_meter, level);
+            }
+        }
+    };
 
 
 

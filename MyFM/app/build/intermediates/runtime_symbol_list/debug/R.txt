@@ -895,11 +895,12 @@ int id tvInfo 0x7f0700da
 int id uniform 0x7f0700db
 int id up 0x7f0700dc
 int id useLogo 0x7f0700dd
-int id volumeMeter 0x7f0700de
-int id withText 0x7f0700df
-int id wrap 0x7f0700e0
-int id wrap_content 0x7f0700e1
-int id wrap_reverse 0x7f0700e2
+int id vol_meter 0x7f0700de
+int id vol_meter_wrap 0x7f0700df
+int id withText 0x7f0700e0
+int id wrap 0x7f0700e1
+int id wrap_content 0x7f0700e2
+int id wrap_reverse 0x7f0700e3
 int integer abc_config_activityDefaultDur 0x7f080000
 int integer abc_config_activityShortDur 0x7f080001
 int integer cancel_button_image_alpha 0x7f080002

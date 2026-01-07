@@ -80,5 +80,6 @@ public class MyFmApp extends Application {
 
 
     public boolean running;
+    public String fm_state;
 
 }

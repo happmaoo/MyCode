@@ -896,7 +896,8 @@ id tvInfo
 id uniform
 id up
 id useLogo
-id volumeMeter
+id vol_meter
+id vol_meter_wrap
 id withText
 id wrap
 id wrap_content
