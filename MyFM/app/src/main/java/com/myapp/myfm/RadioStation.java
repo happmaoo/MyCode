@@ -1,6 +1,8 @@
 package com.myapp.myfm;
 
 
+import java.util.List;
+
 // 本类用于在app主界面退出后还能保存电台数据，不用每次从外部读取。
 public class RadioStation {
     private String number; // 90, 91, 95
@@ -74,6 +76,21 @@ public class RadioStation {
     public boolean isNameEmpty() {
         return name == null || name.trim().isEmpty();
     }
+
+    // 静态方法：从列表中根据number查找name
+    public static String findNameByNumber(List<RadioStation> stations, String number) {
+        if (stations == null || number == null) {
+            return null;
+        }
+
+        for (RadioStation station : stations) {
+            if (station.number != null && station.number.equals(number)) {
+                return station.name;
+            }
+        }
+        return null;
+    }
+
 
     // 重置为默认值的方法
     public void reset() {

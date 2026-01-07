@@ -910,6 +910,7 @@ void process_command(int radio_fd, int client_fd, const char* cmd) {
         }
     }
     else if (strncmp(cmd, "TUNE", 4) == 0) {
+        push_enabled = 0;
         if (sscanf(cmd + 5, "%f", &freq_mhz) == 1) {
             struct v4l2_frequency freq = { 
                 .tuner = 0, 
@@ -924,6 +925,7 @@ void process_command(int radio_fd, int client_fd, const char* cmd) {
                 write(client_fd, response, strlen(response));
             }
         }
+        push_enabled = 1;
     }
     else if (strcmp(cmd, "MUTE") == 0) {
         set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 1, "MUTE");

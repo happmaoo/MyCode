@@ -404,7 +404,7 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
     protected void onDestroy() {
 
         FMState currentState = stateManager.getCurrentState();
-        if (currentState == FMState.PAUSE) {
+        if (currentState != FMState.PLAY) {
             stopFMService();
         }
 

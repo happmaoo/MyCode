@@ -29,9 +29,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 
 public class FMService extends Service implements FMClient.MessageCallback {
+
+
+    private MyFmApp application;
+    List<RadioStation> stations;
+
+
 
     private static final String TAG = "FMService";
     private static final int NOTIFICATION_ID = 101;
@@ -82,11 +91,17 @@ public class FMService extends Service implements FMClient.MessageCallback {
         super.onCreate();
         Log.d(TAG, "FMService Created");
 
+        application = (MyFmApp) getApplication();
+        stations = application.getRadioStations();
+
         // 1. 初始化 FMClient
         fmClient = new FMClient(this);
 
+
         // 2. 立即启动前台通知，防止 Android 8+ 报 ANR
         startForegroundServiceNotification();
+
+
 
         // 可选：服务启动自动连接
         // fmClient.connect();
@@ -225,16 +240,30 @@ public class FMService extends Service implements FMClient.MessageCallback {
     @Override
     public void onMessageReceived(String message) {
         Intent intent = new Intent(ACTION_LOG_UPDATE);
-
-        // 这里需要优化，频率改变才更新，不然会卡
-//        if (current_freq != last_notified_freq) {
-//            String freqtext = myapp.getString("freq", "93");
-//            updateNotificationText(freqtext, "");
-//        }
-
         intent.putExtra(EXTRA_MESSAGE, message);
         intent.setPackage(getPackageName()); // 明确包名，安全且符合 Android 14 要求
         sendBroadcast(intent);
+
+
+        // 频率处理
+        Matcher matcher_FREQ = Pattern.compile("FREQ:(\\d+\\.?\\d*)").matcher(message);
+        if (matcher_FREQ.find()) {
+            String lastFreqStr = matcher_FREQ.group(1);
+
+            if(!String.format("%.1f", currentFreq).equals(lastFreqStr)){
+                // 更新通知栏文字
+                String freqtext = myapp.getString("freq","93");
+                String pname = RadioStation.findNameByNumber(stations,freqtext);
+                if(pname==null){pname="";}
+                updateNotificationText(freqtext,pname);
+
+                currentFreq = Float.parseFloat(lastFreqStr);
+
+            }
+        }
+
+
+
     }
 
     // 通知主界面状态改变
@@ -242,9 +271,9 @@ public class FMService extends Service implements FMClient.MessageCallback {
     public void onStatusChanged(String status) {
 
         playstatus = status;
-        // 更新通知栏文字（可选）
-        String freqtext = myapp.getString("freq","93");
-        updateNotificationText(freqtext,"");
+
+
+
         Log.d(TAG, "onStatusChanged:"+status);
         Intent intent = new Intent(ACTION_STATUS_UPDATE);
         intent.putExtra(EXTRA_MESSAGE, status);
@@ -253,6 +282,8 @@ public class FMService extends Service implements FMClient.MessageCallback {
     }
 
     private void updateNotificationText(String freq, String name) {
+
+
 
         if (isStopping) return;
 
@@ -273,8 +304,8 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_radio)
-                .setContentTitle("正在直播: " + freq + " MHz")
-                .setContentText(name.isEmpty() ? "点击管理电台" : name)
+                .setContentTitle("正在播放: " + freq + " MHz")
+                .setContentText(name.isEmpty() ? "" : name)
                 .setContentIntent(mainPI)
                 .setOngoing(true)
                 // --- 核心优化部分 ---
@@ -470,7 +501,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
                     }
 
 
-                    try { Thread.sleep(1500);} catch (InterruptedException e) {e.printStackTrace();}
+                    try { Thread.sleep(2000);} catch (InterruptedException e) {e.printStackTrace();}
 
                     // 启动音频循环
                     startLoopback();
