@@ -1,5 +1,6 @@
 package com.myapp.myfm;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Environment;
 import android.view.View;
@@ -83,6 +84,10 @@ public class FileEdit extends AppCompatActivity {
             writer.close();
 
             Toast.makeText(this, "文件保存成功: " + FILE_PATH, Toast.LENGTH_LONG).show();
+            // 设置返回结果
+            Intent resultIntent = new Intent();
+            resultIntent.putExtra("file_changed", true);
+            setResult(RESULT_OK, resultIntent);
 
         } catch (IOException e) {
             Toast.makeText(this, "保存文件失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();

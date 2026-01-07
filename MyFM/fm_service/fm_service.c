@@ -1005,32 +1005,41 @@ void handle_client(int radio_fd, int client_fd) {
         // === 1. 处理客户端命令 ===
         if (ret > 0 && FD_ISSET(client_fd, &read_fds)) {
             memset(cmd, 0, sizeof(cmd));
-            int len = read(client_fd, cmd, sizeof(cmd) - 1);
-            
-            if (len > 0) {
-                cmd[len] = '\0';
-                // 移除换行符
-                char *nl = strchr(cmd, '\n');
-                if (nl) *nl = '\0';
-                char *cr = strchr(cmd, '\r');
-                if (cr) *cr = '\0';
+            int n = read(client_fd, cmd, sizeof(cmd) - 1); // 留一个字节给 \0
+
+            if (n <= 0) {
+                // n = 0 代表客户端正常关闭 Socket
+                // n < 0 代表发生了严重错误
+                LOGI("客户端断开连接或读取异常 (n=%d)，释放硬件资源并退出...\n", n);
                 
-                if (strlen(cmd) > 0) {
-                    LOGI("收到命令: %s\n", cmd);
-                    process_command(radio_fd, client_fd, cmd);
-                }
-            } else if (len == 0) {
-                LOGI("客户端断开连接.\n");
-                break;
-            } else {
-                // EAGAIN 或其他错误
-                if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                    LOGI("读取错误: %s\n", strerror(errno));
-                    break;
+                // 关键操作：设置退出标志并关闭连接
+                should_exit = 1; 
+                close(client_fd);
+                // 注意：如果你在 main 函数最后有统一的 close(radio_fd)，这里可以只 return
+                return; 
+            }
+
+            // 走到这里说明读到了 n 个字节
+            cmd[n] = '\0';
+            
+            // 移除换行符
+            char *nl = strchr(cmd, '\n');
+            if (nl) *nl = '\0';
+            char *cr = strchr(cmd, '\r');
+            if (cr) *cr = '\0';
+            
+            if (strlen(cmd) > 0) {
+                LOGI("收到命令: %s\n", cmd);
+                process_command(radio_fd, client_fd, cmd);
+                
+                // 如果收到 QUIT 命令，也设置 should_exit
+                if (strcmp(cmd, "QUIT") == 0) {
+                    LOGI("收到 QUIT 指令，准备退出...\n");
+                    should_exit = 1;
+                    return;
                 }
             }
         }
-        
         // === 2. 处理推送 ===
         long long elapsed_since_last_push = now - last_push_time;
         
@@ -1202,11 +1211,11 @@ int main() {
     
     // 使用带有超时的 accept
     struct timeval tv;
-    tv.tv_sec = 1;  // 1秒超时
+    tv.tv_sec = 5;  // 1秒超时
     tv.tv_usec = 0;
     setsockopt(server_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     
-    LOGI("等待FM App连接（1秒超时）...\n");
+    LOGI("等待FM App连接（5秒超时）...\n");
     
     while (!should_exit) {
         int client_fd = accept(server_fd, NULL, NULL);
@@ -1242,8 +1251,15 @@ int main() {
     pthread_cond_destroy(&scan_cond);
     pthread_mutex_unlock(&seek_complete_mutex);
     
-    close(server_fd);
-    close(radio_fd);
+
+    if (radio_fd >= 0) {
+        set_control(radio_fd, V4L2_CID_PRIVATE_IRIS_STATE, 0,"DISABLE IRIS."); 
+        close(radio_fd);
+    }
+    if (server_fd >= 0) {
+        close(server_fd);
+    }
+    return 0;
     
     LOGI("服务完全退出\n");
     return 0;

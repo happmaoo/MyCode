@@ -146,6 +146,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
     @Override
     public void onDestroy() {
+        isStopping = true;
         stopLoopback(); // 必须先停止音频循环
         cancelNotification();
         if (fmClient != null) {
@@ -156,6 +157,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
         }
         unregisterReceiver(actionReceiver); // 别忘了注销广播
         super.onDestroy();
+        System.exit(0);
     }
 
     /**
@@ -501,7 +503,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
                     }
 
 
-                    try { Thread.sleep(2000);} catch (InterruptedException e) {e.printStackTrace();}
+                    try { Thread.sleep(1500);} catch (InterruptedException e) {e.printStackTrace();}
 
                     // 启动音频循环
                     startLoopback();
@@ -518,9 +520,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
                 if("pause".equals(cmd)){
                     sendFmCommand("QUIT");
                     stopLoopback();
-
                     onStatusChanged("PAUSE");
-
                 }
             }
         }

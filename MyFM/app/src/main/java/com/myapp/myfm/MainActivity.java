@@ -59,6 +59,9 @@ public class MainActivity extends AppCompatActivity {
     // 从 主界面和通知栏 发送服务启动停止命令
     public static final String ACTION_SERVICE_CMD = "com.myapp.myfm.SERVICE_CMD";
 
+    // FileEdit 界面返回参数
+    private static final int FILE_EDIT_REQUEST_CODE = 1001;
+
 
     TextView tvFreq;
     TextView tvInfo;
@@ -240,7 +243,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 Intent EditIntent = new Intent(MainActivity.this, FileEdit.class);
-                startActivity(EditIntent);
+                startActivityForResult(EditIntent, FILE_EDIT_REQUEST_CODE);
             }
         });
 
@@ -608,7 +611,7 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
             String line2 = station.getName();
             int line2Color = Color.parseColor("#aaaaaa");
             if (line2.startsWith("新电台")) {
-                line2Color = Color.parseColor("#00af00");
+                line2Color = Color.parseColor("#bd2a2a");
             }
             String text = line1 + "\n" + line2;
             SpannableString spannable = new SpannableString(text);
@@ -820,8 +823,37 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
 
 
 
+    // FileEdit 电台编辑列表完成后 onActivityResult 方法接收返回数据
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
 
+        if (requestCode == FILE_EDIT_REQUEST_CODE) {
+            if (resultCode == RESULT_OK && data != null) {
+                // 获取文件是否已修改的标识
+                boolean fileChanged = data.getBooleanExtra("file_changed", false);
+                if (fileChanged) {
+                    // 文件已修改，重新加载按钮
+                    reloadRadioStations();
+                    Toast.makeText(this, "电台列表已更新", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }
+    }
 
+    // 新增重新加载电台列表的方法
+    private void reloadRadioStations() {
+        MyFmApp application = (MyFmApp) getApplication();
+        List<RadioStation> stations;
+
+        Log.d("MainActivity", "Loading radio stations from file.");
+        String content = loadRadioStationsFromFile();
+        stations = parseFileContent(content);
+
+        // 3. 将数据存储到 Application 中进行缓存
+        application.setRadioStations(stations);
+        loadAndSetupButtons(); // 重新加载
+    }
 
 
 }
