@@ -845,6 +845,7 @@ int scan(int fd) {
 void get_signal_info(int radio_fd, char* buffer, int size) {
     struct v4l2_tuner tuner;
     struct v4l2_frequency freq;
+    memset(buffer, 0, size);
     memset(&tuner, 0, sizeof(tuner));
     memset(&freq, 0, sizeof(freq));
     tuner.index = 0;
@@ -919,8 +920,9 @@ void process_command(int radio_fd, int client_fd, const char* cmd) {
             };
             if (ioctl(radio_fd, VIDIOC_S_FREQUENCY, &freq) == 0) {
                 set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 0, "UNMUTE");
-                write(client_fd, "TUNED\n", 9);
+                write(client_fd, "TUNED\n", 6);
             } else {
+                LOGI("TUNE ERROR\n");
                 snprintf(response, sizeof(response), "ERROR|TUNE_FAILED:%s\n", strerror(errno));
                 write(client_fd, response, strlen(response));
             }
@@ -929,11 +931,11 @@ void process_command(int radio_fd, int client_fd, const char* cmd) {
     }
     else if (strcmp(cmd, "MUTE") == 0) {
         set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 1, "MUTE");
-        write(client_fd, "MUTED\n", 9);
+        write(client_fd, "MUTED\n", 6);
     }
     else if (strcmp(cmd, "UNMUTE") == 0) {
         set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 0, "UNMUTE");
-        write(client_fd, "UNMUTED\n", 11);
+        write(client_fd, "UNMUTED\n", 8);
     }
     else if (strncmp(cmd, "SEEK", 4) == 0) {
         if (sscanf(cmd + 5, "%d", &dir) == 1) {
@@ -1052,9 +1054,9 @@ void handle_client(int radio_fd, int client_fd) {
             // 检查 Socket 是否可写（缓冲区是否有空间）
             int can_write = select(client_fd + 1, NULL, &write_fds, NULL, &tv_nowait);
             if (can_write > 0) {
-                char signal_msg[256];
+                char signal_msg[256] = {0};
                 get_signal_info(radio_fd, signal_msg, sizeof(signal_msg));
-                char push_msg[300];
+                char push_msg[300] = {0};
                 int push_len = snprintf(push_msg, sizeof(push_msg), "%s\n", signal_msg);
                 write(client_fd, push_msg, push_len);
             } else {

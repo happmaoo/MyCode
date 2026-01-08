@@ -22,12 +22,18 @@ import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.Menu;
 import android.view.View;
+import android.view.ViewGroup;
+import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast; // 方便提示用户
+
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.PopupMenu;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
@@ -65,7 +71,7 @@ public class MainActivity extends AppCompatActivity {
 
     TextView tvFreq;
     TextView tvInfo;
-    Button btnPower,btnPre,btnNext,btnTuneDown,btnTuneUp,btnEdit,btnScan;
+    Button btnPower,btnPre,btnNext,btnTuneDown,btnTuneUp,btnEdit,btnScan,btnMenu;
     FlexboxLayout flexboxLayoutButtons;
     Button selectedButton = null;
     LinearLayout rssi_meter_wrap;
@@ -211,12 +217,12 @@ public class MainActivity extends AppCompatActivity {
         btnPre = findViewById(R.id.btnPre);
         btnNext = findViewById(R.id.btnNext);
         btnEdit = findViewById(R.id.btnEdit);
+        btnMenu = findViewById(R.id.btnMenu);
         flexboxLayoutButtons = findViewById(R.id.flexboxLayoutButtons);
         rssi_meter_wrap = findViewById(R.id.rssi_meter_wrap);
         rssi_meter = findViewById(R.id.rssi_meter);
         vol_meter_wrap = findViewById(R.id.vol_meter_wrap);
         vol_meter = findViewById(R.id.vol_meter);
-
 
 
         // SharedPreferences 全局保存
@@ -308,6 +314,33 @@ public class MainActivity extends AppCompatActivity {
                 btnScan.setEnabled(false);
             }
         });
+
+
+        //-----------Button Menu----------------
+        btnMenu.setOnClickListener(view -> {
+            PopupMenu popup = new PopupMenu(this, view);
+            popup.getMenuInflater().inflate(R.menu.menu, popup.getMenu());
+            popup.setOnMenuItemClickListener(item -> {
+                int id = item.getItemId();
+
+                if (id == R.id.menu_settings) {
+                    Toast.makeText(MainActivity.this, "开发中...", Toast.LENGTH_SHORT).show();
+                    // startActivity(new Intent(MainActivity.this, SettingsActivity.class));
+                    return true;
+
+                } else if (id == R.id.menu_about) {
+                    //Toast.makeText(MainActivity.this, "点击了关于", Toast.LENGTH_SHORT).show();
+                    showAboutDialog();
+                    return true;
+                }
+                return false;
+            });
+            popup.show();
+        });
+
+
+
+
 
         FMState currentState = stateManager.getCurrentState();
         if (currentState == FMState.STOPPED) {
@@ -855,6 +888,35 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
         // 3. 将数据存储到 Application 中进行缓存
         application.setRadioStations(stations);
         loadAndSetupButtons(); // 重新加载
+    }
+
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu, menu);
+        return true;
+    }
+
+    private void showAboutDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("关于");
+
+        // 创建 WebView
+        WebView webView = new WebView(this);
+        webView.getSettings().setJavaScriptEnabled(true);
+
+        String template = getString(R.string.about_html);
+        String htmlContent = String.format(template, BuildConfig.VERSION_NAME);
+
+        webView.loadData(htmlContent, "text/html; charset=UTF-8", null);
+
+        builder.setView(webView);
+        builder.setPositiveButton("关闭", (dialog, which) -> dialog.dismiss());
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+
+        builder.setView(webView);
     }
 
 

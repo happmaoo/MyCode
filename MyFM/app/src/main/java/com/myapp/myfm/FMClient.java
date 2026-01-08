@@ -233,6 +233,6 @@ public class FMClient {
             executor.shutdownNow();
         }
         executor = null;
-        Log.d(TAG, "关闭FMClient ok.");
+        Log.d(TAG, "关闭 FMClient:close().");
     }
 }

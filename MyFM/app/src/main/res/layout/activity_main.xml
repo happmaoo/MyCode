@@ -129,6 +129,14 @@
                     android:padding="0dp"
                     android:text="&gt;"/>
 
+                <Button
+                    android:id="@+id/btnMenu"
+                    android:layout_width="60dp"
+                    android:layout_height="30dp"
+                    android:textSize="10sp"
+                    android:padding="0dp"
+                    android:text="Menu"/>
+
             </LinearLayout>
 
             <LinearLayout

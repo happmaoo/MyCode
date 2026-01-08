@@ -81,6 +81,10 @@ public class FMStateManager {
         activity.btnPower.setEnabled(true);
         activity.btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(COLOR_DEFAULT)));
         activity.btnScan.setEnabled(false);
+        activity.btnNext.setEnabled(false);
+        activity.btnTuneUp.setEnabled(false);
+        activity.btnPre.setEnabled(false);
+        activity.btnTuneDown.setEnabled(false);
         activity.tvInfo.setText("FM收音机已就绪");
 
         // 重置仪表
@@ -96,6 +100,10 @@ public class FMStateManager {
         activity.btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(COLOR_ACCENT)));
         activity.btnPower.setEnabled(true);
         activity.btnScan.setEnabled(true);
+        activity.btnNext.setEnabled(true);
+        activity.btnTuneUp.setEnabled(true);
+        activity.btnPre.setEnabled(true);
+        activity.btnTuneDown.setEnabled(true);
         activity.tvInfo.setText("正在播放...");
     }
 

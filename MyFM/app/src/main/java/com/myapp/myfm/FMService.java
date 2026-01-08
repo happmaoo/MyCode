@@ -59,10 +59,6 @@ public class FMService extends Service implements FMClient.MessageCallback {
     public static final String EXTRA_VOLUME_LEVEL = "volume_level";
 
 
-    // ⭐ 新增状态变量用于通知栏显示
-    private float currentFreq = 0.0f;
-    private String currentStationName = "Unknown Station";
-
     private static final int SOURCE_RADIO_TUNER = 1998;
     private static final int SAMPLE_RATE = 48000;
 
@@ -71,14 +67,12 @@ public class FMService extends Service implements FMClient.MessageCallback {
     private AudioTrack audioTrack;
     private Thread loopbackThread;
 
-
+    private float currentFreq = 0.0f;
     private FMClient fmClient;
-    private Process fmProcess;
     private final IBinder binder = new LocalBinder();
     MyFmApp myapp;
 
     private String playstatus = "PAUSE";
-    private boolean isStopping = false;
 
     public class LocalBinder extends Binder {
         FMService getService() {
@@ -115,9 +109,6 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-
-
-        // 确保服务重启机制
         return START_STICKY;
     }
 
@@ -138,14 +129,10 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
     @Override
     public void onDestroy() {
-        isStopping = true;
         stopLoopback(); // 必须先停止音频循环
         cancelNotification();
         if (fmClient != null) {
             fmClient.close();
-        }
-        if (fmProcess != null) {
-            fmProcess.destroy(); // 杀死 su 进程
         }
         unregisterReceiver(actionReceiver); // 别忘了注销广播
         super.onDestroy();
@@ -179,7 +166,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("MyFM")
-                .setContentText("正在后台运行...")
+                .setContentText("准备就绪")
                 .setSmallIcon(R.drawable.ic_radio)
                 .setContentIntent(pendingIntent)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -202,13 +189,6 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
     public void sendFmCommand(String cmd) {
 
-        //如果正在停止不再接收命令
-//
-//        if (isStopping){ Log.i(TAG, "FMClient isStopping.不接收数据");return;}
-//
-//        if ("QUIT".equals(cmd)){
-//            isStopping = true;
-//        }
 
         if (fmClient != null) {
             // 检查是否已连接（假设 FMClient 有 isConnected() 方法，如果没有见下方补充）
@@ -238,7 +218,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
         intent.putExtra(EXTRA_MESSAGE, message);
         intent.setPackage(getPackageName()); // 明确包名，安全且符合 Android 14 要求
         sendBroadcast(intent);
-
+        Log.d("onMessageReceived:",message);
 
         // 通知栏频率处理
         String lastProcessedFreq = "";
@@ -279,9 +259,6 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
     private void updateNotificationText(String freq, String name) {
 
-
-
-        if (isStopping) return;
 
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager == null) return;
@@ -497,7 +474,6 @@ public class FMService extends Service implements FMClient.MessageCallback {
                 if("stop".equals(cmd)){
                     Log.d(TAG, "通过通知栏停止服务");
                     sendFmCommand("QUIT");
-                    isStopping = true; // 锁定状态，禁止再弹通知
                     // 1. 立即取消通知栏
                     NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
                     if (manager != null) manager.cancel(NOTIFICATION_ID);

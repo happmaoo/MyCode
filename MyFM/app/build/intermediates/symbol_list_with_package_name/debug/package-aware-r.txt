@@ -745,6 +745,7 @@ id beginning
 id blocking
 id bottom
 id btnEdit
+id btnMenu
 id btnNext
 id btnPower
 id btnPre
@@ -808,6 +809,8 @@ id listMode
 id list_item
 id media_actions
 id media_controller_compat_view_tag
+id menu_about
+id menu_settings
 id message
 id middle
 id multiply
@@ -957,6 +960,7 @@ layout select_dialog_item_material
 layout select_dialog_multichoice_material
 layout select_dialog_singlechoice_material
 layout support_simple_spinner_dropdown_item
+menu menu
 mipmap ic_launcher
 mipmap ic_launcher_round
 string abc_action_bar_home_description
@@ -998,6 +1002,7 @@ string abc_searchview_description_voice
 string abc_shareactionprovider_share_with
 string abc_shareactionprovider_share_with_application
 string abc_toolbar_collapse_description
+string about_html
 string app_name
 string search_menu_title
 string status_bar_notification_info_overflow

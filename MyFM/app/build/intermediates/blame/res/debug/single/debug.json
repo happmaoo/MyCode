@@ -32,6 +32,10 @@
         "source": "/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/res/mipmap-mdpi/ic_launcher.png"
     },
     {
+        "merged": "/home/happmaoo/AndroidStudioProjects/MyFM/app/build/intermediates/res/merged/debug/menu_menu.xml.flat",
+        "source": "/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/res/menu/menu.xml"
+    },
+    {
         "merged": "/home/happmaoo/AndroidStudioProjects/MyFM/app/build/intermediates/res/merged/debug/mipmap-xxhdpi_ic_launcher.png.flat",
         "source": "/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/res/mipmap-xxhdpi/ic_launcher.png"
     },
