@@ -133,8 +133,10 @@ public class MainActivity extends AppCompatActivity {
         if (matcher_SCAN.find()) {
             String scanlist = matcher_SCAN.group(1);
             btnScan.setEnabled(true);
+            if (scanlist.trim().isEmpty()) {Toast.makeText(this, String.format("没有找到电台."), Toast.LENGTH_LONG).show();return;}
+
             String[] parts = scanlist.split(",");
-            Toast.makeText(this, String.format("找到 %d 个电台", parts.length), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, String.format("找到 %d 个电台.", parts.length), Toast.LENGTH_LONG).show();
             addScanList(scanlist);
         }
     }

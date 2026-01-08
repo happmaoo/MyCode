@@ -240,20 +240,21 @@ public class FMService extends Service implements FMClient.MessageCallback {
         sendBroadcast(intent);
 
 
-        // 频率处理
+        // 通知栏频率处理
+        String lastProcessedFreq = "";
+        String lastDisplayedFreq = "";
+
         Matcher matcher_FREQ = Pattern.compile("FREQ:(\\d+\\.?\\d*)").matcher(message);
         if (matcher_FREQ.find()) {
-            String lastFreqStr = matcher_FREQ.group(1);
+            String incomingFreq = matcher_FREQ.group(1); // 刚拿到的
 
-            if(!String.format("%.1f", currentFreq).equals(lastFreqStr)){
-                // 更新通知栏文字
-                String freqtext = myapp.getString("freq","93");
-                String pname = RadioStation.findNameByNumber(stations,freqtext);
-                if(pname==null){pname="";}
-                updateNotificationText(freqtext,pname);
-
-                currentFreq = Float.parseFloat(lastFreqStr);
-
+            if (!incomingFreq.equals(lastProcessedFreq) || !incomingFreq.equals(lastDisplayedFreq)) {
+                lastProcessedFreq = incomingFreq;
+                currentFreq = Float.parseFloat(incomingFreq);
+                String pname = RadioStation.findNameByNumber(stations, incomingFreq);
+                if (pname == null) { pname = ""; }
+                updateNotificationText(incomingFreq, pname);
+                lastDisplayedFreq = incomingFreq;
             }
         }
 
