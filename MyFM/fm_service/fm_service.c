@@ -1043,33 +1043,22 @@ void handle_client(int radio_fd, int client_fd) {
         // === 2. 处理推送 ===
         long long elapsed_since_last_push = now - last_push_time;
         
-        if (elapsed_since_last_push >= PUSH_INTERVAL_MS) {
-            if (push_enabled) {
+        if (push_enabled && (now - last_push_time >= PUSH_INTERVAL_MS)) {
+            fd_set write_fds;
+            struct timeval tv_nowait = {0, 0}; // 立即返回
+            FD_ZERO(&write_fds);
+            FD_SET(client_fd, &write_fds);
+
+            // 检查 Socket 是否可写（缓冲区是否有空间）
+            int can_write = select(client_fd + 1, NULL, &write_fds, NULL, &tv_nowait);
+            if (can_write > 0) {
                 char signal_msg[256];
                 get_signal_info(radio_fd, signal_msg, sizeof(signal_msg));
-                
                 char push_msg[300];
                 int push_len = snprintf(push_msg, sizeof(push_msg), "%s\n", signal_msg);
-                
-                // 检查连接是否仍然有效
-                int error = 0;
-                socklen_t len = sizeof(error);
-                getsockopt(client_fd, SOL_SOCKET, SO_ERROR, &error, &len);
-                
-                if (error == 0) {
-                    ssize_t written = write(client_fd, push_msg, push_len);
-                    if (written < 0) {
-                        if (errno == EPIPE || errno == ECONNRESET || errno == EBADF) {
-                            LOGI("推送失败，连接已断开\n");
-                            break;
-                        }
-                    } else {
-                        LOGI("PUSH: %s\n", signal_msg);
-                    }
-                } else {
-                    LOGI("socket错误: %s\n", strerror(error));
-                    break;
-                }
+                write(client_fd, push_msg, push_len);
+            } else {
+                LOGI("发送缓冲区满，跳过本次推送，防止阻塞主循环\n");
             }
             last_push_time = now;
         }

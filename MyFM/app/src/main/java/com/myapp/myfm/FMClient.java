@@ -50,6 +50,7 @@ public class FMClient {
      * 连接到服务端
      */
     public void connect() {
+        Log.d(TAG, "FMClient connect方法");
         initExecutor();
         executor.execute(new Runnable() {
             @Override
@@ -165,6 +166,19 @@ public class FMClient {
      * 提取一个同步连接的方法，供内部调用
      */
     private void performConnectSync() {
+        // 关键：在重连前先彻底清理旧资源
+        closeSocketResources();
+
+        // 给旧线程一点退出的缓冲时间
+        try {
+            if (receiveThread != null && receiveThread.isAlive()) {
+                receiveThread.interrupt();
+                receiveThread.join(500); // 最多等待 500ms
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
         LocalSocket localSocket = null;
         try {
             localSocket = new LocalSocket();
@@ -219,5 +233,6 @@ public class FMClient {
             executor.shutdownNow();
         }
         executor = null;
+        Log.d(TAG, "关闭FMClient ok.");
     }
 }

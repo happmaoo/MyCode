@@ -94,8 +94,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
         application = (MyFmApp) getApplication();
         stations = application.getRadioStations();
 
-        // 1. 初始化 FMClient
-        fmClient = new FMClient(this);
+
 
 
         // 2. 立即启动前台通知，防止 Android 8+ 报 ANR
@@ -129,13 +128,6 @@ public class FMService extends Service implements FMClient.MessageCallback {
         return playstatus;
     }
 
-    private void runFMRoot(String path) {
-        try {
-            fmProcess = Runtime.getRuntime().exec(new String[]{"su", "-c", path});
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
 
 
 
@@ -211,11 +203,12 @@ public class FMService extends Service implements FMClient.MessageCallback {
     public void sendFmCommand(String cmd) {
 
         //如果正在停止不再接收命令
-        if (isStopping) return;
-
-        if ("QUIT".equals(cmd)){
-            isStopping = true;
-        }
+//
+//        if (isStopping){ Log.i(TAG, "FMClient isStopping.不接收数据");return;}
+//
+//        if ("QUIT".equals(cmd)){
+//            isStopping = true;
+//        }
 
         if (fmClient != null) {
             // 检查是否已连接（假设 FMClient 有 isConnected() 方法，如果没有见下方补充）
@@ -453,6 +446,27 @@ public class FMService extends Service implements FMClient.MessageCallback {
         }
     }
 
+
+    private void runFMRoot(String path) {
+        try {
+            // 使用完整的shell命令，确保su能退出，不然会有2个进程
+            String cmd = "(" + path + " </dev/null >/dev/null 2>&1 &) && exit";
+            Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", cmd});
+            // 立即关闭所有流
+            p.getOutputStream().close();
+            // 快速消费输出
+            byte[] buffer = new byte[1024];
+            p.getInputStream().read(buffer);
+            p.getErrorStream().read(buffer);
+            Thread.sleep(100);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+
     private String installFMExecutable() {
         try {
             File outFile = new File(getFilesDir(), "fm_service");
@@ -495,23 +509,23 @@ public class FMService extends Service implements FMClient.MessageCallback {
                 }
                 if("start".equals(cmd)){
 
-
-
                     if (!isRunning) {
                         String fmPath = installFMExecutable();
                         runFMRoot(fmPath);
                     }
 
+                    try { Thread.sleep(1000);} catch (InterruptedException e) {e.printStackTrace();}
 
-                    try { Thread.sleep(1500);} catch (InterruptedException e) {e.printStackTrace();}
-
+                    // 1. 初始化 FMClient
+                    fmClient = new FMClient(FMService.this);
+                    fmClient.connect();
+                    try { Thread.sleep(500);} catch (InterruptedException e) {e.printStackTrace();}
                     // 启动音频循环
                     startLoopback();
 
                     new android.os.Handler().postDelayed(() -> {
                         sendFmCommand("TUNE "+currentFreq);
-                        Log.d(TAG, "onStartCommand");
-                        sendFmCommand("UNTUNE");
+                        sendFmCommand("UNMUTE");
                         sendFmCommand("PUSH 1");
                     }, 500); // 延迟秒
                     onStatusChanged("PLAY");
@@ -520,14 +534,31 @@ public class FMService extends Service implements FMClient.MessageCallback {
                 if("pause".equals(cmd)){
                     sendFmCommand("QUIT");
                     stopLoopback();
+
+                    // 关闭FMClient连接
+                    if (fmClient != null) {
+                        Log.d(TAG, "正在关闭FMClient连接...");
+                        try {
+                            // 调用FMClient的close方法关闭Socket和线程池
+                            fmClient.close();
+                        } catch (Exception e) {
+                            Log.e(TAG, "关闭FMClient时出错", e);
+                        }
+                        fmClient = null; // 设置为null，确保资源被释放
+                    }
+
+
                     onStatusChanged("PAUSE");
+
+                    try {
+                        Runtime.getRuntime().exec(new String[]{"su", "-c", "killall fm_service"});
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         }
     };
-
-
-
 
 
 
