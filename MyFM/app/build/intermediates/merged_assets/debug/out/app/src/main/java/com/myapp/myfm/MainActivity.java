@@ -312,6 +312,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 fmService.sendFmCommand("SEEK 0");
+                tvInfo.setText("SEEKing...");
             }
         });
 
