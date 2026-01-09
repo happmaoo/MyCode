@@ -44,7 +44,7 @@ public class MyFmApp extends Application {
     }
 
     // 封装常用的SharedPreferences操作方法
-    public void saveString(String key, String value) {
+    public void setString(String key, String value) {
         sharedPreferences.edit().putString(key, value).apply();
     }
 
@@ -81,5 +81,6 @@ public class MyFmApp extends Application {
 
     public boolean running;
     public String fm_state;
+    public boolean keepDispOn = false;
 
 }

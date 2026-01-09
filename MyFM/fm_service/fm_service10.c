@@ -1,3 +1,4 @@
+
 #define _POSIX_C_SOURCE 199309L
 #include <stdio.h>
 #include <stdlib.h>
@@ -320,21 +321,6 @@ int set_control(int fd, int id, int value, const char* name) {
         return -1;
     }
     return 0;
-}
-
-// 获取频率信息 返回值 double
-double get_freq(int radio_fd) {
-    double frequency_mhz;
-    struct v4l2_frequency freq;
-    freq.tuner = 0;
-    freq.type = V4L2_TUNER_RADIO;
-
-    if (ioctl(radio_fd, VIDIOC_G_FREQUENCY, &freq) == 0) {
-        frequency_mhz = (double)freq.frequency / 16 / 1000.0;
-    } else {
-        frequency_mhz = 0.0;
-    }
-    return frequency_mhz;
 }
 
 int init_firmware(int fd) {
@@ -691,7 +677,7 @@ static void adjust_seek_start(int fd, int dir) {
 
 
 // =========== seek =========
-float seek(int fd, int dir) {
+int seek(int fd, int dir) {
     push_enabled = 0;
     seek_status = 1;
 
@@ -794,8 +780,6 @@ float seek(int fd, int dir) {
 
 int scan(int fd) {
 
-    // 保存当前频率
-    double currfreq = get_freq(fd);
 
     // scan 时从最低频率开始
     struct v4l2_frequency freq = { 
@@ -844,17 +828,6 @@ int scan(int fd) {
     }
     pthread_mutex_unlock(&scan_mutex);
     set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
-
-
-    // 恢复scan前频率
-    struct v4l2_frequency freq2 = { 
-        .tuner = 0, 
-        .type = V4L2_TUNER_RADIO, 
-        .frequency = (int)(currfreq * TUNE_MULT) 
-    };
-    ioctl(fd, VIDIOC_S_FREQUENCY, &freq2);
-
-
     set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 0, "UNMUTE");
 
     // 5. 扫描结束后，需要通过 VIDIOC_DQBUF 获取 IRIS_BUF_SRCH_LIST
@@ -869,10 +842,8 @@ int scan(int fd) {
 //-----------------------------------------------------------------
 
 
-
-
 // 获取信号信息
-void get_signal_infoxxx(int radio_fd, char* buffer, int size) {
+void get_signal_info(int radio_fd, char* buffer, int size) {
     struct v4l2_tuner tuner;
     struct v4l2_frequency freq;
     memset(buffer, 0, size);
@@ -902,29 +873,6 @@ void get_signal_infoxxx(int radio_fd, char* buffer, int size) {
     }
 }
 
-
-
-
-void get_signal_info(int radio_fd, char* buffer, int size) {
-    struct v4l2_tuner tuner;
-    memset(buffer, 0, size);
-    memset(&tuner, 0, sizeof(tuner));
-    tuner.index = 0;
-
-    struct v4l2_control sinr = { .id = V4L2_CID_PRIVATE_IRIS_GET_SINR };
-    
-    // 获取信号信息
-    if (ioctl(radio_fd, VIDIOC_G_TUNER, &tuner) == 0) {
-        if (ioctl(radio_fd, VIDIOC_G_CTRL, &sinr) == 0) {
-            snprintf(buffer, size, "RSSI:%d,SINR:%d",tuner.signal-139,sinr.value);
-        }        
-    } else {
-        snprintf(buffer, size, "get_signal_info error.");
-    }
-
-    
-
-}
 
 
 // 分离命令处理逻辑
@@ -973,8 +921,7 @@ void process_command(int radio_fd, int client_fd, const char* cmd) {
             };
             if (ioctl(radio_fd, VIDIOC_S_FREQUENCY, &freq) == 0) {
                 set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 0, "UNMUTE");
-                int len = snprintf(response, sizeof(response), "TUNED,FREQ:%.1f\n", freq_mhz);
-                write(client_fd, response, len);
+                write(client_fd, "TUNED\n", 6);
             } else {
                 LOGI("TUNE ERROR\n");
                 snprintf(response, sizeof(response), "ERROR|TUNE_FAILED:%s\n", strerror(errno));
@@ -995,7 +942,7 @@ void process_command(int radio_fd, int client_fd, const char* cmd) {
         if (sscanf(cmd + 5, "%d", &dir) == 1) {
             float new_freq = seek(radio_fd, dir);
             char buf[32];
-            snprintf(buf, sizeof(buf), "SEEKED,FREQ:%.1f\n", new_freq);
+            snprintf(buf, sizeof(buf), "SEEK:%.2f\n", new_freq);
             write(client_fd, buf, strlen(buf));
         }
     }

@@ -744,14 +744,13 @@ id baseline
 id beginning
 id blocking
 id bottom
-id btnEdit
 id btnMenu
 id btnNext
 id btnPower
 id btnPre
 id btnSave
 id btnScan
-id btnToggleInfo
+id btnToggleDisp
 id btnTuneDown
 id btnTuneUp
 id buttonPanel
@@ -810,6 +809,9 @@ id list_item
 id media_actions
 id media_controller_compat_view_tag
 id menu_about
+id menu_editlist
+id menu_plist1
+id menu_plist2
 id menu_settings
 id message
 id middle
@@ -896,6 +898,7 @@ id top
 id topPanel
 id tvFreq
 id tvInfo
+id tvName
 id uniform
 id up
 id useLogo

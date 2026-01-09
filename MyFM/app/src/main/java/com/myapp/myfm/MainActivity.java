@@ -25,11 +25,13 @@ import android.view.Gravity;
 import android.view.Menu;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast; // 方便提示用户
+import android.widget.ToggleButton;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -41,6 +43,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import com.google.android.flexbox.FlexboxLayout;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -70,8 +73,9 @@ public class MainActivity extends AppCompatActivity {
 
 
     TextView tvFreq;
-    TextView tvInfo;
+    TextView tvInfo,tvName;
     Button btnPower,btnPre,btnNext,btnTuneDown,btnTuneUp,btnEdit,btnScan,btnMenu;
+    ToggleButton btnToggleDisp;
     FlexboxLayout flexboxLayoutButtons;
     Button selectedButton = null;
     LinearLayout rssi_meter_wrap;
@@ -83,11 +87,15 @@ public class MainActivity extends AppCompatActivity {
 
 
     MyFmApp myapp;
+    MyFmApp application;
+    List<RadioStation> stations;
+    String plistfile = "myfm.txt";//电台列表名
 
 
     LinearLayout vol_meter_wrap;
     View vol_meter;
     int lastLevel = -1;
+
 
 
 
@@ -131,8 +139,18 @@ public class MainActivity extends AppCompatActivity {
         if (matcher_FREQ.find()) {
             String freqStr = matcher_FREQ.group(1);
             tvFreq.setText(freqStr);
-            myapp.saveString("freq", freqStr);
+            myapp.setString("freq", freqStr);
+
+            String pname = RadioStation.findNameByNumber(stations, freqStr);
+            if (pname == null) { pname = ""; }
+            Log.i("pname", String.valueOf(stations));
+            Log.i("pname", freqStr+pname);
+            tvName.setText(pname);
+            setCurrButtonStyle(freqStr);
         }
+
+
+
 
         // 扫描结果处理
         Matcher matcher_SCAN = Pattern.compile("SCANED:(.*)").matcher(message);
@@ -142,8 +160,11 @@ public class MainActivity extends AppCompatActivity {
             if (scanlist.trim().isEmpty()) {Toast.makeText(this, String.format("没有找到电台."), Toast.LENGTH_LONG).show();return;}
 
             String[] parts = scanlist.split(",");
-            Toast.makeText(this, String.format("找到 %d 个电台.", parts.length), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, String.format("找到 %d 个电台.已添加到临时列表.", parts.length), Toast.LENGTH_LONG).show();
+            plistfile = "myfm-temp.txt";
+            reloadRadioStations();
             addScanList(scanlist);
+            myapp.setString("plistfile",plistfile);
         }
     }
 
@@ -209,6 +230,7 @@ public class MainActivity extends AppCompatActivity {
 
         tvFreq = findViewById(R.id.tvFreq);
         tvInfo = findViewById(R.id.tvInfo);
+        tvName = findViewById(R.id.tvName);
         btnPower = findViewById(R.id.btnPower);
         btnScan = findViewById(R.id.btnScan);
         //btnToggleInfo = findViewById(R.id.btnToggleInfo);
@@ -216,23 +238,30 @@ public class MainActivity extends AppCompatActivity {
         btnTuneUp = findViewById(R.id.btnTuneUp);
         btnPre = findViewById(R.id.btnPre);
         btnNext = findViewById(R.id.btnNext);
-        btnEdit = findViewById(R.id.btnEdit);
         btnMenu = findViewById(R.id.btnMenu);
         flexboxLayoutButtons = findViewById(R.id.flexboxLayoutButtons);
         rssi_meter_wrap = findViewById(R.id.rssi_meter_wrap);
         rssi_meter = findViewById(R.id.rssi_meter);
         vol_meter_wrap = findViewById(R.id.vol_meter_wrap);
         vol_meter = findViewById(R.id.vol_meter);
+        btnToggleDisp = findViewById(R.id.btnToggleDisp);
 
 
         // SharedPreferences 全局保存
         myapp = (MyFmApp) getApplicationContext();
         stateManager = new FMStateManager(this, myapp);
 
+        application = (MyFmApp) getApplication();
+        stations = application.getRadioStations();
+
+        plistfile = myapp.getString("plistfile","");
 
         // 检查并请求权限
         checkAndRequestPermissions();
 
+
+        //首次启动显示上次频率
+        handleLogMessage("FREQ:"+myapp.getString("freq",""));
 
         // --- 设置按钮点击事件 ---
 
@@ -246,14 +275,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
-        //-----------btn Edit------------------
-        btnEdit.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent EditIntent = new Intent(MainActivity.this, FileEdit.class);
-                startActivityForResult(EditIntent, FILE_EDIT_REQUEST_CODE);
-            }
-        });
 
         //-----------Button TuneDown----------------
         btnTuneDown.setOnClickListener(new View.OnClickListener() {
@@ -264,7 +285,7 @@ public class MainActivity extends AppCompatActivity {
                 int freqInt = (int)(Float.parseFloat(freq) * 10);
                 freqInt -= 1; // +0.1
                 freq = String.format("%.1f", freqInt / 10.0f);
-                myapp.saveString("freq", freq);
+                myapp.setString("freq", freq);
                 tvFreq.setText(freq);
                 fmService.sendFmCommand("TUNE " + freq);
                 //Toast.makeText(MainActivity.this, String.valueOf(freq), Toast.LENGTH_SHORT).show();
@@ -280,7 +301,7 @@ public class MainActivity extends AppCompatActivity {
                 int freqInt = (int)(Float.parseFloat(freq) * 10);
                 freqInt += 1; // +0.1
                 freq = String.format("%.1f", freqInt / 10.0f);
-                myapp.saveString("freq", freq);
+                myapp.setString("freq", freq);
                 tvFreq.setText(freq);
                 fmService.sendFmCommand("TUNE " + freq);
             }
@@ -316,6 +337,18 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
+        //-----------Button ToggleDisp----------------
+        btnToggleDisp.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) {
+                keepDispOn(true);
+            } else {
+                keepDispOn(false);
+            }
+        });
+
+        if(myapp.keepDispOn){btnToggleDisp.setChecked(true);keepDispOn(true);}
+
+
         //-----------Button Menu----------------
         btnMenu.setOnClickListener(view -> {
             PopupMenu popup = new PopupMenu(this, view);
@@ -332,7 +365,23 @@ public class MainActivity extends AppCompatActivity {
                     //Toast.makeText(MainActivity.this, "点击了关于", Toast.LENGTH_SHORT).show();
                     showAboutDialog();
                     return true;
+                } else if (id == R.id.menu_plist1) {
+                    plistfile = "myfm.txt";
+                    reloadRadioStations();
+                    myapp.setString("plistfile",plistfile);
+                    return true;
+                } else if (id == R.id.menu_plist2) {
+                    plistfile = "myfm-temp.txt";
+                    reloadRadioStations();
+                    myapp.setString("plistfile",plistfile);
+                    return true;
+                }else if (id == R.id.menu_editlist) {
+                    Intent EditIntent = new Intent(MainActivity.this, FileEdit.class);
+                    startActivityForResult(EditIntent, FILE_EDIT_REQUEST_CODE);
+                    return true;
                 }
+
+
                 return false;
             });
             popup.show();
@@ -568,8 +617,6 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
 
     // ----------------电台列表按钮 存储------------------------
     void loadAndSetupButtons() {
-        MyFmApp application = (MyFmApp) getApplication();
-        List<RadioStation> stations;
 
         // 1. 检查 Application 中是否已缓存数据
         if (application.areStationsLoaded()) {
@@ -578,7 +625,7 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
         } else {
             // 2. 如果没有缓存，则从文件加载
             Log.d("MainActivity", "Loading radio stations from file.");
-            String content = loadRadioStationsFromFile();
+            String content = loadRadioStationsFromFile(plistfile);
             stations = parseFileContent(content);
 
             // 3. 将数据存储到 Application 中进行缓存
@@ -639,6 +686,8 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
             lp.setMargins(0, 0, 5, 0);
 
             Button button = new Button(this);
+            // 给按钮设置一个 Tag，存入频率数值，方便以后查找
+            button.setTag(station.getNumber());
             button.setLayoutParams(lp);   // 放在创建 lp 之后
 
             // 为两行文字设置不同颜色
@@ -677,11 +726,12 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
             button.setOnClickListener(v -> {
 
                 // 没有打开收音机直接返回
-                if (fmService == null) {
+                if (stateManager.getCurrentState() != FMState.PLAY) {
                     return;
                 }
 
                 tvFreq.setText(station.getNumber());
+                tvName.setText(station.getName());
                 // 如果有按钮被选中，恢复其默认颜色
                 if (selectedButton != null) {
                     selectedButton.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#eeeeee"))); // 恢复默认颜色
@@ -692,7 +742,7 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
                 String freqStr = station.getNumber();
                 if (!freqStr.isEmpty()) {
                     try {
-                            myapp.saveString("freq",freqStr);
+                            myapp.setString("freq",freqStr);
                             freq = freqStr;
                             fmService.sendFmCommand("TUNE "+freqStr);
                             myapp.running = true;
@@ -720,15 +770,15 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
 
 
     // --------------获取 内置存储卡里的电台列表 ----------------
-    private File getRadioStationsFile() {
+    private File getRadioStationsFile(String filename) {
         // 获取内置存储的根目录 (注意：这个方法在API 29+已被弃用，但在API 26仍可用)
         File rootDir = Environment.getExternalStorageDirectory();
         File myfmDir = new File(rootDir, "myapp");
-        return new File(myfmDir, "myfm.txt");
+        return new File(myfmDir, filename);
     }
 
-    private String loadRadioStationsFromFile() {
-        File radioFile = getRadioStationsFile();
+    private String loadRadioStationsFromFile(String filename) {
+        File radioFile = getRadioStationsFile(filename);
         StringBuilder text = new StringBuilder();
 
         if (!radioFile.exists()) {
@@ -796,16 +846,42 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
     private void addScanList(String list){
         String frequencies = list;
         String[] parts = frequencies.split(",");
+        ArrayList<RadioStation> scannedStations = new ArrayList<>();
 
         for (int i = 0; i < parts.length; i++) {
             String freq = parts[i].trim();
-            String name = "新电台 " + (i + 1);
 
-            RadioStation station = new RadioStation(freq, name);
-            addSingleButton(station);
+            RadioStation station = new RadioStation(freq, "");
+            scannedStations.add(station);
         }
+        writeScanListToFile(scannedStations);
     }
 
+
+    // 将扫描到的电台列表写入txt文件
+    private void writeScanListToFile(ArrayList<RadioStation> stations) {
+        if (stations == null || stations.isEmpty()) {
+            return;
+        }
+        try {
+            File file = getRadioStationsFile("myfm-temp.txt");
+            FileWriter writer = new FileWriter(file, false);
+            BufferedWriter bufferedWriter = new BufferedWriter(writer);
+
+            for (RadioStation station : stations) {
+                String line = station.getNumber() + " ";
+                bufferedWriter.write(line);
+                bufferedWriter.newLine();
+            }
+            bufferedWriter.close();
+            writer.close();
+            Log.e("ScanRadio", "写入文件成功.");
+        } catch (IOException e) {
+            e.printStackTrace();
+            Log.e("ScanRadio", "写入文件失败: " + e.getMessage());
+        }
+        reloadRadioStations();
+    }
 
 
     private void checkAndRequestPermissions() {
@@ -882,13 +958,28 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
         List<RadioStation> stations;
 
         Log.d("MainActivity", "Loading radio stations from file.");
-        String content = loadRadioStationsFromFile();
+        String content = loadRadioStationsFromFile(plistfile);
         stations = parseFileContent(content);
 
         // 3. 将数据存储到 Application 中进行缓存
         application.setRadioStations(stations);
         loadAndSetupButtons(); // 重新加载
     }
+
+
+    // 设置当前频率的按钮颜色
+    private void setCurrButtonStyle(String freq) {
+        if (selectedButton != null) {
+            selectedButton.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#eeeeee")));
+        }
+        Button targetBtn = flexboxLayoutButtons.findViewWithTag(freq);
+        if (targetBtn != null) {
+            targetBtn.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#C0FFB0")));
+            selectedButton = targetBtn;
+        }
+    }
+
+
 
 
     @Override
@@ -919,5 +1010,15 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
         builder.setView(webView);
     }
 
+    private void keepDispOn(Boolean disp) {
+        if (disp) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            myapp.keepDispOn = true;
+        } else {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            myapp.keepDispOn = false;
+
+        }
+    }
 
 }

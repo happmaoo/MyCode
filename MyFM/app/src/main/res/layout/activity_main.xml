@@ -32,26 +32,53 @@
 
                 <TextView
                     android:id="@+id/tvFreq"
-                    android:layout_width="200dp"
+                    android:layout_width="100dp"
                     android:layout_height="100dp"
-                    android:layout_weight="1" android:text="--.--"
+                    android:text="---.-"
                     android:textSize="32sp"
                     android:textColor="#000000"
                     android:background="#FFDDA6"
                     android:gravity="center"
                     android:padding="0dp"/>
-                <TextView
-                    android:id="@+id/tvInfo"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1" android:text="info"
-                    android:textSize="14sp"
-                    android:textColor="#000000"
-                    android:gravity="center_vertical"
-                    android:layout_marginLeft="10dp"
-                    android:fontFamily="monospace"
-                    android:scrollbars="vertical"
-                    android:padding="0dp"/>
+
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="100dp"
+                    android:orientation="vertical">
+
+                    <Space
+                        android:layout_width="100dp"
+                        android:layout_height="30dp" />
+
+                    <TextView
+                        android:id="@+id/tvName"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="--"
+                        android:textSize="18sp"
+                        android:textColor="#888888"
+                        android:gravity="center_horizontal"
+                        android:layout_marginLeft="10dp"
+                        android:fontFamily="monospace"
+                        android:scrollbars="horizontal"
+                        android:padding="0dp"/>
+
+                    <TextView
+                        android:id="@+id/tvInfo"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="info"
+                        android:textSize="14sp"
+                        android:textColor="#000000"
+                        android:gravity="center_horizontal"
+                        android:layout_marginLeft="10dp"
+                        android:fontFamily="monospace"
+                        android:scrollbars="horizontal"
+                        android:padding="0dp"/>
+                </LinearLayout>
+
 
                 <!-- 模拟 volume 计 -->
                 <LinearLayout
@@ -99,20 +126,23 @@
                 android:gravity="left">
 
                 <Button
-                    android:id="@+id/btnEdit"
+                    android:id="@+id/btnMenu"
                     android:layout_width="60dp"
                     android:layout_height="30dp"
                     android:textSize="10sp"
                     android:padding="0dp"
-                    android:text="EditList"/>
+                    android:text="Menu"/>
+
 
                 <ToggleButton
-                    android:id="@+id/btnToggleInfo"
-                    android:layout_width="60dp"
+                    android:id="@+id/btnToggleDisp"
+                    android:layout_width="50dp"
                     android:layout_height="30dp"
                     android:textSize="10sp"
                     android:padding="0dp"
-                    android:text="ToggleButton" />
+                    android:textOn="☀️"
+                android:textOff="-" />
+
 
                 <Button
                     android:id="@+id/btnTuneDown"
@@ -129,13 +159,7 @@
                     android:padding="0dp"
                     android:text="&gt;"/>
 
-                <Button
-                    android:id="@+id/btnMenu"
-                    android:layout_width="60dp"
-                    android:layout_height="30dp"
-                    android:textSize="10sp"
-                    android:padding="0dp"
-                    android:text="Menu"/>
+
 
             </LinearLayout>
 
