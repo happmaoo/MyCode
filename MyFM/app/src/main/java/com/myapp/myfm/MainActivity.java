@@ -357,7 +357,7 @@ public class MainActivity extends AppCompatActivity {
                 int id = item.getItemId();
 
                 if (id == R.id.menu_settings) {
-                    Toast.makeText(MainActivity.this, "开发中...", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "暂时没有用...", Toast.LENGTH_SHORT).show();
                     // startActivity(new Intent(MainActivity.this, SettingsActivity.class));
                     return true;
 
@@ -405,6 +405,8 @@ public class MainActivity extends AppCompatActivity {
             }
 
         }
+
+        //checkAppUpdate();
     }
 
 
@@ -1020,5 +1022,7 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
 
         }
     }
+
+
 
 }
