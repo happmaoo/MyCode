@@ -56,7 +56,7 @@
 29-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:22:9-54
 30        android:supportsRtl="true"
 30-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:23:9-35
-31        android:testOnly="false"
+31        android:testOnly="true"
 31-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:19:9-33
 32        android:theme="@style/AppTheme" >
 32-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:25:9-40
