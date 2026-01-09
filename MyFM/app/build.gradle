@@ -25,6 +25,37 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
+    task copyFilesToAssets(type: Copy) {
+        // 每次运行前强制清理目标目录
+        doFirst {
+            delete "${projectDir}/src/main/assets/"
+        }
+
+        from("${project.rootDir}/fm_service/") {
+            include "fm_service"
+            include "CMakeLists.txt"
+            include "fm_service.c"
+            include "clean.sh"
+            include "make.sh"
+        }
+
+        from("${project.rootDir}") {
+            include "app/src/main/java/**"
+            include "app/src/main/res/**"
+            include "app/src/main/AndroidManifest.xml"
+        }
+
+
+
+        into "${projectDir}/src/main/assets/"
+        includeEmptyDirs = false
+    }
+
+    project.afterEvaluate {
+        tasks.matching { it.name.startsWith('generate') && it.name.contains('Assets') }.all {
+            dependsOn copyFilesToAssets
+        }
+    }
 }
 
 dependencies {

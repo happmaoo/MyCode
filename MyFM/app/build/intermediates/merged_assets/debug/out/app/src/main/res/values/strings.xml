@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">MyFM</string>
+    <string name="about_html">
+    <![CDATA[
+    <html>
+        <body>
+            <p><b>MyFM 版本:</b> %1$s</p><hr/>
+            <p>这是我开发的红米note4x收音机APP.<br>默认电台列表保存在 内置存储/myapp/ 目录下.<br>版本陆续更新中，欢迎去 github<br><a href="https://github.com/happmaoo/MyCode">https://github.com/happmaoo/MyCode</a><br>检查更新。</p>
+        </body>
+    </html>
+    ]]>
+</string>
+</resources>
