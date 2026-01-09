@@ -9,7 +9,10 @@ android {
         minSdkVersion 25
         targetSdkVersion 29
         versionCode 2
-        versionName "2.1"
+        //versionName "2.1"
+
+        def currentTime = new Date().format("yyyyMMdd.HHmm", TimeZone.getTimeZone("GMT+8"))
+        versionName "2.1.${currentTime}"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
