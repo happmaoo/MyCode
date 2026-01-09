@@ -317,9 +317,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
 
 
-    private int bufferSize = 1024; // 调小 bufferSize 可以增加跳动频率 (例如 512 或 1024)
-    private float lastLevel = 0;   // 用于平滑衰减
-    private final float DECAY_FACTOR = 0.85f; // 衰减系数，越小下降越快，跳动感越强
+    private int lastLevel = 0;
 
     private void startLoopback() {
         if (isRunning) return;
@@ -349,72 +347,42 @@ public class FMService extends Service implements FMClient.MessageCallback {
             audioRecord.startRecording();
             audioTrack.play();
 
-
-
             loopbackThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    // 确保 bufferSize 为 2 的倍数
                     byte[] buffer = new byte[bufferSize];
                     short[] shortBuffer = new short[bufferSize / 2];
 
                     while (isRunning) {
                         int readBytes = audioRecord.read(buffer, 0, buffer.length);
-
                         if (readBytes > 0) {
-                            // 1. 播放音频
                             audioTrack.write(buffer, 0, readBytes);
 
-                            // 2. byte[] 转 short[]
-                            ByteBuffer.wrap(buffer)
-                                    .order(ByteOrder.LITTLE_ENDIAN)
-                                    .asShortBuffer()
-                                    .get(shortBuffer, 0, readBytes / 2);
+                            ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN)
+                                    .asShortBuffer().get(shortBuffer, 0, readBytes / 2);
 
-                            // 3. 计算 RMS (均方根) 和 Peak (峰值)
-                            double sum = 0;
-                            double peak = 0;
+                            // 1. 改为计算 Peak (峰值) 结合 RMS，增加灵敏度
+                            double maxAbs = 0;
                             int samples = readBytes / 2;
-
                             for (int i = 0; i < samples; i++) {
-                                double sample = Math.abs(shortBuffer[i]);
-                                sum += sample * sample;
-                                if (sample > peak) peak = sample; // 记录峰值
+                                int val = Math.abs(shortBuffer[i]);
+                                if (val > maxAbs) maxAbs = val; // 捕获瞬时最大跳动
                             }
 
-                            double rms = Math.sqrt(sum / samples);
+                            // 2. 核心算法修改：增加动态系数
+                            // 将原有的线性映射逻辑修改为：(原始占比 * 灵敏度系数)
+                            // 这里的 1.5 是灵敏度因子，可以根据需要调整 (1.0~2.5)
+                            int level = (int) (maxAbs / 50000 * 100 * 1.5);
 
-                            // 4. 将线性数值转换为分贝 (dB)
-                            // 这样即使声音较小，数值变化也会很大，视觉效果更灵敏
-                            // 参考值 32768.0 是 short 的最大值
-                            double db = 20 * Math.log10(rms / 32768.0);
-
-                            // 5. 将 dB 映射到 0~100 刻度
-                            // 通常环境噪音在 -60dB 左右，最大声在 0dB
-                            int targetLevel = (int) ((db + 60) * (100.0 / 60.0));
-
-                            // 6. 动态范围增强：如果想让跳动更“暴力”，可以结合峰值
-                            if (peak > 0) {
-                                int peakLevel = (int) (peak / 32768.0 * 100);
-                                targetLevel = (targetLevel + peakLevel) / 2;
+                            // 3. 加入“非对称平衡”：让它弹上去快，掉下来有过程
+                            if (level < lastLevel) {
+                                level = (int) (lastLevel * 0.8); // 缓慢掉落，避免闪烁
                             }
+                            lastLevel = level;
 
-                            // 7. 应用衰减逻辑（防止 UI 闪烁过快，但保持上升灵敏）
-                            float finalLevel;
-                            if (targetLevel >= lastLevel) {
-                                // 如果音量在变大，立即跳上去
-                                finalLevel = targetLevel;
-                            } else {
-                                // 如果音量在变小，按比例衰减，产生“Q弹”的落差感
-                                finalLevel = lastLevel * DECAY_FACTOR;
-                            }
-                            lastLevel = finalLevel;
+                            if (level > 100) level = 100;
 
-                            // 8. 边界限制
-                            int resultLevel = Math.max(0, Math.min(100, (int) finalLevel));
-
-                            // 9. 通知 UI
-                            sendVolumeBroadcast(resultLevel);
+                            sendVolumeBroadcast(level);
                         }
                     }
                 }
