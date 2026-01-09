@@ -233,9 +233,9 @@ volatile int seek_done = 0;
 pthread_mutex_t seek_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t  seek_cond  = PTHREAD_COND_INITIALIZER;
 
-
-// 用于暂停一会跳过按下seek的一瞬间发出的假的 IRIS_EVT_SEEK_COMPLETE 信号
-volatile int seek_pause = 0;
+// 用于记录第二次 IRIS_EVT_SEEK_COMPLETE 事件才是真的
+volatile int seek_complete_count = 0;
+pthread_mutex_t seek_complete_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 // scan
@@ -405,14 +405,27 @@ int get_events(int fd, int type) {
 
                 if (event_type == IRIS_EVT_SEEK_COMPLETE) {
 
-                        LOGI("IRIS_EVT_SEEK_COMPLETE，搜索完成\n");
+                    pthread_mutex_lock(&seek_complete_mutex);
+                    seek_complete_count++;
                     
+                    // 只有当收到第二个 SEEK_COMPLETE 事件时才认为是真正完成
+                    if (seek_complete_count >= 2) {
+                        LOGI("收到真正的 IRIS_EVT_SEEK_COMPLETE，搜索彻底完成\n");
+                        
+                        // 重置计数器
+                        seek_complete_count = 0;
+                        
+                        // 发送完成信号
                         if (seek_status == 1) {
                             pthread_mutex_lock(&seek_mutex);
                             seek_done = 1;
                             pthread_cond_signal(&seek_cond);
                             pthread_mutex_unlock(&seek_mutex);
                         }
+                    } else {
+                        LOGI("收到第一个虚假的 IRIS_EVT_SEEK_COMPLETE，忽略 (计数: %d)\n", seek_complete_count);
+                    }
+                    pthread_mutex_unlock(&seek_complete_mutex);
                 }
                 if (event_type == IRIS_EVT_TUNE_SUCC) {
 
@@ -481,15 +494,8 @@ int get_events(int fd, int type) {
 
 void* loop_event(void *arg) {
     int radio_fd = *(int *)arg;
-
     // event 循环
     while (event_enabled) {
-
-        if (seek_pause) {
-            usleep(10); // 暂停10us 跳过
-            seek_pause = 0;
-            continue;
-        }
         
         // 获取事件
         if (get_events(radio_fd, IRIS_BUF_EVENTS) == 0) {
@@ -684,87 +690,6 @@ static void adjust_seek_start(int fd, int dir) {
 }
 
 
-
-
-
-
-/* 旧的 seek 调用的 freq_get2 */
-
-int freq_get2(int fd) {
-  int ret = 0;
-  float freq = 0.0;
-
-  v4l_freq.tuner = 0; // Tuner index = 0
-  v4l_freq.type = V4L2_TUNER_RADIO;
-  memset(v4l_freq.reserved, 0, sizeof(v4l_freq.reserved));
-  ret = ioctl(fd, VIDIOC_G_FREQUENCY, &v4l_freq);
-
-  if (ret < 0) {
-    return -1;
-  }
-
-  freq = v4l_freq.frequency / 16 /1000.0;
-
-
-  return freq;
-}
-
-/* 旧的 seek */
-int seek2(int fd,int dir) {
-  int ret = 0;
-  // 假设 v4l_seek 已经被正确定义为 struct v4l2_hw_freq_seek
-  struct v4l2_hw_freq_seek v4l_seek; // 建议在函数内定义
-
-  LOGI ("seek dir: %d", dir);
-
-  // 初始化 v4l_seek
-  memset(&v4l_seek, 0, sizeof(v4l_seek)); // 最好先清零
-  v4l_seek.tuner = 0;
-  v4l_seek.type = V4L2_TUNER_RADIO;
-  v4l_seek.wrap_around = 1;
-  v4l_seek.seek_upward = (dir != 0); // 确保是 0 或 1
-  v4l_seek.spacing = 0; // 使用默认步进
-
-  ret = ioctl(fd, VIDIOC_S_HW_FREQ_SEEK, &v4l_seek);
-
-  if (ret < 0) {
-    LOGI("chip_imp_seek_start VIDIOC_S_HW_FREQ_SEEK error: %d", ret);
-    return -1;
-  }
-
-  LOGI ("chip_imp_seek_start VIDIOC_S_HW_FREQ_SEEK success");
-
-  // *** 改进的等待和轮询逻辑 ***
-  // 理想情况下，应该使用 V4L2 事件或 v4l2_tuner 状态来判断完成。
-  // 如果必须使用轮询频率变化的方法，应该设置更合理的超时和等待时间。
-
-  float orig_freq = freq_get2(fd);
-  float new_freq = orig_freq;
-  int ctr;
-  
-  // 初始等待，确保硬件有时间启动操作
-  usleep(100000); // 100ms
-
-  for (ctr = 0; ctr < 50; ctr++) { // 100ms * 50 = 5秒总超时（取决于你的硬件）
-      // 检查频率是否已经变化
-      new_freq = freq_get2(fd);
-      
-      if (new_freq != orig_freq) {
-          // 频率已变化，认为搜索完成
-          break;
-      }
-      
-      // 如果频率未变化，继续等待
-      usleep(100000); // 100ms
-  }
-  
-  // 搜索可能仍在进行中，但我们已经等待了足够的轮询时间
-
-  // 最终获取到的频率，无论是新频率还是旧频率（如果超时）
-  return freq_get2(fd); 
-}
-
-
 // =========== seek =========
 float seek(int fd, int dir) {
     push_enabled = 0;
@@ -776,12 +701,12 @@ float seek(int fd, int dir) {
     set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 1, "MUTE");
 
     // 1. 关键：先强制停止任何可能存在的搜索任务，重置状态机
-    // set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
-    // usleep(100000); // 给驱动一点反应时间
+    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
+    usleep(100000); // 给驱动一点反应时间
 
-    // set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCH_CNT, 1, "RESET_SRCH_CNT"); // 重置为1
+    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCH_CNT, 1, "RESET_SRCH_CNT"); // 重置为1
 
-    //set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHMODE, SEEK, "SRCHMODE_SEEK");
+    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHMODE, SEEK, "SRCHMODE_SEEK");
 
 
 
@@ -797,10 +722,10 @@ float seek(int fd, int dir) {
     v4l_seek.tuner = 0;
     v4l_seek.type = V4L2_TUNER_RADIO;
     v4l_seek.wrap_around = 1;
-    v4l_seek.seek_upward = (dir != 0);
+    v4l_seek.seek_upward = (dir == 0) ? 0 : 1;
 
     // 必须参数设置完才能开始搜索
-     //set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 1, "SRCH_ON");
+    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 1, "SRCH_ON");
 
     LOGI("开始执行 VIDIOC_S_HW_FREQ_SEEK...\n");
     if (ioctl(fd, VIDIOC_S_HW_FREQ_SEEK, &v4l_seek) < 0) {
@@ -851,14 +776,13 @@ float seek(int fd, int dir) {
     //curr_freq_mhz = floorf(curr_freq_mhz * 10.0f + 0.5f) / 10.0f;
 
     LOGI("---SEEK 完成 %.2f ---\n", curr_freq_mhz);
-    seek_pause = 1;
 
     // 其实不用这些方法，因为当时我参数设置乱了，所以很不稳定.参数乱了，不稳定，记得重启手机
     // 邻频择优（±100kHz）
     //curr_freq_mhz = refine_freq(fd, curr_freq_mhz);
     //LOGI("----------校正后 %.2f ----------\n", curr_freq_mhz);
     
-    //set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
+    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
     set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 0, "UNMUTE");
     push_enabled = 1;
     seek_status = 0;
@@ -1370,6 +1294,7 @@ int main() {
     pthread_cond_destroy(&seek_cond);
     pthread_mutex_destroy(&scan_mutex);
     pthread_cond_destroy(&scan_cond);
+    pthread_mutex_unlock(&seek_complete_mutex);
     
 
     if (radio_fd >= 0) {
