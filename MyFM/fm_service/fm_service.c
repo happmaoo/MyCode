@@ -715,41 +715,6 @@ int scan(int fd) {
 
 
 
-
-// 获取信号信息
-void get_signal_infoxxx(int radio_fd, char* buffer, int size) {
-    struct v4l2_tuner tuner;
-    struct v4l2_frequency freq;
-    memset(buffer, 0, size);
-    memset(&tuner, 0, sizeof(tuner));
-    memset(&freq, 0, sizeof(freq));
-    tuner.index = 0;
-    freq.tuner = 0;
-    freq.type = V4L2_TUNER_RADIO;
-    
-    // 获取频率信息
-    if (ioctl(radio_fd, VIDIOC_G_FREQUENCY, &freq) == 0) {
-        if (ioctl(radio_fd, VIDIOC_G_TUNER, &tuner) == 0) {
-            double frequency_mhz = (double)freq.frequency / 16 / 1000.0f;
-            
-            snprintf(buffer, size, "FREQ:%.1fMHz|RSSI:%d",
-                    frequency_mhz,
-                    tuner.signal-139);
-        } else {
-            // 仅获取频率成功，但获取信号信息失败
-            double frequency_mhz = (double)freq.frequency / 16 / 1000.0f;
-            snprintf(buffer, size, "FREQ:%.1fMHz|ERROR:无法获取信号信息",
-                    frequency_mhz);
-        }
-    } else {
-        // 无法获取频率信息
-        snprintf(buffer, size, "PUSH|ERROR:无法获取频率和信号");
-    }
-}
-
-
-
-
 void get_signal_info(int radio_fd, char* buffer, int size) {
     struct v4l2_tuner tuner;
     memset(buffer, 0, size);
@@ -1142,7 +1107,7 @@ int main() {
     
 
     if (radio_fd >= 0) {
-        set_control(radio_fd, V4L2_CID_PRIVATE_IRIS_STATE, FM_OFF,"DISABLE IRIS."); 
+        set_control(radio_fd, V4L2_CID_PRIVATE_IRIS_STATE, FM_OFF,"FM_OFF."); 
         close(radio_fd);
     }
     if (server_fd >= 0) {
