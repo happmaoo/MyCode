@@ -779,9 +779,9 @@ float seek(int fd, int dir) {
     // set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
     // usleep(100000); // 给驱动一点反应时间
 
-    // set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCH_CNT, 1, "RESET_SRCH_CNT"); // 重置为1
+    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCH_CNT, 1, "RESET_SRCH_CNT"); // 重置为1
 
-    //set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHMODE, SEEK, "SRCHMODE_SEEK");
+    set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHMODE, SEEK, "SRCHMODE_SEEK");
 
 
 
