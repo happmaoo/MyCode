@@ -416,7 +416,6 @@ void handle_NEW_SRCH_LIST_event(){
 
 void handle_SEEK_COMPLETE_event(){
 
-    LOGI("IRIS_EVT_SEEK_COMPLETE，搜索完成.\n");
 
     if (cur_fm_state == SEEK_IN_PROGRESS) {
         pthread_mutex_lock(&seek_mutex);
