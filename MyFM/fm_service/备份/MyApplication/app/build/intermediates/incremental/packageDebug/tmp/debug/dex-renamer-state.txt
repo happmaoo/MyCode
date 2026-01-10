@@ -1,0 +1,7 @@
+#Tue Dec 16 10:22:41 CST 2025
+base.0=/home/happmaoo/temp/lineage15.1/MyApplication/app/build/intermediates/dex/debug/mergeExtDexDebug/out/classes.dex
+path.1=classes.dex
+renamed.1=classes2.dex
+path.0=classes.dex
+renamed.0=classes.dex
+base.1=/home/happmaoo/temp/lineage15.1/MyApplication/app/build/intermediates/dex/debug/mergeProjectDexDebug/out/classes.dex

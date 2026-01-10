@@ -4,7 +4,7 @@
 # 说明，先复制config文件到.git目录覆盖，然后再运行本脚本
 
 rm -rf ./MyFM
-cp /home/happmaoo/AndroidStudioProjects/MyFM/ .
+cp -r /home/happmaoo/AndroidStudioProjects/MyFM/ .
 
 
 echo "清理 .gitignore 文件中的 /build 行"
