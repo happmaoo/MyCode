@@ -158,6 +158,7 @@ enum iris_region_t {
 };
 
 
+
 //FM STATES
 typedef enum {
     FM_OFF = 0,
@@ -168,11 +169,30 @@ typedef enum {
     SEEK_IN_PROGRESS,
     SCAN_IN_PROGRESS
 } fm_state_t;
-
+// 当前 FM 状态
 static fm_state_t cur_fm_state = FM_OFF;
+// 保护状态的互斥锁
+static pthread_mutex_t mutex_fm_state = PTHREAD_MUTEX_INITIALIZER;
 
+/**
+ * 设置当前的 FM 状态 (线程安全)
+ */
+void set_fm_state(fm_state_t state) {
+    pthread_mutex_lock(&mutex_fm_state);
+    cur_fm_state = state;
+    pthread_mutex_unlock(&mutex_fm_state);
+}
 
-
+/**
+ * 获取当前的 FM 状态 (线程安全)
+ */
+fm_state_t get_fm_state(void) {
+    fm_state_t temp;
+    pthread_mutex_lock(&mutex_fm_state);
+    temp = cur_fm_state;
+    pthread_mutex_unlock(&mutex_fm_state);
+    return temp;
+}
 
 const char* iris_event_names[] = {
     "IRIS_EVT_RADIO_READY",    // 0x00
@@ -232,7 +252,6 @@ int radio_fd  = -1;
 int socket_fd = -1;
 int client_fd;
 
-
 enum FM_AUDIO_PATH { AUDIO_DIGITAL_PATH = 0, AUDIO_ANALOG_PATH = 1 };
 #define TUNE_MULT 16000
 #define SOCKET_NAME "fm_service" // Socket 名称
@@ -246,7 +265,6 @@ volatile int event_enabled = 1;
 
 
 // seek
-volatile int seek_done = 0;
 pthread_mutex_t seek_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t  seek_cond  = PTHREAD_COND_INITIALIZER;
 
@@ -256,7 +274,6 @@ pthread_cond_t  seek_cond  = PTHREAD_COND_INITIALIZER;
 
 
 // scan
-volatile int scan_done = 0;
 pthread_mutex_t scan_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t  scan_cond  = PTHREAD_COND_INITIALIZER;
 
@@ -271,12 +288,10 @@ int var_V4L2_CID_PRIVATE_SINR_THRESHOLD = 0;
 #define MAX_SCAN_LIST 20
 float scan_list[MAX_SCAN_LIST];
 int scan_count = 0;
-int scan_status = 0;
-int seek_status = 0;
+
 
 // 全局退出标志
 volatile sig_atomic_t should_exit = 0;
-
 int get_events(int fd, int type);
 
 //-----------------------------------------------------------------
@@ -340,36 +355,28 @@ int set_control(int fd, int id, int value, const char* name) {
     return 0;
 }
 
+void set_freq(float f) {
+    struct v4l2_frequency freq = { 
+    .tuner = 0, 
+    .type = V4L2_TUNER_RADIO, 
+    .frequency = (int)(f * TUNE_MULT) 
+    };
+    ioctl(radio_fd, VIDIOC_S_FREQUENCY, &freq);
+}
+
 // 获取频率信息 返回值 double
 double get_freq() {
     double frequency_mhz;
     struct v4l2_frequency freq;
     freq.tuner = 0;
     freq.type = V4L2_TUNER_RADIO;
-    usleep(50000); //50ms
 
     if (ioctl(radio_fd, VIDIOC_G_FREQUENCY, &freq) == 0) {
-        frequency_mhz = (double)freq.frequency / 16 / 1000.0f;
+        frequency_mhz = (double)freq.frequency / 16 / 1000.0;
     } else {
-        frequency_mhz = 0.0f;
+
     }
     return frequency_mhz;
-}
-
-
-
-int set_freq(float mhz_freq) {
-    struct v4l2_frequency freq;
-    memset(&freq, 0, sizeof(freq));
-    freq.tuner = 0;
-    freq.type = V4L2_TUNER_RADIO;
-    freq.frequency = (unsigned int)(mhz_freq * TUNE_MULT);
-
-    if (ioctl(radio_fd, VIDIOC_S_FREQUENCY, &freq) < 0) {
-        perror("VIDIOC_S_FREQUENCY failed");
-        return -1;
-    }
-    return 0;
 }
 
 int init_firmware(int fd) {
@@ -395,34 +402,33 @@ int init_firmware(int fd) {
     return enable_transport_layer() ? 0 : -1;
 }
 
-
-
 //-------------------- handle_event 处理事件 ------------------------------
 
 void handle_NEW_SRCH_LIST_event(){
-    if(cur_fm_state == SCAN_IN_PROGRESS){
+    if(get_fm_state() == SCAN_IN_PROGRESS){
         LOGI("检测到搜台完成，正在请求提取列表缓冲区...\n");
         // 递归调用自身去拉取 SRCH_LIST 缓冲区的数据
         // 这会进入本函数的 case IRIS_BUF_SRCH_LIST 分支
         get_events(radio_fd, IRIS_BUF_SRCH_LIST);
-        scan_status = 0;
         // 2. 解锁阻塞在 scan() 的主线程
         pthread_mutex_lock(&scan_mutex);
-        cur_fm_state = FM_ON;
         pthread_cond_signal(&scan_cond);
         pthread_mutex_unlock(&scan_mutex);
+        //搜索完成，还原状态
+        set_fm_state(FM_ON);
+
     }
 }
 
 void handle_SEEK_COMPLETE_event(){
-
-    LOGI("IRIS_EVT_SEEK_COMPLETE，搜索完成.\n");
-
-    if (cur_fm_state == SEEK_IN_PROGRESS) {
+     if (get_fm_state() == SEEK_IN_PROGRESS) {
+        LOGI("IRIS_EVT_SEEK_COMPLETE，搜索完成.\n");
         pthread_mutex_lock(&seek_mutex);
-        cur_fm_state = FM_ON;
+        //搜索完成，还原状态
+        set_fm_state(FM_ON);
         pthread_cond_signal(&seek_cond);
         pthread_mutex_unlock(&seek_mutex);
+
     }
 }
 void handle_TUNE_SUCC_event(){
@@ -437,6 +443,7 @@ void handle_TUNE_SUCC_event(){
     //}
 }
 //--------------------------------------------------
+
 
 int get_events(int fd, int type) {
     struct v4l2_buffer buf;
@@ -461,7 +468,7 @@ int get_events(int fd, int type) {
             if (buf.bytesused > 0) {
                 unsigned char event_type = mbuf[0];
                 if (event_type < sizeof(iris_event_names)/sizeof(char*))
-                    LOGI(" - Event: %s -\n", iris_event_names[event_type]);
+                    LOGI("收到事件: %s (0x%02X)\n", iris_event_names[event_type], event_type);
 
                 switch (event_type) {
                     case IRIS_EVT_NEW_SRCH_LIST:
@@ -474,8 +481,6 @@ int get_events(int fd, int type) {
                         handle_TUNE_SUCC_event();
                         break;
                 }
-
-
             }
             break;
 
@@ -558,10 +563,14 @@ void* loop_event(void *arg) {
 
 // ================================================================
 
+
+
+
+
 // =========== seek =========
 float seek(int fd, int dir) {
     push_enabled = 0;
-    cur_fm_state = SEEK_IN_PROGRESS;
+    set_fm_state(SEEK_IN_PROGRESS);
 
 
     //adjust_seek_start(fd,dir);
@@ -607,7 +616,7 @@ float seek(int fd, int dir) {
     ts.tv_sec += 10; 
 
     pthread_mutex_lock(&seek_mutex);
-    if (cur_fm_state == SEEK_IN_PROGRESS) { // 双重检查，防止信号早于等待发生
+    if (get_fm_state() != SEEK_IN_PROGRESS) {
         int ret = pthread_cond_timedwait(&seek_cond, &seek_mutex, &ts);
         if (ret == ETIMEDOUT) {
             LOGI("SEEK TIMEDOUT\n");
@@ -620,11 +629,15 @@ float seek(int fd, int dir) {
     }
     pthread_mutex_unlock(&seek_mutex);
     
-
     // ===== SEEK 完成，读取新频率 =====
+    usleep(100000); //100ms
     curr_freq_mhz = get_freq();
+
+    // 其实不用这些方法，因为当时我参数设置乱了，所以很不稳定.参数乱了，不稳定，记得重启手机
+    // 强制避免出现 93.05 这种频率
+    //curr_freq_mhz = floorf(curr_freq_mhz * 10.0f + 0.5f) / 10.0f;
+
     LOGI("---SEEK 完成 %.2f ---\n", curr_freq_mhz);
-    
     //seek_pause = 1;
 
     // 其实不用这些方法，因为当时我参数设置乱了，所以很不稳定.参数乱了，不稳定，记得重启手机
@@ -635,7 +648,7 @@ float seek(int fd, int dir) {
     //set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
     set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 0, "UNMUTE");
     push_enabled = 1;
-    cur_fm_state = FM_ON;
+    set_fm_state(FM_ON);
     return curr_freq_mhz;
 }
 
@@ -645,17 +658,10 @@ float seek(int fd, int dir) {
 int scan(int fd) {
 
     // 保存当前频率
-    double currfreq = get_freq();
+    curr_freq_mhz = get_freq();
 
-    // scan 时从最低频率开始
-    struct v4l2_frequency freq = { 
-    .tuner = 0, 
-    .type = V4L2_TUNER_RADIO, 
-    .frequency = (int)(87.5f * TUNE_MULT) 
-    };
-    ioctl(fd, VIDIOC_S_FREQUENCY, &freq);
-
-
+    //从最低频率开始搜
+    set_freq(87.5f);
 
     // 1. 强制先关闭一次搜索，确保状态机复位
     set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHON, 0, "SRCH_OFF");
@@ -663,10 +669,10 @@ int scan(int fd) {
     LOGI("开始扫描 (SCAN)...\n");
     push_enabled = 0;
     scan_count = 0;
-    cur_fm_state = SCAN_IN_PROGRESS;
+
     memset(scan_list, 0, sizeof(scan_list));
 
-    scan_status = 1;
+    set_fm_state(SCAN_IN_PROGRESS);
 
 
     set_control(fd, V4L2_CID_PRIVATE_IRIS_SRCHMODE, SCAN_FOR_STRONG, "SRCH_MODE"); 
@@ -686,7 +692,7 @@ int scan(int fd) {
     ts.tv_sec += 60; // 扫描时间s
 
     pthread_mutex_lock(&scan_mutex);
-    while (cur_fm_state == SCAN_IN_PROGRESS) {
+    while (get_fm_state() == SCAN_IN_PROGRESS){
         if (pthread_cond_timedwait(&scan_cond, &scan_mutex, &ts) == ETIMEDOUT) {
             LOGI("扫描超时\n");
             break;
@@ -697,7 +703,7 @@ int scan(int fd) {
 
 
     // 恢复scan前频率
-    set_freq(currfreq);
+    set_freq(curr_freq_mhz);
 
 
     set_control(radio_fd, V4L2_CID_AUDIO_MUTE, 0, "UNMUTE");

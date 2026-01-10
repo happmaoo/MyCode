@@ -139,6 +139,7 @@ public class MainActivity extends AppCompatActivity {
         if (matcher_FREQ.find()) {
             String freqStr = matcher_FREQ.group(1);
             tvFreq.setText(freqStr);
+            freq=freqStr;
             myapp.setString("freq", freqStr);
 
             String pname = RadioStation.findNameByNumber(stations, freqStr);
