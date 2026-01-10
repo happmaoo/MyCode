@@ -55,6 +55,7 @@ public class MainActivity extends AppCompatActivity {
     String addr = "";
     int bat = 0;
     int sig = -1;
+    Boolean autoconn;
     Boolean autopan;
 
 
@@ -104,9 +105,7 @@ public class MainActivity extends AppCompatActivity {
 
         // SharedPreferences
         app = (MyApp) getApplicationContext();
-        //app.saveString("username", "JohnDoe");
-        boolean sp_pan = app.getBoolean("autopan", false);
-        if(sp_pan){
+        if(app.getBoolean("autopan", false)){
             checkBox_autopan.setChecked(true);
         }
         textView_bt.setText(app.getString("addr", ""));
@@ -116,8 +115,8 @@ public class MainActivity extends AppCompatActivity {
         intent.setAction(GattService.DATA_PLANE_ACTION);
         setupBroadcastReceiver();
 
-        boolean autoconn = app.getBoolean("autoconn", false);
-        boolean autopan = app.getBoolean("autopan", false);
+        autoconn = app.getBoolean("autoconn", false);
+        autopan = app.getBoolean("autopan", false);
 
         if (autoconn) {
             checkBox_autoconn.setChecked(true);
@@ -184,8 +183,7 @@ public class MainActivity extends AppCompatActivity {
 
         // btn_stop 总开关
         btn_stop.setOnClickListener((View view) -> {
-            boolean running = isServiceRunning(GattService.class);
-            if (running) {
+            if (GattService.isRunning){
                 if (mIsBound) {
                     unbindService(mServiceConnection);
                     mIsBound = false;
@@ -330,7 +328,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         // 只要服务正在运行，我们就去绑定它
-        if (isServiceRunning(GattService.class)) {
+        if (GattService.isRunning) {
             bindMyService();
         }
     }
@@ -349,7 +347,7 @@ public class MainActivity extends AppCompatActivity {
         textView_rec.setText(app.getString("log", ""));
 
         // 检查服务是否运行
-        if (isServiceRunning(GattService.class)) {
+        if (GattService.isRunning){
             btn_stop.setText("Stop");
 
             checkBox_wifi.setEnabled(true);
@@ -359,6 +357,7 @@ public class MainActivity extends AppCompatActivity {
 
             if(app.getpan()==true){checkBox_pan.setChecked(true);}
             if(app.getwifi()==true){checkBox_wifi.setChecked(true);}
+            if (autoconn) {checkBox_autoconn.setChecked(true);}
 
         } else {
             btn_stop.setText("Start");
@@ -453,16 +452,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    // 检查服务是否运行的简单方法
-    private boolean isServiceRunning(Class<?> cls) {
-        ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
-        for (ActivityManager.RunningServiceInfo s : am.getRunningServices(100)) {
-            if (cls.getName().equals(s.service.getClassName())) {
-                return true;
-            }
-        }
-        return false;
-    }
+
 
 
 }

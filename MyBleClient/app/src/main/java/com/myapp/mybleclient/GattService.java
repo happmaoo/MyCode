@@ -65,6 +65,7 @@ public class GattService extends Service {
     private int panRetryCount = 0;
     private static final int MAX_PAN_RETRY = 5;
 
+    public static boolean isRunning = false;
     private boolean isDestroying = false;
 
     MyApp app;
@@ -77,7 +78,7 @@ public class GattService extends Service {
     public void onCreate() {
         super.onCreate();
 
-
+        isRunning = true;
         // 如果蓝牙没有打开则打开
         BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
         if (!adapter.isEnabled()) { adapter.enable(); }
@@ -163,6 +164,7 @@ public class GattService extends Service {
             BluetoothAdapter.getDefaultAdapter().closeProfileProxy(5, panProxy);
         }
         app.remove("log");
+        isRunning = false;
     }
 
     @Nullable
