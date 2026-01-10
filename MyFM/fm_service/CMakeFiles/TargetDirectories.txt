@@ -1,3 +1,0 @@
-/home/happmaoo/AndroidStudioProjects/MyFM/fm_service/CMakeFiles/fm_service.dir
-/home/happmaoo/AndroidStudioProjects/MyFM/fm_service/CMakeFiles/edit_cache.dir
-/home/happmaoo/AndroidStudioProjects/MyFM/fm_service/CMakeFiles/rebuild_cache.dir
