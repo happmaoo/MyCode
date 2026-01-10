@@ -222,7 +222,7 @@ enum FM_AUDIO_PATH { AUDIO_DIGITAL_PATH = 0, AUDIO_ANALOG_PATH = 1 };
 
 struct v4l2_hw_freq_seek v4l_seek;
 struct v4l2_frequency    v4l_freq = {0};
-float curr_freq_mhz = 0.0;
+float curr_freq_mhz = 0.0f;
 int dir;
 volatile int push_enabled = 0;
 volatile int event_enabled = 1;
@@ -235,7 +235,7 @@ pthread_cond_t  seek_cond  = PTHREAD_COND_INITIALIZER;
 
 
 // 用于暂停一会跳过按下seek的一瞬间发出的假的 IRIS_EVT_SEEK_COMPLETE 信号
-volatile int seek_pause = 0;
+//volatile int seek_pause = 0;
 
 
 // scan
@@ -330,9 +330,9 @@ double get_freq(int radio_fd) {
     freq.type = V4L2_TUNER_RADIO;
 
     if (ioctl(radio_fd, VIDIOC_G_FREQUENCY, &freq) == 0) {
-        frequency_mhz = (double)freq.frequency / 16 / 1000.0;
+        frequency_mhz = (double)freq.frequency / 16 / 1000.0f;
     } else {
-        frequency_mhz = 0.0;
+        frequency_mhz = 0.0f;
     }
     return frequency_mhz;
 }
@@ -485,11 +485,11 @@ void* loop_event(void *arg) {
     // event 循环
     while (event_enabled) {
 
-        if (seek_pause) {
-            usleep(10); // 暂停10us 跳过
-            seek_pause = 0;
-            continue;
-        }
+        // if (seek_pause) {
+        //     usleep(10); // 暂停10us 跳过
+        //     seek_pause = 0;
+        //     continue;
+        // }
         
         // 获取事件
         if (get_events(radio_fd, IRIS_BUF_EVENTS) == 0) {
@@ -658,31 +658,6 @@ static int is_severe_densense(float freq, int rssi) {
 */
 
 
-static void adjust_seek_start(int fd, int dir) {
-    struct v4l2_frequency f;
-    memset(&f, 0, sizeof(f));
-    f.tuner = 0;
-    f.type = V4L2_TUNER_RADIO;
-
-    if (ioctl(fd, VIDIOC_G_FREQUENCY, &f) < 0)
-        return;
-
-    int step = 16000 / 10; // 0.1 MHz
-
-    if (dir == 0) {
-        // 向左：先退一格，避免命中当前频点
-        f.frequency -= step;
-        LOGI("Adjust SEEK start: -0.1MHz\n");
-    } else {
-        // 向右：先进一格（可选，但建议对称）
-        f.frequency += step;
-        LOGI("Adjust SEEK start: +0.1MHz\n");
-    }
-
-    ioctl(fd, VIDIOC_S_FREQUENCY, &f);
-    usleep(50000); // 给 PLL 稳定时间
-}
-
 
 
 
@@ -844,14 +819,14 @@ float seek(int fd, int dir) {
     }
 
 
-    curr_freq_mhz = freq.frequency / 16 / 1000.0;
+    curr_freq_mhz = freq.frequency / 16 / 1000.0f;
 
     // 其实不用这些方法，因为当时我参数设置乱了，所以很不稳定.参数乱了，不稳定，记得重启手机
     // 强制避免出现 93.05 这种频率
     //curr_freq_mhz = floorf(curr_freq_mhz * 10.0f + 0.5f) / 10.0f;
 
     LOGI("---SEEK 完成 %.2f ---\n", curr_freq_mhz);
-    seek_pause = 1;
+    //seek_pause = 1;
 
     // 其实不用这些方法，因为当时我参数设置乱了，所以很不稳定.参数乱了，不稳定，记得重启手机
     // 邻频择优（±100kHz）
@@ -877,7 +852,7 @@ int scan(int fd) {
     struct v4l2_frequency freq = { 
     .tuner = 0, 
     .type = V4L2_TUNER_RADIO, 
-    .frequency = (int)(87.5 * TUNE_MULT) 
+    .frequency = (int)(87.5f * TUNE_MULT) 
     };
     ioctl(fd, VIDIOC_S_FREQUENCY, &freq);
 
@@ -961,14 +936,14 @@ void get_signal_infoxxx(int radio_fd, char* buffer, int size) {
     // 获取频率信息
     if (ioctl(radio_fd, VIDIOC_G_FREQUENCY, &freq) == 0) {
         if (ioctl(radio_fd, VIDIOC_G_TUNER, &tuner) == 0) {
-            double frequency_mhz = (double)freq.frequency / 16 / 1000.0;
+            double frequency_mhz = (double)freq.frequency / 16 / 1000.0f;
             
             snprintf(buffer, size, "FREQ:%.1fMHz|RSSI:%d",
                     frequency_mhz,
                     tuner.signal-139);
         } else {
             // 仅获取频率成功，但获取信号信息失败
-            double frequency_mhz = (double)freq.frequency / 16 / 1000.0;
+            double frequency_mhz = (double)freq.frequency / 16 / 1000.0f;
             snprintf(buffer, size, "FREQ:%.1fMHz|ERROR:无法获取信号信息",
                     frequency_mhz);
         }
@@ -1005,7 +980,7 @@ void get_signal_info(int radio_fd, char* buffer, int size) {
 
 // 分离命令处理逻辑
 void process_command(int radio_fd, int client_fd, const char* cmd) {
-    float freq_mhz = 0;
+    float freq_mhz = 0.0f;
     int dir = 0;
     char response[256];
     
