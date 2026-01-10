@@ -3,7 +3,7 @@
     package="com.myapp.myfm"
     android:targetSandboxVersion="2"
     android:versionCode="2"
-    android:versionName="2.1.20260110.0842" >
+    android:versionName="2.1.20260110.0859" >
 
     <uses-sdk
         android:minSdkVersion="25"
