@@ -4,7 +4,7 @@
         <!-- Customize your theme here. -->
 
         <item name="buttonStyle">@style/MyButtonStyle</item>
-        <item name="colorButtonNormal">#e5e5e5</item>
+        <item name="colorButtonNormal">#E5E5E5</item>
     </style>
     <style name="MyButtonStyle" parent="Widget.AppCompat.Button">
         <item name="android:textAllCaps">false</item>

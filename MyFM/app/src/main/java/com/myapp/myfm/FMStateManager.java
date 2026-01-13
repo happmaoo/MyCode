@@ -13,7 +13,7 @@ public class FMStateManager {
 
 
     // 颜色定义
-    private final String COLOR_ACCENT = "#bffac1";
+    private final String COLOR_ACCENT = "#167c80";
     private final String COLOR_DEFAULT = "#e5e5e5";
     private final String COLOR_WARNING = "#ffcc00";
 
@@ -78,6 +78,7 @@ public class FMStateManager {
 
     private void updateUIForPause() {
         activity.btnPower.setText("ON");
+        activity.btnPower.setTextColor(Color.parseColor("#000000"));
         activity.btnPower.setEnabled(true);
         activity.btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(COLOR_DEFAULT)));
         activity.btnScan.setEnabled(false);
@@ -97,6 +98,7 @@ public class FMStateManager {
 
     private void updateUIForPlay() {
         activity.btnPower.setText("OFF");
+        activity.btnPower.setTextColor(Color.parseColor("#ffffff"));
         activity.btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(COLOR_ACCENT)));
         activity.btnPower.setEnabled(true);
         activity.btnScan.setEnabled(true);
@@ -109,6 +111,7 @@ public class FMStateManager {
 
     private void updateUIForConnecting() {
         activity.btnPower.setText("启动中...");
+        activity.btnPower.setTextColor(Color.parseColor("#000000"));
         //activity.btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(COLOR_WARNING)));
         activity.btnPower.setEnabled(false); // 防止重复点击
         activity.btnScan.setEnabled(false);

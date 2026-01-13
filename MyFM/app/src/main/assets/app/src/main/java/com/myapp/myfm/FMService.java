@@ -90,7 +90,6 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
 
 
-
         // 2. 立即启动前台通知，防止 Android 8+ 报 ANR
         startForegroundServiceNotification();
 
@@ -104,6 +103,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
         currentFreq = Float.parseFloat(myapp.getString("freq","93"));
 
         registerReceiver(actionReceiver, new android.content.IntentFilter(ACTION_SERVICE_CMD));
+
 
     }
 
@@ -229,6 +229,8 @@ public class FMService extends Service implements FMClient.MessageCallback {
             String incomingFreq = matcher_FREQ.group(1); // 刚拿到的
 
             if (!incomingFreq.equals(lastProcessedFreq) || !incomingFreq.equals(lastDisplayedFreq)) {
+                stations = application.getRadioStations();
+
                 lastProcessedFreq = incomingFreq;
                 currentFreq = Float.parseFloat(incomingFreq);
                 String pname = RadioStation.findNameByNumber(stations, incomingFreq);
@@ -393,6 +395,12 @@ public class FMService extends Service implements FMClient.MessageCallback {
             e.printStackTrace();
             stopLoopback();
         }
+
+
+        // 开始播放，获取双击亮屏设置
+        if(myapp.getBoolean("setting_tap_to_wake",false)){
+            runcmd("settings put secure double_tap_to_wake 1");
+        }
     }
 
 
@@ -422,6 +430,11 @@ public class FMService extends Service implements FMClient.MessageCallback {
             }
         } catch (Exception e) {
             e.printStackTrace();
+        }
+
+        // 停止播放，取消双击亮屏
+        if(myapp.getBoolean("setting_tap_to_wake",false)){
+            runcmd("settings put secure double_tap_to_wake 0");
         }
     }
 
@@ -481,7 +494,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
                     // 2. 停止服务
                     stopForeground(true);
-                    myapp.saveBoolean("running",false);
+                    myapp.setBoolean("running",false);
                     stopSelf();
                     System.exit(0);
                 }
@@ -539,6 +552,22 @@ public class FMService extends Service implements FMClient.MessageCallback {
     };
 
 
+    private void runcmd(String cmd) {
+        try {
+            // 使用完整的shell命令，确保su能退出，不然会有2个进程
+            String mycmd = "(" + cmd + " </dev/null >/dev/null 2>&1 &) && exit";
+            Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", mycmd});
+            // 立即关闭所有流
+            p.getOutputStream().close();
+            // 快速消费输出
+            byte[] buffer = new byte[1024];
+            p.getInputStream().read(buffer);
+            p.getErrorStream().read(buffer);
+            Thread.sleep(100);
 
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
 }

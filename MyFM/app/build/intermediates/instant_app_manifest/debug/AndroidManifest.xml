@@ -3,7 +3,7 @@
     package="com.myapp.myfm"
     android:targetSandboxVersion="2"
     android:versionCode="2"
-    android:versionName="2.1.20260110.1435" >
+    android:versionName="2.1.20260113.1331" >
 
     <uses-sdk
         android:minSdkVersion="25"
@@ -31,6 +31,7 @@
         android:supportsRtl="true"
         android:testOnly="true"
         android:theme="@style/AppTheme" >
+        <activity android:name="com.myapp.myfm.SettingActivity" />
         <activity android:name="com.myapp.myfm.MainActivity" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

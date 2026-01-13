@@ -1,5 +1,9 @@
 [
     {
+        "merged": "/home/happmaoo/AndroidStudioProjects/MyFM/app/build/intermediates/res/merged/debug/layout_activity_setting.xml.flat",
+        "source": "/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/res/layout/activity_setting.xml"
+    },
+    {
         "merged": "/home/happmaoo/AndroidStudioProjects/MyFM/app/build/intermediates/res/merged/debug/drawable-v24_ic_launcher_foreground.xml.flat",
         "source": "/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/res/drawable-v24/ic_launcher_foreground.xml"
     },

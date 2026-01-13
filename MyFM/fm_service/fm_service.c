@@ -416,7 +416,7 @@ void handle_NEW_SRCH_LIST_event(){
 
 void handle_SEEK_COMPLETE_event(){
 
-
+    // 我看别的代码是放在 IRIS_EVT_TUNE_SUCC 里的，更加稳一点，但是我没有成功。
     if (cur_fm_state == SEEK_IN_PROGRESS) {
         pthread_mutex_lock(&seek_mutex);
         cur_fm_state = FM_ON;
@@ -425,15 +425,7 @@ void handle_SEEK_COMPLETE_event(){
     }
 }
 void handle_TUNE_SUCC_event(){
-    //是在搜索状态时的 IRIS_EVT_TUNE_SUCC
-    //if(get_fm_state() == SEEK_IN_PROGRESS){
-    //LOGI("收到 IRIS_EVT_TUNE_SUCC\n");
-    //  seek_status = 0;
-    //  pthread_mutex_lock(&seek_mutex);
-    //  seek_done = 1;
-    //  pthread_cond_signal(&seek_cond);
-    //   pthread_mutex_unlock(&seek_mutex);
-    //}
+
 }
 //--------------------------------------------------
 

@@ -52,7 +52,7 @@ public class MyFmApp extends Application {
         return sharedPreferences.getString(key, defaultValue);
     }
 
-    public void saveInt(String key, int value) {
+    public void setInt(String key, int value) {
         sharedPreferences.edit().putInt(key, value).apply();
     }
 
@@ -60,7 +60,7 @@ public class MyFmApp extends Application {
         return sharedPreferences.getInt(key, defaultValue);
     }
 
-    public void saveBoolean(String key, boolean value) {
+    public void setBoolean(String key, boolean value) {
         sharedPreferences.edit().putBoolean(key, value).apply();
     }
 
@@ -79,8 +79,8 @@ public class MyFmApp extends Application {
     }
 
 
-    public boolean running;
+    public boolean isRunning;
     public String fm_state;
-    public boolean keepDispOn = false;
+    public boolean isKeepDispOn = false;
 
 }

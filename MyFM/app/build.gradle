@@ -49,7 +49,6 @@ android {
         }
 
 
-
         into "${projectDir}/src/main/assets/"
         includeEmptyDirs = false
     }

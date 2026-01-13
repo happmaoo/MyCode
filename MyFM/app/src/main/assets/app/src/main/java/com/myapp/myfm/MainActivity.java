@@ -11,6 +11,7 @@ import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -21,8 +22,10 @@ import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
 import android.util.Log;
+import android.view.Display;
 import android.view.Gravity;
 import android.view.Menu;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -82,7 +85,7 @@ public class MainActivity extends AppCompatActivity {
     View rssi_meter;
 
     String freq;
-    String color1="#bffac1";
+    String color1="#FFDDA6";
 
 
 
@@ -97,7 +100,10 @@ public class MainActivity extends AppCompatActivity {
     int lastLevel = -1;
 
 
-
+    // 浏览电台
+    private volatile boolean isBrowsing = false;
+    private Thread browsingThread;
+    private boolean isStopBrowseFromScreenOn = false;
 
     // ------------------------- 广播接收器 ---------------------------
     private final BroadcastReceiver fmReceiver = new BroadcastReceiver() {
@@ -264,6 +270,8 @@ public class MainActivity extends AppCompatActivity {
         //首次启动显示上次频率
         handleLogMessage("FREQ:"+myapp.getString("freq",""));
 
+
+
         // --- 设置按钮点击事件 ---
 
         btnPower.setOnClickListener(new View.OnClickListener() {
@@ -275,6 +283,15 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+
+
+        //-----------tvFreq 浏览电台----------------
+        tvFreq.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Browse();
+            }
+        });
 
 
         //-----------Button TuneDown----------------
@@ -348,7 +365,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        if(myapp.keepDispOn){btnToggleDisp.setChecked(true);keepDispOn(true);}
+        if(myapp.isKeepDispOn){btnToggleDisp.setChecked(true);keepDispOn(true);}
 
 
         //-----------Button Menu----------------
@@ -359,8 +376,8 @@ public class MainActivity extends AppCompatActivity {
                 int id = item.getItemId();
 
                 if (id == R.id.menu_settings) {
-                    Toast.makeText(MainActivity.this, "暂时没有用...", Toast.LENGTH_SHORT).show();
-                    // startActivity(new Intent(MainActivity.this, SettingsActivity.class));
+                    Intent EditIntent = new Intent(MainActivity.this, SettingActivity.class);
+                    startActivity(EditIntent);
                     return true;
 
                 } else if (id == R.id.menu_about) {
@@ -396,7 +413,7 @@ public class MainActivity extends AppCompatActivity {
         FMState currentState = stateManager.getCurrentState();
         if (currentState == FMState.STOPPED) {
 
-        stateManager.setState(FMState.CONNECTING);
+            stateManager.setState(FMState.CONNECTING);
 
             // 启动服务
             Intent intent = new Intent(this, FMService.class);
@@ -408,47 +425,50 @@ public class MainActivity extends AppCompatActivity {
 
         }
 
+        // browse时 屏幕点亮即停止浏览 监听器
+        registerReceiver(screenOnReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON));
+
         //checkAppUpdate();
     }
 
 
 
 
-/*
+    /*
 
 
 
-FM APP生命周期方法概览
+    FM APP生命周期方法概览
 
-onCreate():StartService
-onStart():RegisterReceiver,BindService
-onStop():UnbindService,UnregisterReceiver
-onDestroy():判断是否正在播放，如果没有就 stopService();
+    onCreate():StartService
+    onStart():RegisterReceiver,BindService
+    onStop():UnbindService,UnregisterReceiver
+    onDestroy():判断是否正在播放，如果没有就 stopService();
 
-不必担心 startService 会导致播放器重启。Android 系统的机制是：如果 Service 已经在运行，调用 startService 只会发送一个新的指令到 onStartCommand，而不会重新执行 onCreate 里的初始化逻辑。
-永远记得在 onStop 或 onDestroy 中调用 unbindService，否则 Activity 无法被回收。
-
-
-
-            // 注册顺序：
-            1. startService
-            2. registerReceiver(receiver1);    // 第一个注册
-            3. registerReceiver(receiver2);    // 第二个注册
-            4. bindService(serviceConn);       // 绑定服务
-
-            // 注销顺序（必须反向）：
-            1. unbindService(serviceConn);     // 解绑服务
-            2. unregisterReceiver(receiver2);  // 注销倒数第二个
-            3. unregisterReceiver(receiver1);  // 注销第一个
-            4. stopService
+    不必担心 startService 会导致播放器重启。Android 系统的机制是：如果 Service 已经在运行，调用 startService 只会发送一个新的指令到 onStartCommand，而不会重新执行 onCreate 里的初始化逻辑。
+    永远记得在 onStop 或 onDestroy 中调用 unbindService，否则 Activity 无法被回收。
 
 
+
+                // 注册顺序：
+                1. startService
+                2. registerReceiver(receiver1);    // 第一个注册
+                3. registerReceiver(receiver2);    // 第二个注册
+                4. bindService(serviceConn);       // 绑定服务
+
+                // 注销顺序（必须反向）：
+                1. unbindService(serviceConn);     // 解绑服务
+                2. unregisterReceiver(receiver2);  // 注销倒数第二个
+                3. unregisterReceiver(receiver1);  // 注销第一个
+                4. stopService
 
 
 
 
 
-*/
+
+
+    */
     @Override
     protected void onStart() {
         super.onStart();
@@ -460,6 +480,8 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
         filter.addAction(FMService.ACTION_STATUS_UPDATE);
         registerReceiver(fmReceiver, filter);
         LocalBroadcastManager.getInstance(this).registerReceiver(volumeReceiver, new IntentFilter(FMService.ACTION_VOLUME_UPDATE));
+
+
 
 
         // 绑定服务
@@ -480,8 +502,9 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
     protected void onStop() {
 
 
-
         unbindService(connection);
+
+
 
         unregisterReceiver(fmReceiver);
         LocalBroadcastManager.getInstance(this).unregisterReceiver(volumeReceiver);
@@ -494,8 +517,11 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
     @Override
     protected void onDestroy() {
 
+        unregisterReceiver(screenOnReceiver);
+
         FMState currentState = stateManager.getCurrentState();
         if (currentState != FMState.PLAY) {
+            stopBrowsing();
             stopFMService();
         }
 
@@ -509,6 +535,11 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
     protected void onResume() {
         super.onResume();
 
+        //如果browse停止是通过点亮屏幕触发的，则显示上次频率
+        if(isStopBrowseFromScreenOn) {
+            handleLogMessage("FREQ:" + freq);
+            isStopBrowseFromScreenOn = false;
+        }
     }
 
     @Override
@@ -527,7 +558,7 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
 
     //---------rssi meter---------------
     void updateRSSIView(final LinearLayout progressContainer, final View progressView,
-                                    int currentProgress) {
+                        int currentProgress) {
 
         // 确保在布局完成后执行，以获取正确的父容器宽度
         progressContainer.post(() -> {
@@ -595,8 +626,8 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
 
     // --------- Volume Meter---------------
     void updateVolumeView(final LinearLayout volumeContainer,
-                                  final View volumeView,
-                                  int volumeLevel) {
+                          final View volumeView,
+                          int volumeLevel) {
         // 先算出一个最终值
         final int level;
         if (volumeLevel < 0) {
@@ -697,14 +728,11 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
             // 为两行文字设置不同颜色
             String line1 = station.getNumber();
             String line2 = station.getName();
-            int line2Color = Color.parseColor("#aaaaaa");
-            if (line2.startsWith("新电台")) {
-                line2Color = Color.parseColor("#bd2a2a");
-            }
+            int line2Color = Color.parseColor("#888888");
             String text = line1 + "\n" + line2;
             SpannableString spannable = new SpannableString(text);
             spannable.setSpan(
-                    new ForegroundColorSpan(Color.parseColor("#555555")),
+                    new ForegroundColorSpan(Color.parseColor("#333333")),
                     0,
                     line1.length(),
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -740,17 +768,17 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
                 if (selectedButton != null) {
                     selectedButton.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#eeeeee"))); // 恢复默认颜色
                 }
-                button.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#C0FFB0")));
+                button.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(color1)));
                 selectedButton = button;
                 //发送频率到 server
                 String freqStr = station.getNumber();
                 if (!freqStr.isEmpty()) {
                     try {
-                            myapp.setString("freq",freqStr);
-                            freq = freqStr;
-                            fmService.sendFmCommand("TUNE "+freqStr);
-                            myapp.running = true;
-                            btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(color1)));
+                        myapp.setString("freq",freqStr);
+                        freq = freqStr;
+                        fmService.sendFmCommand("TUNE "+freqStr);
+                        myapp.isRunning = true;
+                        //btnPower.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(color1)));
 
                     } catch (NumberFormatException e) {
                         Toast.makeText(MainActivity.this, "Invalid frequency format", Toast.LENGTH_SHORT).show();
@@ -978,12 +1006,98 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
         }
         Button targetBtn = flexboxLayoutButtons.findViewWithTag(freq);
         if (targetBtn != null) {
-            targetBtn.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#C0FFB0")));
+            targetBtn.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor(color1)));
             selectedButton = targetBtn;
         }
     }
 
 
+
+
+    // -------------------------------浏览电台代码 区-------------------------------------------------
+
+    // 屏幕点亮 停止浏览电台  Receiver
+    private final BroadcastReceiver screenOnReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
+                if (isBrowsing) {
+                    stopBrowsing();
+                    isStopBrowseFromScreenOn = true;
+                }
+            }
+        }
+    };
+
+    // Browse 浏览电台 触摸停止
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        // 只要有手指按下的动作（ACTION_DOWN）
+        if (ev.getAction() == MotionEvent.ACTION_DOWN) {
+            if (isBrowsing) {
+                stopBrowsing();
+                // 注意：这里不要返回 true，否则点击按钮的功能也会失效。
+                // 我们只是“顺便”调用一下停止浏览。
+            }
+        }
+        return super.dispatchTouchEvent(ev);
+    }
+
+
+    // Browse 浏览电台
+    private void Browse() {
+        FMState currentState = stateManager.getCurrentState();
+        int sec = myapp.getInt("setting_browse_pause_sec",5);
+
+        if (currentState == FMState.PLAY) {
+            Toast.makeText(MainActivity.this, "开始浏览电台,触摸屏幕停止.", Toast.LENGTH_LONG).show();
+            isBrowsing = true;
+
+            browsingThread = new Thread(() -> {
+                for (final RadioStation station : stations) {
+                    // 检查是否被停止
+                    if (!isBrowsing) {
+                        break;
+                    }
+
+                    freq = station.getNumber();
+                    fmService.sendFmCommand("TUNE " + freq);
+
+                    try {
+                        Thread.sleep(sec * 1000);
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                }
+
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (isBrowsing) {
+                        Toast.makeText(MainActivity.this, "浏览电台完成.", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(MainActivity.this, "浏览已停止.", Toast.LENGTH_SHORT).show();
+                    }
+                    isBrowsing = false;
+                });
+            });
+
+            browsingThread.start();
+
+
+
+
+
+        }
+    }
+
+
+    public void stopBrowsing() {
+        if (isBrowsing && browsingThread != null) {
+            isBrowsing = false;
+            browsingThread.interrupt();
+        }
+    }
+
+    // -------------------------------end 浏览电台代码 区-------------------------------------------------
 
 
     @Override
@@ -1017,14 +1131,31 @@ onDestroy():判断是否正在播放，如果没有就 stopService();
     private void keepDispOn(Boolean disp) {
         if (disp) {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            myapp.keepDispOn = true;
+            myapp.isKeepDispOn = true;
         } else {
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            myapp.keepDispOn = false;
+            myapp.isKeepDispOn = false;
 
         }
     }
 
+    private void runcmd(String cmd) {
+        try {
+            // 使用完整的shell命令，确保su能退出，不然会有2个进程
+            String mycmd = "(" + cmd + " </dev/null >/dev/null 2>&1 &) && exit";
+            Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", mycmd});
+            // 立即关闭所有流
+            p.getOutputStream().close();
+            // 快速消费输出
+            byte[] buffer = new byte[1024];
+            p.getInputStream().read(buffer);
+            p.getErrorStream().read(buffer);
+            Thread.sleep(100);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
 
 }
