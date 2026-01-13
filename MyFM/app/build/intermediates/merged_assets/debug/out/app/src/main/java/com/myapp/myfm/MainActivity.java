@@ -33,7 +33,7 @@ import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast; // 方便提示用户
+import android.widget.Toast;
 import android.widget.ToggleButton;
 
 import androidx.appcompat.app.AlertDialog;
@@ -64,8 +64,6 @@ public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_CODE = 10;
 
     private FMService fmService;
-    private boolean isBound = false;
-
     private FMStateManager stateManager;
 
     // 从 主界面和通知栏 发送服务启动停止命令
@@ -196,7 +194,6 @@ public class MainActivity extends AppCompatActivity {
         public void onServiceConnected(ComponentName className, IBinder service) {
             FMService.LocalBinder binder = (FMService.LocalBinder) service;
             fmService = binder.getService();
-            isBound = true;
 
             // 获取服务的真实状态
             String serviceState = fmService.getCurrentState();
@@ -222,7 +219,6 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onServiceDisconnected(ComponentName arg0) {
             Log.w("MainActivity", "Service disconnected unexpectedly");
-            isBound = false;
             fmService = null;
             stateManager.setState(FMState.ERROR);
         }
