@@ -25,7 +25,7 @@ import androidx.core.app.NotificationCompat;
 
 public class autobrightness extends Service {
 
-    private static final String CHANNEL_ID = "ForegroundServiceChannel";
+    private static final String CHANNEL_ID = "AutoBrightnessService";
     private SensorManager sensorManager;
     private Sensor lightSensor;
     private SensorEventListener lightSensorListener;
@@ -89,7 +89,7 @@ public class autobrightness extends Service {
 
             Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                     .setContentTitle("AutoBrightness")
-                    .setContentText("服务运行中")
+                    .setContentText("自动亮度已开启")
                     .setSmallIcon(R.drawable.ic_stat_name)
                     .setContentIntent(pendingIntent)
                     .build();
@@ -169,7 +169,12 @@ public class autobrightness extends Service {
         currentAnimator.setDuration(configDuration);
         currentAnimator.addUpdateListener(animation -> {
             int val = (int) animation.getAnimatedValue();
-            Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, val);
+            try {
+                Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, val);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
         });
         currentAnimator.start();
     }
@@ -194,7 +199,7 @@ public class autobrightness extends Service {
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(CHANNEL_ID,
-                    "Foreground Service Channel", NotificationManager.IMPORTANCE_LOW);
+                    "AutoBrightnessService", NotificationManager.IMPORTANCE_LOW);
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) manager.createNotificationChannel(serviceChannel);
         }

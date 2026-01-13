@@ -180,31 +180,48 @@ public class MainActivity extends AppCompatActivity {
         String inputText = editText.getText().toString();
         editor.putString("config", inputText);
         editor.apply(); // 使用apply异步保存，commit同步保存
-        Toast.makeText(this, "保存完成，重新打开app.3.2.1..", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "保存完成.", Toast.LENGTH_LONG).show();
 
 
-        // 延迟2秒执行重启应用操作
-        new Handler().postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                // 先停止服务
-                Intent serviceIntent = new Intent(MainActivity.this, autobrightness.class);
-                serviceIntent.putExtra("arg1", "stop");
-                stopService(serviceIntent);
-                unregisterReceiver(lightLevelReceiver);
+        CheckBox checkbox = findViewById(R.id.checkBox);
 
-                // 获取并启动应用的启动Intent
-                Intent restartIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
-                if (restartIntent != null) {
-                    restartIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(restartIntent);
-                }
 
-                // 关闭当前Activity及其父Activity，并完全退出应用程序
-                finishAffinity();
-                System.exit(0);
-            }
-        }, 2000); // 延迟2000毫秒（即2秒）
+        if(checkbox.isChecked()){
+
+
+        // 先停止服务
+        Intent serviceIntent = new Intent(MainActivity.this, autobrightness.class);
+        serviceIntent.putExtra("arg1", "stop");
+        stopService(serviceIntent);
+        unregisterReceiver(lightLevelReceiver);
+
+        screenOffReceiver = new ScreenOffReceiver();
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_SCREEN_OFF); // 监听屏幕关闭
+        filter.addAction(Intent.ACTION_SCREEN_ON);  // 监听屏幕开启
+
+
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        String config = sharedPref.getString("config", null);
+        serviceIntent.putExtra("arg-config", config);
+
+        registerReceiver(screenOffReceiver, filter);
+        // 针对 API 26 及更高版本，使用 startForegroundService
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
+        IntentFilter filter2 = new IntentFilter("com.myapp.LIGHT_LEVEL_UPDATE");
+        registerReceiver(lightLevelReceiver, filter2);
+        }
+
+
 
     }
 

@@ -652,7 +652,15 @@
     <string name="abc_shareactionprovider_share_with_application">Share with <ns1:g example="Mail" id="application_name">%s</ns1:g></string>
     <string name="abc_toolbar_collapse_description">Collapse</string>
     <string name="app_name">autobrightness</string>
-    <string name="sample_string"><![CDATA[🐱 首次运行请赋予修改系统设置权限，并关闭系统自动亮度调节。\n本app测试机为红米note9 5G,安卓10，请调整删除合适的参数为止。\nlmd:3/2\n0 50\n50 200\n第一个数字表示灵敏度为3(建议1-5之间)，为1则对光线反应最灵敏，第二个2表示屏幕亮度平缓转换的时间2秒，下面的几行数字表示光线>0 则设置屏幕亮度50...,支持多行,小米MIUI请在app属性里设置省电策略为无限制。并加防后台锁定清理锁，如果参数设置乱套建议清除app数据.]]></string>
+    <string name="sample_string">"🐱 首次运行请赋予修改系统设置权限，并关闭系统自动亮度调节。
+本app测试机为红米note9 5G,安卓10，请调整删除合适的参数为止。
+lmd:3/2
+0 50
+0 200
+lmd的第一个数字表示灵敏度为3(建议1-5之间)，为1则对光线反应最灵敏，第二个2表示屏幕亮度平缓转换的时间2秒，下面的几行数字表示光线>0 则设置屏幕亮度50,支持添加多行,小米MIUI请在app属性里设置省电策略为无限制。并加防后台锁定清理锁，如果参数设置乱套建议清除app数据.
+
+检查更新或发现更多我开发的实用小APP请到:
+https://github.com/happmaoo/MyCode (选择复制网址)"</string>
     <string name="search_menu_title">Search</string>
     <string name="status_bar_notification_info_overflow">999+</string>
     <style name="AlertDialog.AppCompat" parent="Base.AlertDialog.AppCompat"/>

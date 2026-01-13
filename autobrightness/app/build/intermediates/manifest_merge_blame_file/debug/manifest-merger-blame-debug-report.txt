@@ -2,7 +2,7 @@
 2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 3    package="com.myapp.autobrightness"
 4    android:versionCode="1"
-5    android:versionName="2.0" >
+5    android:versionName="2.1.20260113.1027" >
 6
 7    <uses-sdk
 8        android:minSdkVersion="25"
@@ -36,7 +36,7 @@
 22-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:19:9-54
 23        android:supportsRtl="true"
 23-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:20:9-35
-24        android:testOnly="false"
+24        android:testOnly="true"
 24-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:16:9-33
 25        android:theme="@style/AppTheme" >
 25-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:21:9-40
