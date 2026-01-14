@@ -279,8 +279,8 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_radio)
-                .setContentTitle("正在播放: " + freq + " MHz")
-                .setContentText(name.isEmpty() ? "" : name)
+                .setContentTitle(name.isEmpty() ? "" : name +" - "+ freq + " MHz")
+                .setContentText("正在播放")
                 .setContentIntent(mainPI)
                 .setOngoing(true)
                 // --- 核心优化部分 ---
