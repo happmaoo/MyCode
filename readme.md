@@ -28,7 +28,7 @@ MyBluetooth 用于打开蓝牙网络共享的客户端和服务端
 blescan ble扫描代码  
 MyWiFiDirect 连接后可以手动运行 python ftp 收发文件  
 handler 线程 或 界面和服务互发消息的方法  
-
+LiveData 互发消息的方法
 
 ---
 
