@@ -1,7 +1,6 @@
 package com.myapp.myfm;
 
 import android.Manifest;
-import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -11,7 +10,6 @@ import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
-import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -22,12 +20,10 @@ import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
 import android.util.Log;
-import android.view.Display;
 import android.view.Gravity;
 import android.view.Menu;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.WebView;
 import android.widget.Button;
@@ -202,7 +198,7 @@ public class MainActivity extends AppCompatActivity {
                     FMState actualState = FMState.valueOf(serviceState);
                     stateManager.setState(actualState);  // 同步服务状态
                 } catch (Exception e) {
-                    //stateManager.setState(FMState.PAUSE);  // 默认
+                    //stateManager.setState(FMState.PAUSE);
                 }
             } else {
                 //stateManager.setState(FMState.PAUSE);
@@ -377,7 +373,6 @@ public class MainActivity extends AppCompatActivity {
                     return true;
 
                 } else if (id == R.id.menu_about) {
-                    //Toast.makeText(MainActivity.this, "点击了关于", Toast.LENGTH_SHORT).show();
                     showAboutDialog();
                     return true;
                 } else if (id == R.id.menu_plist1) {

@@ -488,6 +488,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
                 if("stop".equals(cmd)){
                     Log.d(TAG, "通过通知栏停止服务");
                     sendFmCommand("QUIT");
+                    stopLoopback();
                     // 1. 立即取消通知栏
                     NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
                     if (manager != null) manager.cancel(NOTIFICATION_ID);

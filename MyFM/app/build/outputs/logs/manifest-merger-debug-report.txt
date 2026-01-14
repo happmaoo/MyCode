@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-43:12
-INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-43:12
-INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-43:12
-INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-43:12
+ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-42:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-42:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-42:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-42:12
 MERGED from [flexbox-3.0.0.aar] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/17612fa1f9180706bf45796ae8fd8fa7/jetified-flexbox-3.0.0/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.media:media:1.7.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/a0ecca07e5bbf312fdbc71fc677b00a3/media-1.7.0/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.appcompat:appcompat:1.0.2] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/9442e2deaa13c1c57ceecb67bd85baf8/appcompat-1.0.2/AndroidManifest.xml:17:1-22:12
@@ -34,20 +34,20 @@ MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.0.0] /home/happmaoo/.g
 MERGED from [androidx.arch.core:core-runtime:2.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/2541981a540b257b4ca2e11e0b5e803f/core-runtime-2.0.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.interpolator:interpolator:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/2e208f9141563db79bd49ce93534ac4d/interpolator-1.0.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.annotation:annotation-experimental:1.1.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/10a71766623d1e95554e0d626ddabf3d/jetified-annotation-experimental-1.1.0/AndroidManifest.xml:17:1-24:12
-INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-43:12
-INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-43:12
-INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-43:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-42:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-42:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-42:12
 	package
 		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:3:5-29
 		INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml
 		INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml
 	android:versionName
 		INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-43:12
+		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-42:12
 		INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml
 	android:versionCode
 		INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-43:12
+		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:1-42:12
 		INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml
 	xmlns:android
 		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:2:11-69
@@ -80,7 +80,7 @@ ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifes
 	android:name
 		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:13:22-78
 application
-ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:15:5-41:19
+ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:15:5-40:19
 MERGED from [androidx.constraintlayout:constraintlayout:1.1.3] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/cb3ee0668a2ccffbec6ced598c9d8e79/constraintlayout-1.1.3/AndroidManifest.xml:9:5-20
 MERGED from [androidx.constraintlayout:constraintlayout:1.1.3] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/cb3ee0668a2ccffbec6ced598c9d8e79/constraintlayout-1.1.3/AndroidManifest.xml:9:5-20
 MERGED from [androidx.core:core:1.6.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/22398bac318b43860c740d0df5d9af4a/core-1.6.0/AndroidManifest.xml:24:5-89
@@ -93,8 +93,6 @@ MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] /home/happm
 		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:21:9-35
 	android:label
 		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:19:9-41
-	android:testOnly
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:22:9-33
 	android:roundIcon
 		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:20:9-54
 	android:icon
@@ -102,43 +100,43 @@ MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] /home/happm
 	android:allowBackup
 		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:17:9-35
 	android:theme
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:23:9-40
+		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:22:9-40
 	android:name
 		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:16:9-32
 activity#com.myapp.myfm.SettingActivity
-ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:24:9-62
+ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:23:9-62
 	android:name
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:24:19-50
+		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:23:19-50
 activity#com.myapp.myfm.MainActivity
-ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:25:9-31:20
+ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:24:9-30:20
 	android:name
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:25:19-47
+		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:24:19-47
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:26:13-30:29
+ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:25:13-29:29
 action#android.intent.action.MAIN
-ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:27:17-69
+ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:26:17-69
 	android:name
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:27:25-66
+		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:26:25-66
 category#android.intent.category.LAUNCHER
-ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:29:17-77
+ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:28:17-77
 	android:name
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:29:27-74
+		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:28:27-74
 activity#com.myapp.myfm.FileEdit
-ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:32:9-34:58
+ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:31:9-33:58
 	android:windowSoftInputMode
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:34:13-55
+		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:33:13-55
 	android:name
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:33:13-37
+		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:32:13-37
 service#com.myapp.myfm.FMService
-ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:36:9-40:61
+ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:35:9-39:61
 	android:enabled
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:38:13-35
+		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:37:13-35
 	android:exported
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:39:13-37
+		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:38:13-37
 	android:foregroundServiceType
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:40:13-58
+		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:39:13-58
 	android:name
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:37:13-38
+		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:36:13-38
 uses-sdk
 INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml
