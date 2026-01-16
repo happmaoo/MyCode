@@ -76,6 +76,8 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
     int NotificationToggleIcon = 0;
 
+    AudioManager audioManager;
+
     public class LocalBinder extends Binder {
         FMService getService() {
             return FMService.this;
@@ -96,6 +98,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
         startForegroundServiceNotification();
 
 
+        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
         // 可选：服务启动自动连接
         // fmClient.connect();
@@ -354,6 +357,13 @@ public class FMService extends Service implements FMClient.MessageCallback {
     private void startLoopback() {
         if (isRunning) return;
 
+
+        //runcmd("sendevent /dev/input/event6 5 2 0");
+        //runcmd("sendevent /dev/input/event6 0 0 0");
+        //sendevent /dev/input/event6 5 2 0
+        //sendevent /dev/input/event6 0 0 0
+
+
         final int minRecBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE,
                 AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_16BIT);
 
@@ -563,7 +573,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
                         sendFmCommand("PUSH 1");
                     }, 500); // 延迟秒
                     Status("PLAY");
-
+                    NotificationToggleIcon = 0;
                 }
                 if("pause".equals(cmd)){
                     sendFmCommand("QUIT");
@@ -589,6 +599,8 @@ public class FMService extends Service implements FMClient.MessageCallback {
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
+                    NotificationToggleIcon = 1;
+                    updateNotificationText("", "已停止");
                 }
             }
         }
