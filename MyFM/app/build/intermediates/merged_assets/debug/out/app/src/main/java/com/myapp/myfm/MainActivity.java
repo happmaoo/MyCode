@@ -79,6 +79,7 @@ public class MainActivity extends AppCompatActivity {
     View rssi_meter;
 
     String freq;
+    String pname;
     String color1="#FFDDA6";
 
 
@@ -97,7 +98,7 @@ public class MainActivity extends AppCompatActivity {
     // 浏览电台
     private volatile boolean isBrowsing = false;
     private Thread browsingThread;
-    private boolean isStopBrowseFromScreenOn = false;
+
 
     // ------------------------- 广播接收器 ---------------------------
     private final BroadcastReceiver fmReceiver = new BroadcastReceiver() {
@@ -142,11 +143,12 @@ public class MainActivity extends AppCompatActivity {
             freq=freqStr;
             myapp.setString("freq", freqStr);
 
-            String pname = RadioStation.findNameByNumber(stations, freqStr);
+            pname = RadioStation.findNameByNumber(stations, freqStr);
             if (pname == null) { pname = ""; }
             Log.i("pname", String.valueOf(stations));
             Log.i("pname", freqStr+pname);
             tvName.setText(pname);
+            if(isBrowsing){tvName.setText("正在浏览："+pname+"...");}
             setCurrButtonStyle(freqStr);
         }
 
@@ -526,11 +528,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
 
-        //如果browse停止是通过点亮屏幕触发的，则显示上次频率
-        if(isStopBrowseFromScreenOn) {
-            handleLogMessage("FREQ:" + freq);
-            isStopBrowseFromScreenOn = false;
-        }
     }
 
     @Override
@@ -1007,15 +1004,12 @@ public class MainActivity extends AppCompatActivity {
 
     // -------------------------------浏览电台代码 区-------------------------------------------------
 
-    // 屏幕点亮 停止浏览电台  Receiver
+    // 屏幕点亮 暂未使用
     private final BroadcastReceiver screenOnReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
-                if (isBrowsing) {
-                    stopBrowsing();
-                    isStopBrowseFromScreenOn = true;
-                }
+
             }
         }
     };
@@ -1043,6 +1037,7 @@ public class MainActivity extends AppCompatActivity {
         if (currentState == FMState.PLAY) {
             Toast.makeText(MainActivity.this, "开始浏览电台,触摸屏幕停止.", Toast.LENGTH_LONG).show();
             isBrowsing = true;
+            keepDispOn(true);
 
             browsingThread = new Thread(() -> {
                 for (final RadioStation station : stations) {
@@ -1068,6 +1063,8 @@ public class MainActivity extends AppCompatActivity {
                         Toast.makeText(MainActivity.this, "浏览已停止.", Toast.LENGTH_SHORT).show();
                     }
                     isBrowsing = false;
+                    keepDispOn(false);
+                    tvName.setText(pname);
                 });
             });
 

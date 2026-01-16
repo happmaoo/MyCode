@@ -74,6 +74,8 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
     private String playstatus = "PAUSE";
 
+    int NotificationToggleIcon = 0;
+
     public class LocalBinder extends Binder {
         FMService getService() {
             return FMService.this;
@@ -247,12 +249,23 @@ public class FMService extends Service implements FMClient.MessageCallback {
     // 通知主界面状态改变
     @Override
     public void onStatusChanged(String status) {
+//
+//        playstatus = status;
+//
+//
+//
+//        Log.d(TAG, "onStatusChanged:"+status);
+//        Intent intent = new Intent(ACTION_STATUS_UPDATE);
+//        intent.putExtra(EXTRA_MESSAGE, status);
+//        intent.setPackage(getPackageName());
+//        sendBroadcast(intent);
+    }
+
+
+    public void Status(String status) {
 
         playstatus = status;
 
-
-
-        Log.d(TAG, "onStatusChanged:"+status);
         Intent intent = new Intent(ACTION_STATUS_UPDATE);
         intent.putExtra(EXTRA_MESSAGE, status);
         intent.setPackage(getPackageName());
@@ -260,37 +273,54 @@ public class FMService extends Service implements FMClient.MessageCallback {
     }
 
     private void updateNotificationText(String freq, String name) {
-
-
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager == null) return;
 
-        // 点击通知跳转 Activity
+        // 1. 点击通知跳转 Activity
         Intent mainIntent = new Intent(this, MainActivity.class);
         PendingIntent mainPI = PendingIntent.getActivity(this, 0, mainIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        // 停止服务按钮
         Intent stopIntent = new Intent(ACTION_SERVICE_CMD);
         stopIntent.setPackage(getPackageName());
         stopIntent.putExtra("cmd", "stop");
         PendingIntent stopPI = PendingIntent.getBroadcast(this, 2, stopIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
+        Intent muteIntent = new Intent(ACTION_SERVICE_CMD);
+        muteIntent.setPackage(getPackageName());
+        muteIntent.putExtra("cmd", "toggle");
+        PendingIntent pausePI = PendingIntent.getBroadcast(this, 3, muteIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        int toggleIcon;
+        String toggleLabel;
+
+        Log.i(TAG, "NotificationToggleIcon: "+NotificationToggleIcon);
+        if (NotificationToggleIcon==1) {
+            toggleIcon = android.R.drawable.ic_media_play;
+            toggleLabel = "播放";
+        }else{
+            toggleIcon = android.R.drawable.ic_media_pause;
+            toggleLabel = "暂停";
+        }
+
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_radio)
-                .setContentTitle(name.isEmpty() ? "" : name +" - "+ freq + " MHz")
-                .setContentText("正在播放")
+                .setContentTitle(name.isEmpty() ? "" : name + " - " + freq + " MHz")
+                .setContentText("服务运行中")
                 .setContentIntent(mainPI)
                 .setOngoing(true)
-                // --- 核心优化部分 ---
-                .setPriority(NotificationCompat.PRIORITY_HIGH) // 提高优先级
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC) // 锁屏可见
-                // 关键：即使没文字也添加 BigTextStyle，这能强制通知在某些机型上默认展开
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(name.isEmpty() ? "电台正在后台运行" : name))
-                .setStyle(new androidx.media.app.NotificationCompat.MediaStyle().setShowActionsInCompactView(0))
-                // 添加按钮
-                .addAction(android.R.drawable.ic_menu_close_clear_cancel, "停止并退出服务", stopPI);
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                // 注意：setStyle 只能设置一次。如果要用 MediaStyle，请删除之前的 BigTextStyle
+                .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
+                        // 这里的参数 0, 1 代表在折叠后的精简视图中显示前两个按钮
+                        .setShowActionsInCompactView(0, 1))
+
+                // --- 添加按钮 ---
+                .addAction(toggleIcon, toggleLabel, pausePI) // 第 0 个按钮
+                .addAction(android.R.drawable.ic_menu_close_clear_cancel, "停止退出", stopPI); // 第 1 个按钮
 
         manager.notify(NOTIFICATION_ID, builder.build());
     }
@@ -485,6 +515,18 @@ public class FMService extends Service implements FMClient.MessageCallback {
         public void onReceive(Context context, Intent intent) {
             if (ACTION_SERVICE_CMD.equals(intent.getAction())) {
                 String cmd = intent.getStringExtra("cmd");
+                if ("toggle".equals(cmd)) {
+                        Log.d(TAG, "cmd:toggle,playstatus:"+playstatus);
+                    if ("PLAY".equals(playstatus)) {
+                        cmd = "pause";
+                        NotificationToggleIcon = 1;
+                        updateNotificationText("", "已停止");
+                    } else {
+                        cmd = "start";
+                        NotificationToggleIcon = 0;
+                        updateNotificationText("", "正在播放");
+                    }
+                }
                 if("stop".equals(cmd)){
                     Log.d(TAG, "通过通知栏停止服务");
                     sendFmCommand("QUIT");
@@ -520,7 +562,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
                         sendFmCommand("UNMUTE");
                         sendFmCommand("PUSH 1");
                     }, 500); // 延迟秒
-                    onStatusChanged("PLAY");
+                    Status("PLAY");
 
                 }
                 if("pause".equals(cmd)){
@@ -540,7 +582,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
                     }
 
 
-                    onStatusChanged("PAUSE");
+                    Status("PAUSE");
 
                     try {
                         Runtime.getRuntime().exec(new String[]{"su", "-c", "killall fm_service"});
