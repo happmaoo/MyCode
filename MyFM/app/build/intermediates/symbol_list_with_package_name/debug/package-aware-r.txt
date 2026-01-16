@@ -815,6 +815,7 @@ id menu_about
 id menu_editlist
 id menu_plist1
 id menu_plist2
+id menu_plist3
 id menu_settings
 id message
 id middle

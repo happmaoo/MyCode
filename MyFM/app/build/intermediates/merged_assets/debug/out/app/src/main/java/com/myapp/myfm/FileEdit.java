@@ -1,6 +1,7 @@
 package com.myapp.myfm;
 
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Environment;
 import android.view.View;
@@ -25,7 +26,7 @@ public class FileEdit extends AppCompatActivity {
     private Button  btnSave;
     TextView textView_file;
 
-    // 文件路径 - 你可以修改这个路径
+
     String plistfile;
     private String FILE_PATH;
 
@@ -44,6 +45,11 @@ public class FileEdit extends AppCompatActivity {
         FILE_PATH = Environment.getExternalStorageDirectory().getPath() + "/myapp/"+plistfile;
 
         textView_file.setText(FILE_PATH);
+
+        if("myfm-temp.txt".equals(plistfile)){
+            textView_file.setText(FILE_PATH+"\n本列表为临时列表，将在每次搜台后删除，记得复制电台文本到其他列表。");
+            textView_file.setTextColor(Color.parseColor("#ff6800"));
+        }
 
 
         // 保存按钮点击事件

@@ -383,6 +383,11 @@ public class MainActivity extends AppCompatActivity {
                     myapp.setString("plistfile",plistfile);
                     return true;
                 } else if (id == R.id.menu_plist2) {
+                    plistfile = "myfm-2.txt";
+                    reloadRadioStations();
+                    myapp.setString("plistfile",plistfile);
+                    return true;
+                } else if (id == R.id.menu_plist3) {
                     plistfile = "myfm-temp.txt";
                     reloadRadioStations();
                     myapp.setString("plistfile",plistfile);

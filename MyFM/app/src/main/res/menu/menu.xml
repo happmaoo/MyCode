@@ -3,10 +3,14 @@
 
     <item
         android:id="@+id/menu_plist1"
-        android:title="电台列表 - 主要" />
+        android:title="电台列表 - 1" />
 
     <item
         android:id="@+id/menu_plist2"
+        android:title="电台列表 - 2" />
+
+    <item
+        android:id="@+id/menu_plist3"
         android:title="电台列表 - 临时" />
 
 
