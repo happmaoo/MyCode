@@ -6,6 +6,7 @@ import android.os.Environment;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import java.io.BufferedReader;
@@ -16,11 +17,17 @@ import java.io.IOException;
 
 public class FileEdit extends AppCompatActivity {
 
+
+    MyFmApp myapp;
+
+
     private EditText editText;
     private Button  btnSave;
+    TextView textView_file;
 
     // 文件路径 - 你可以修改这个路径
-    private static final String FILE_PATH = Environment.getExternalStorageDirectory().getPath() + "/myapp/myfm.txt";
+    String plistfile;
+    private String FILE_PATH;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,6 +37,14 @@ public class FileEdit extends AppCompatActivity {
         // 初始化UI组件
         editText = findViewById(R.id.editText);
         btnSave = findViewById(R.id.btnSave);
+        textView_file = findViewById(R.id.textView_file);
+
+        myapp = (MyFmApp) getApplicationContext();
+        plistfile = myapp.getString("plistfile","myfm.txt");
+        FILE_PATH = Environment.getExternalStorageDirectory().getPath() + "/myapp/"+plistfile;
+
+        textView_file.setText(FILE_PATH);
+
 
         // 保存按钮点击事件
         btnSave.setOnClickListener(new View.OnClickListener() {

@@ -894,6 +894,7 @@ id text2
 id textSpacerNoButtons
 id textSpacerNoTitle
 id textView
+id textView_file
 id time
 id title
 id titleDividerNoCustom
