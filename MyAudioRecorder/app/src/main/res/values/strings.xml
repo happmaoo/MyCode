@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">MyAudioRecorder</string>
+    <string name="sample_string">"首先手机和电脑处在同一wifi网络
+然后找到电脑的IP地址和端口,填到下面的输入框中,端口默认7777
+在电脑上运行：ffmpeg -i tcp://0.0.0.0:7777?listen -c copy \"output-$(date +'%Y%m%d-%H.%M.%S').aac\"
+然后点击开始录音."</string>
 </resources>

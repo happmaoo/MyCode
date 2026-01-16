@@ -6,61 +6,67 @@
 6
 7    <uses-sdk
 8        android:minSdkVersion="25"
-8-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml
+8-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml
 9        android:targetSdkVersion="29" />
-9-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml
+9-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml
 10
 11    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-11-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:5:5-71
-11-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:5:22-68
+11-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:5:5-71
+11-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:5:22-68
 12    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-12-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:6:5-81
-12-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:6:22-78
+12-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:6:5-81
+12-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:6:22-78
 13    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-13-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:7:5-80
-13-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:7:22-77
-14
-15    <application
-15-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:9:5-29:19
-16        android:allowBackup="true"
-16-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:10:9-35
-17        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
-17-->[androidx.core:core:1.5.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/48cd7bd08e89712a0952f96bb9006374/core-1.5.0/AndroidManifest.xml:24:18-86
-18        android:debuggable="true"
-19        android:extractNativeLibs="false"
-20        android:icon="@mipmap/ic_launcher"
-20-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:11:9-43
-21        android:label="@string/app_name"
-21-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:12:9-41
-22        android:roundIcon="@mipmap/ic_launcher_round"
-22-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:13:9-54
-23        android:supportsRtl="true"
-23-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:14:9-35
-24        android:theme="@style/AppTheme" >
-24-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:15:9-40
-25        <service
-25-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:16:9-19:47
-26            android:name="com.myapp.myaudiorecorder.MyAudioRecorderService"
-26-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:17:13-76
-27            android:enabled="true"
-27-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:18:13-35
-28            android:exported="true" />
-28-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:19:13-36
-29
-30        <activity android:name="com.myapp.myaudiorecorder.MainActivity" >
-30-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:21:9-27:20
-30-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:21:19-72
-31            <intent-filter>
-31-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:22:13-26:29
-32                <action android:name="android.intent.action.MAIN" />
-32-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:23:17-69
-32-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:23:25-66
-33
-34                <category android:name="android.intent.category.LAUNCHER" />
-34-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:25:17-77
-34-->/home/happmaoo/AndroidStudioProjects/AudioRecorder/app/src/main/AndroidManifest.xml:25:27-74
-35            </intent-filter>
-36        </activity>
-37    </application>
-38
-39</manifest>
+13-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:7:5-80
+13-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:7:22-77
+14    <uses-permission android:name="android.permission.INTERNET" />
+14-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:9:5-67
+14-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:9:22-64
+15
+16    <application
+16-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:11:5-32:19
+17        android:name="com.myapp.myaudiorecorder.MyApp"
+17-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:12:9-30
+18        android:allowBackup="true"
+18-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:13:9-35
+19        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+19-->[androidx.core:core:1.5.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/48cd7bd08e89712a0952f96bb9006374/core-1.5.0/AndroidManifest.xml:24:18-86
+20        android:debuggable="true"
+21        android:extractNativeLibs="false"
+22        android:icon="@mipmap/ic_launcher"
+22-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:14:9-43
+23        android:label="@string/app_name"
+23-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:15:9-41
+24        android:roundIcon="@mipmap/ic_launcher_round"
+24-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:16:9-54
+25        android:supportsRtl="true"
+25-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:17:9-35
+26        android:testOnly="true"
+27        android:theme="@style/AppTheme" >
+27-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:18:9-40
+28        <service
+28-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:19:9-22:47
+29            android:name="com.myapp.myaudiorecorder.MyAudioRecorderService"
+29-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:20:13-76
+30            android:enabled="true"
+30-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:21:13-35
+31            android:exported="true" />
+31-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:22:13-36
+32
+33        <activity android:name="com.myapp.myaudiorecorder.MainActivity" >
+33-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:24:9-30:20
+33-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:24:19-72
+34            <intent-filter>
+34-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:25:13-29:29
+35                <action android:name="android.intent.action.MAIN" />
+35-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:26:17-69
+35-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:26:25-66
+36
+37                <category android:name="android.intent.category.LAUNCHER" />
+37-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:28:17-77
+37-->/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/src/main/AndroidManifest.xml:28:27-74
+38            </intent-filter>
+39        </activity>
+40    </application>
+41
+42</manifest>
