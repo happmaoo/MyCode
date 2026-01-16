@@ -47,7 +47,7 @@ public class FileEdit extends AppCompatActivity {
         textView_file.setText(FILE_PATH);
 
         if("myfm-temp.txt".equals(plistfile)){
-            textView_file.setText(FILE_PATH+"\n本列表为临时列表，将在每次搜台后删除，记得复制电台文本到其他列表。");
+            textView_file.setText(FILE_PATH+"\n本列表为临时列表，将在下次搜台后删除，记得复制电台文本到其他列表。");
             textView_file.setTextColor(Color.parseColor("#ff6800"));
         }
 
