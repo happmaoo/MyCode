@@ -23,7 +23,7 @@ https://github.com/happmaoo/MyCode/tree/main/MyFM/app/release
 功能简单，可以设置字体大小，可以很小，不占用桌面空间。
 https://github.com/happmaoo/MyCode/tree/main/MyDeskNote/app/release
 
-## MyAudioRecorder
+## MyAudioRecorder 录音机，可以手机录音也可以同一WIFI下电脑录音代替麦克风
 一个简单的录音APP，本地和网络传输录音  
 https://github.com/happmaoo/MyCode/tree/main/MyAudioRecorder/app/release
 
