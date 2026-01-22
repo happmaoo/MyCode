@@ -2,7 +2,7 @@
 2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 3    package="com.myapp.mydesknote"
 4    android:versionCode="1"
-5    android:versionName="1.0" >
+5    android:versionName="2.1.20260114.1033" >
 6
 7    <uses-sdk
 8        android:minSdkVersion="25"
@@ -26,43 +26,44 @@
 18-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:9:9-54
 19        android:supportsRtl="true"
 19-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:10:9-35
-20        android:theme="@style/AppTheme" >
-20-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:11:9-40
-21        <activity android:name="com.myapp.mydesknote.MainActivity" >
-21-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:12:9-18:20
-21-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:12:19-47
-22            <intent-filter>
-22-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:13:13-17:29
-23                <action android:name="android.intent.action.MAIN" />
-23-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:14:17-69
-23-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:14:25-66
-24
-25                <category android:name="android.intent.category.LAUNCHER" />
-25-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:16:17-77
-25-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:16:27-74
-26            </intent-filter>
-27        </activity>
-28
-29        <receiver
-29-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:21:9-28:20
-30            android:name="com.myapp.mydesknote.SimpleWidget"
-30-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:21:19-47
-31            android:exported="true" >
-31-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:21:48-71
-32            <intent-filter>
-32-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:22:13-24:29
-33                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-33-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:23:17-84
-33-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:23:25-81
-34            </intent-filter>
-35
-36            <meta-data
-36-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:25:13-27:55
-37                android:name="android.appwidget.provider"
-37-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:26:17-58
-38                android:resource="@xml/widget_info" />
-38-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:27:17-52
-39        </receiver>
-40    </application>
-41
-42</manifest>
+20        android:testOnly="true"
+21        android:theme="@style/AppTheme" >
+21-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:11:9-40
+22        <activity android:name="com.myapp.mydesknote.MainActivity" >
+22-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:12:9-18:20
+22-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:12:19-47
+23            <intent-filter>
+23-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:13:13-17:29
+24                <action android:name="android.intent.action.MAIN" />
+24-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:14:17-69
+24-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:14:25-66
+25
+26                <category android:name="android.intent.category.LAUNCHER" />
+26-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:16:17-77
+26-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:16:27-74
+27            </intent-filter>
+28        </activity>
+29
+30        <receiver
+30-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:21:9-28:20
+31            android:name="com.myapp.mydesknote.SimpleWidget"
+31-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:21:19-47
+32            android:exported="true" >
+32-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:21:48-71
+33            <intent-filter>
+33-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:22:13-24:29
+34                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+34-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:23:17-84
+34-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:23:25-81
+35            </intent-filter>
+36
+37            <meta-data
+37-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:25:13-27:55
+38                android:name="android.appwidget.provider"
+38-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:26:17-58
+39                android:resource="@xml/widget_info" />
+39-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:27:17-52
+40        </receiver>
+41    </application>
+42
+43</manifest>

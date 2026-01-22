@@ -21,7 +21,7 @@ https://github.com/happmaoo/MyCode/tree/main/MyFM/app/release
 
 ## MyDeskNote 超小的桌面便签APP
 功能简单，可以设置字体大小，可以很小，不占用桌面空间。
-https://github.com/happmaoo/MyCode/tree/main/MyDeskNote/app/build/outputs/apk/debug/
+https://github.com/happmaoo/MyCode/tree/main/MyDeskNote/app/release
 
 ## MyAudioRecorder
 一个简单的录音APP，本地和网络传输录音  

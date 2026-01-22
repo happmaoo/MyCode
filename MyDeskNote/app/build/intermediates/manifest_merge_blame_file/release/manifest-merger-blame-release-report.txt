@@ -1,0 +1,67 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.myapp.mydesknote"
+4    android:versionCode="1"
+5    android:versionName="2.1.20260122.1221" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="25"
+8-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml
+9        android:targetSdkVersion="29" />
+9-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml
+10
+11    <application
+11-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:5:5-29:19
+12        android:allowBackup="true"
+12-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:6:9-35
+13        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+13-->[androidx.core:core:1.5.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/48cd7bd08e89712a0952f96bb9006374/core-1.5.0/AndroidManifest.xml:24:18-86
+14        android:extractNativeLibs="false"
+15        android:icon="@mipmap/ic_launcher"
+15-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:7:9-43
+16        android:label="@string/app_name"
+16-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:8:9-41
+17        android:roundIcon="@mipmap/ic_launcher_round"
+17-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:9:9-54
+18        android:supportsRtl="true"
+18-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:10:9-35
+19        android:theme="@style/AppTheme" >
+19-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:11:9-40
+20        <activity android:name="com.myapp.mydesknote.MainActivity" >
+20-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:12:9-18:20
+20-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:12:19-47
+21            <intent-filter>
+21-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:13:13-17:29
+22                <action android:name="android.intent.action.MAIN" />
+22-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:14:17-69
+22-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:14:25-66
+23
+24                <category android:name="android.intent.category.LAUNCHER" />
+24-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:16:17-77
+24-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:16:27-74
+25            </intent-filter>
+26        </activity>
+27
+28        <receiver
+28-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:21:9-28:20
+29            android:name="com.myapp.mydesknote.SimpleWidget"
+29-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:21:19-47
+30            android:exported="true" >
+30-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:21:48-71
+31            <intent-filter>
+31-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:22:13-24:29
+32                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+32-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:23:17-84
+32-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:23:25-81
+33            </intent-filter>
+34
+35            <meta-data
+35-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:25:13-27:55
+36                android:name="android.appwidget.provider"
+36-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:26:17-58
+37                android:resource="@xml/widget_info" />
+37-->/home/happmaoo/AndroidStudioProjects/MyDeskNote/app/src/main/AndroidManifest.xml:27:17-52
+38        </receiver>
+39    </application>
+40
+41</manifest>
