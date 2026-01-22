@@ -127,6 +127,15 @@ public class autobrightness extends Service {
                     int ruleBrightness = rule[1];
 
                     if (lightLevel >= ruleLight) {
+
+                        // 如果光感值为0，直接设置亮度并跳过检测逻辑
+                        if (lightLevel == 0) {
+                            setScreenBrightnessSmoothly(ruleBrightness);
+                            lastProcessedLightLevel = lightLevel;
+                            break;
+                        }
+
+
                         // 计算光线变动跨度
                         float lightDiff = Math.abs(lightLevel - lastProcessedLightLevel);
 

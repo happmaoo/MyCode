@@ -20,10 +20,6 @@
         "source": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml"
     },
     {
-        "merged": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/build/intermediates/res/merged/release/drawable-v24_ic_launcher_foreground.xml.flat",
-        "source": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/res/drawable-v24/ic_launcher_foreground.xml"
-    },
-    {
         "merged": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/build/intermediates/res/merged/release/drawable-mdpi_ic_stat_name.png.flat",
         "source": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/res/drawable-mdpi/ic_stat_name.png"
     },
@@ -70,10 +66,6 @@
     {
         "merged": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/build/intermediates/res/merged/release/mipmap-xxhdpi_ic_launcher.png.flat",
         "source": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/res/mipmap-xxhdpi/ic_launcher.png"
-    },
-    {
-        "merged": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/build/intermediates/res/merged/release/drawable_ic_launcher_background.xml.flat",
-        "source": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/res/drawable/ic_launcher_background.xml"
     },
     {
         "merged": "/home/happmaoo/AndroidStudioProjects/autobrightness/app/build/intermediates/res/merged/release/mipmap-xhdpi_ic_launcher_round.png.flat",
