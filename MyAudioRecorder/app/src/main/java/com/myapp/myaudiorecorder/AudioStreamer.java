@@ -9,23 +9,22 @@ import android.media.MediaRecorder;
 import android.os.Handler;
 import android.util.Log;
 
-import java.io.OutputStream;
-import java.net.Socket;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 
 public class AudioStreamer {
     private static final String MIME_TYPE = MediaFormat.MIMETYPE_AUDIO_AAC;
     private static final int SAMPLE_RATE = 44100;
-    private static final int BIT_RATE = 96000; // 96kbps
-    private static final int CHANNEL_COUNT = 1; // 单声道
+    private static final int BIT_RATE = 96000;
+    private static final int CHANNEL_COUNT = 1;
 
     private AudioRecord audioRecord;
     private MediaCodec mediaCodec;
     private boolean isRecording = false;
     private String serverIp;
     private int serverPort;
-
-
 
     private long startTime;
     private Handler timerHandler = new Handler();
@@ -37,17 +36,11 @@ public class AudioStreamer {
                 int seconds = (int) (millis / 1000);
                 int minutes = seconds / 60;
                 seconds = seconds % 60;
-
-                Log.d("TAG", String.format("当前录制时长: %02d:%02d", minutes, seconds));
-                DataManager.getInstance().sendMessage("AudioStreamer",String.format("当前录制时长: %02d:%02d", minutes, seconds));
-
-                // 每隔一秒更新一次
+                DataManager.getInstance().sendMessage("AudioStreamer", String.format("当前录制时长: %02d:%02d", minutes, seconds));
                 timerHandler.postDelayed(this, 1000);
             }
         }
     };
-
-
 
     public AudioStreamer(String ip, int port) {
         this.serverIp = ip;
@@ -64,19 +57,18 @@ public class AudioStreamer {
     }
 
     private void recordingLoop() {
-        Socket socket = null;
-        OutputStream outputStream = null;
+        DatagramSocket socket = null; // 改用 UDP Socket
+        InetAddress address;
 
         try {
-            // 1. 建立 Socket 连接
-            DataManager.getInstance().sendMessage("AudioStreamer", "正在连接");
+            DataManager.getInstance().sendMessage("AudioStreamer", "UDP 准备中");
 
-            socket = new Socket(serverIp, serverPort);
-            outputStream = socket.getOutputStream();
+            // 1. 初始化 UDP
+            socket = new DatagramSocket();
+            address = InetAddress.getByName(serverIp);
 
-
-            startTime = System.currentTimeMillis(); // 记录开始时间
-            timerHandler.postDelayed(timerRunnable, 0); // 启动计时器
+            startTime = System.currentTimeMillis();
+            timerHandler.postDelayed(timerRunnable, 0);
 
             // 2. 初始化 AudioRecord
             int bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE,
@@ -100,10 +92,8 @@ public class AudioStreamer {
             MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
 
             while (isRecording) {
-                // 读取 PCM 数据
                 int readSize = audioRecord.read(pcmBuffer, 0, pcmBuffer.length);
                 if (readSize > 0) {
-                    // 送入编码器
                     int inputBufferIndex = mediaCodec.dequeueInputBuffer(10000);
                     if (inputBufferIndex >= 0) {
                         ByteBuffer inputBuffer = mediaCodec.getInputBuffer(inputBufferIndex);
@@ -113,18 +103,18 @@ public class AudioStreamer {
                     }
                 }
 
-                // 获取编码后的数据
                 int outputBufferIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, 10000);
                 while (outputBufferIndex >= 0) {
                     ByteBuffer outputBuffer = mediaCodec.getOutputBuffer(outputBufferIndex);
-                    int outPacketSize = bufferInfo.size + 7; // 加上 7 字节的 ADTS 头
+                    int outPacketSize = bufferInfo.size + 7;
 
                     byte[] outData = new byte[outPacketSize];
-                    addADTStoPacket(outData, outPacketSize); // 添加 ADTS 头
-                    outputBuffer.get(outData, 7, bufferInfo.size); // 将编码数据放入 ADTS 头之后
+                    addADTStoPacket(outData, outPacketSize);
+                    outputBuffer.get(outData, 7, bufferInfo.size);
 
-                    // 通过 Socket 发送
-                    outputStream.write(outData, 0, outPacketSize);
+                    // 4. 通过 UDP 发送数据包
+                    DatagramPacket packet = new DatagramPacket(outData, outPacketSize, address, serverPort);
+                    socket.send(packet);
 
                     mediaCodec.releaseOutputBuffer(outputBufferIndex, false);
                     outputBufferIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, 0);
@@ -133,18 +123,13 @@ public class AudioStreamer {
 
         } catch (Exception e) {
             e.printStackTrace();
-            DataManager.getInstance().sendMessage("AudioStreamer", "连接失败");
-            // 1. 移除所有的回调
+            DataManager.getInstance().sendMessage("AudioStreamer", "发送异常");
             timerHandler.removeCallbacks(timerRunnable);
-
         } finally {
-            cleanup(socket, outputStream);
+            cleanup(socket);
         }
     }
 
-    /**
-     * 添加 ADTS 头 (AAC 音频流必须)
-     */
     private void addADTStoPacket(byte[] packet, int packetLen) {
         int profile = 2;  // AAC LC
         int freqIdx = 4;  // 44.1KHz
@@ -159,12 +144,21 @@ public class AudioStreamer {
         packet[6] = (byte)0xFC;
     }
 
-    private void cleanup(Socket s, OutputStream os) {
+    private void cleanup(DatagramSocket s) {
         try {
-            if (audioRecord != null) { audioRecord.stop(); audioRecord.release(); }
-            if (mediaCodec != null) { mediaCodec.stop(); mediaCodec.release(); }
-            if (os != null) os.close();
-            if (s != null) s.close();
-        } catch (Exception e) { e.printStackTrace(); }
+            if (audioRecord != null) {
+                audioRecord.stop();
+                audioRecord.release();
+            }
+            if (mediaCodec != null) {
+                mediaCodec.stop();
+                mediaCodec.release();
+            }
+            if (s != null) {
+                s.close();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

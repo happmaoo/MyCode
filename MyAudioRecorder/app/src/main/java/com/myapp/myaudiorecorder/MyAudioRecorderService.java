@@ -191,7 +191,7 @@ public class MyAudioRecorderService extends Service {
         isRecording = true;
         myapp.isRecording = true;
         //电脑:
-        //ffmpeg -i tcp://0.0.0.0:7777?listen -c copy "output-$(date +'%Y%m%d-%H.%M.%S').aac"
+        //ffmpeg -i udp://0.0.0.0:7777?listen -c copy "output-$(date +'%Y%m%d-%H.%M.%S').aac"
     }
 
     private void stopNetRecording() {

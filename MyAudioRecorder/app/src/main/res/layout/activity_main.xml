@@ -62,10 +62,14 @@
 
         <TextView
             android:id="@+id/textView_net_help"
+            android:typeface="monospace"
+            android:fontFamily="monospace"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textIsSelectable="true"
             android:text="@string/sample_string" />
+
+
         <LinearLayout
             android:id="@+id/layout_net2"
             android:layout_width="match_parent"

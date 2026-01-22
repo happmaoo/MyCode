@@ -2,6 +2,15 @@
     <string name="app_name">MyAudioRecorder</string>
     <string name="sample_string">"首先手机和电脑处在同一wifi网络
 然后找到电脑的IP地址和端口,填到下面的输入框中,端口默认7777
-在电脑上运行：ffmpeg -i tcp://0.0.0.0:7777?listen -c copy \"output-$(date +'%Y%m%d-%H.%M.%S').aac\"
-然后点击开始录音."</string>
+点击开始录音
+在电脑上运行：
+录制音频:ffmpeg -i udp://0.0.0.0:7777?listen -c copy \"output-$(date +'%Y%m%d-%H.%M.%S').aac\"
+录制音频和桌面视频:ffmpeg -threads 1 \
+  -f x11grab -show_region 1 -framerate 30 -video_size 1920x1080 -i :0.0+0,0 \
+  -i "udp://0.0.0.0:7777?listen" \
+  -filter:v scale=1280:720 \
+  -codec:v hevc_qsv -b:v 1000k -preset veryfast -pix_fmt yuv420p -r 25 \
+  -acodec aac -b:a 128k \
+  -y \"output-$(date +'%Y%m%d-%H.%M.%S').mp4\"
+"</string>
 </resources>
