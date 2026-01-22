@@ -4,7 +4,7 @@
 MIUI的亮度调节不好用，于是就自己写一个，目前很不错。  
 首先需要权限里设置允许修改系统设置。  
 2025.12.30 全线更新2.0版本，调节更灵敏优化算法，不卡顿
-https://github.com/happmaoo/MyCode/tree/main/autobrightness/app/build/outputs/apk/debug/
+https://github.com/happmaoo/MyCode/tree/main/autobrightness/app/release
 
 ## clockwidget 一个最简洁的桌面时钟小部件
 简洁，省资源，没有联网啥乱七八糟的权限。
