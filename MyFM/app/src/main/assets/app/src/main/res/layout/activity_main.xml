@@ -140,8 +140,8 @@
                     android:layout_height="30dp"
                     android:textSize="10sp"
                     android:padding="0dp"
-                    android:textOn="☀️"
-                android:textOff="-" />
+                    android:textOn="●"
+                android:textOff="○" />
 
 
                 <Button

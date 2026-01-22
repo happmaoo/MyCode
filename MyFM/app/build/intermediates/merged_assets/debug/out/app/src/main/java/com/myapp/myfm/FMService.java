@@ -23,10 +23,13 @@ import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.media.AudioTrack;
 
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
@@ -75,6 +78,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
     private String playstatus = "PAUSE";
 
     int NotificationToggleIcon = 0;
+    private String headsetEvent;
 
     AudioManager audioManager;
 
@@ -109,6 +113,15 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
         registerReceiver(actionReceiver, new android.content.IntentFilter(ACTION_SERVICE_CMD));
 
+
+        // 获取耳机的event序号
+        if("".equals(myapp.getString("HeadsetEvent", ""))) {
+            headsetEvent = findHeadsetEvent();
+            myapp.setString("HeadsetEvent", headsetEvent);
+            Log.i(TAG, "HeadsetEvent 获取成功.");
+        }else{
+            headsetEvent = myapp.getString("HeadsetEvent", "");
+        }
 
     }
 
@@ -358,10 +371,10 @@ public class FMService extends Service implements FMClient.MessageCallback {
         if (isRunning) return;
 
 
-        //runcmd("sendevent /dev/input/event6 5 2 0");
-        //runcmd("sendevent /dev/input/event6 0 0 0");
-        //sendevent /dev/input/event6 5 2 0
-        //sendevent /dev/input/event6 0 0 0
+        if(myapp.getBoolean("forceSPK", true)) {
+            runcmd("sendevent /dev/input/" + headsetEvent + " 5 2 0");
+            runcmd("sendevent /dev/input/" + headsetEvent + " 0 0 0");
+        }
 
 
         final int minRecBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE,
@@ -623,6 +636,52 @@ public class FMService extends Service implements FMClient.MessageCallback {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    // 找到耳机对应的 event 序号
+    public static String findHeadsetEvent() {
+        Process process = null;
+        DataOutputStream os = null;
+        BufferedReader reader = null;
+        StringBuilder output = new StringBuilder();
+
+        try {
+            // 获取 root 权限
+            process = Runtime.getRuntime().exec("su");
+            os = new DataOutputStream(process.getOutputStream());
+            reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+
+            // 要执行的命令
+            String command = "cat /proc/bus/input/devices | grep -iA 8 'Headset Jack' | grep 'Handlers' | head -n 1 | grep -oE 'event[0-9]+'";
+
+            // 执行命令
+            os.writeBytes(command + "\n");
+            os.writeBytes("exit\n");
+            os.flush();
+
+            // 读取输出
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+
+            // 等待命令执行完成
+            process.waitFor();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        } finally {
+            try {
+                if (os != null) os.close();
+                if (reader != null) reader.close();
+                if (process != null) process.destroy();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        return output.toString().trim();
     }
 
 }

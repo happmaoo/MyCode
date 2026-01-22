@@ -15,7 +15,11 @@
         android:layout_height="wrap_content"
         android:text="播放时双击亮屏 (lineageOS)" />
 
-
+    <CheckBox
+        android:id="@+id/checkBox_setting_forceSPK"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="默认扬声器发音" />
 
     <LinearLayout
         android:layout_width="match_parent"

@@ -354,6 +354,7 @@ public class MainActivity extends AppCompatActivity {
         btnToggleDisp.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
                 keepDispOn(true);
+                Toast.makeText(MainActivity.this, "保持亮屏开启.", Toast.LENGTH_SHORT).show();
             } else {
                 keepDispOn(false);
             }
@@ -708,10 +709,10 @@ public class MainActivity extends AppCompatActivity {
             // ⭐ 每个按钮都创建独立的 LayoutParams
             com.google.android.flexbox.FlexboxLayout.LayoutParams lp =
                     new com.google.android.flexbox.FlexboxLayout.LayoutParams(
-                            FlexboxLayout.LayoutParams.WRAP_CONTENT,
+                            0,
                             FlexboxLayout.LayoutParams.WRAP_CONTENT
                     );
-            lp.setMargins(0, 0, 5, 0);
+            lp.setFlexBasisPercent(0.247f);// 每个按钮占 24.7%
 
             Button button = new Button(this);
             // 给按钮设置一个 Tag，存入频率数值，方便以后查找

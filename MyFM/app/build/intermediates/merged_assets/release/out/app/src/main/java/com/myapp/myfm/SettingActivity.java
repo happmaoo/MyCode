@@ -10,7 +10,7 @@ import android.widget.Toast;
 
 public class SettingActivity extends AppCompatActivity {
 
-    CheckBox checkBox_setting_tap_to_wake;
+    CheckBox checkBox_setting_tap_to_wake,checkBox_setting_forceSPK;
     EditText editText_setting_browse_pause_sec;
 
     private MyFmApp app;
@@ -24,6 +24,8 @@ public class SettingActivity extends AppCompatActivity {
 
 
         checkBox_setting_tap_to_wake = findViewById(R.id.checkBox_setting_tap_to_wake);
+        checkBox_setting_forceSPK  = findViewById(R.id.checkBox_setting_forceSPK);
+
         editText_setting_browse_pause_sec = findViewById(R.id.editText_setting_browse_pause_sec);
 
         if(app.getBoolean("setting_tap_to_wake",false)){
@@ -40,6 +42,21 @@ public class SettingActivity extends AppCompatActivity {
             }
             Toast.makeText(SettingActivity.this, "重新打开收音机生效.", Toast.LENGTH_SHORT).show();
         });
+
+
+        if(app.getBoolean("forceSPK",false)){
+            checkBox_setting_forceSPK.setChecked(true);
+        }
+        //-----------checkBox_setting_forceSPK----------------
+        checkBox_setting_forceSPK.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) {
+                app.setBoolean("forceSPK",true);
+            } else {
+                app.setBoolean("forceSPK",false);
+            }
+            Toast.makeText(SettingActivity.this, "重新打开收音机生效.", Toast.LENGTH_SHORT).show();
+        });
+
 
     }
 

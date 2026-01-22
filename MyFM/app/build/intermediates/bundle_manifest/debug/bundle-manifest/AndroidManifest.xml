@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.myapp.myfm"
     android:versionCode="2"
-    android:versionName="2.1.20260117.0650" >
+    android:versionName="2.1.20260122.1017" >
 
     <uses-sdk
         android:minSdkVersion="25"
@@ -17,6 +17,7 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <application
         android:name="com.myapp.myfm.MyFmApp"

@@ -760,6 +760,7 @@ id center
 id center_horizontal
 id center_vertical
 id chains
+id checkBox_setting_forceSPK
 id checkBox_setting_tap_to_wake
 id checkbox
 id chronometer
