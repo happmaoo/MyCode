@@ -17,7 +17,7 @@ https://github.com/happmaoo/MyCode/tree/main/MyBleClient/app/build/outputs/apk/d
 
 ## MyFM 红米Note4x 的收音机APP
 红米Note4x和lineageOS自带的收音机不好用，自己写的代码，需要root。
-https://github.com/happmaoo/MyCode/tree/main/MyFM/app/build/outputs/apk/debug/
+https://github.com/happmaoo/MyCode/tree/main/MyFM/app/release
 
 ## MyDeskNote 超小的桌面便签APP
 功能简单，可以设置字体大小，可以很小，不占用桌面空间。
