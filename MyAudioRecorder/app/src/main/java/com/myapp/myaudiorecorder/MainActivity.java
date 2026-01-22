@@ -28,6 +28,9 @@ import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.topjohnwu.superuser.Shell;
+
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -96,7 +99,23 @@ public class MainActivity extends AppCompatActivity {
         radioButton_net  = findViewById(R.id.radioButton_net);
 
 
-        local = myapp.getString("local",Environment.getExternalStorageDirectory().getAbsolutePath() + "/myapp/MyAudioRecorder");
+
+
+        if (Build.VERSION.SDK_INT >= 29) {
+            // 获取应用私有外部存储目录（不需要任何存储权限）
+            File appPrivateDir = getExternalFilesDir(null);
+            local = myapp.getString("local",appPrivateDir.getAbsolutePath());
+        } else {
+            local = myapp.getString("local",Environment.getExternalStorageDirectory().getAbsolutePath() + "/myapp/MyAudioRecorder");
+        }
+
+
+//        Shell.Result result;
+//        result = Shell.cmd("ls").exec();
+//        List<String> out = result.getOut();
+//        Log.i("TAG", "onCreate: "+out);
+
+
         myapp.setString("local",local);
         net = myapp.getString("net","192.168.0.1:7777");
         myapp.setString("net",net);
@@ -162,6 +181,8 @@ public class MainActivity extends AppCompatActivity {
                     layout_local.setVisibility(View.GONE);
                     layout_net.setVisibility(View.VISIBLE);
                 }
+
+                textView_log.setText("");
             }
         });
 
@@ -229,8 +250,16 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // 存储权限 (针对旧版本，Android 10+ 建议使用 Context.getExternalFilesDir 不需权限)
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+        // 存储权限调整
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10+ 只需要读取权限（如果需要访问媒体文件）
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                // 检查是否需要存储权限：只有当应用需要访问媒体文件时才请求
+                // 如果只是保存到应用私有目录（getExternalFilesDir），则不需要此权限
+                permissionsNeeded.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+            }
+        } else {
+            // Android 9 及以下版本需要写权限
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 permissionsNeeded.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
             }

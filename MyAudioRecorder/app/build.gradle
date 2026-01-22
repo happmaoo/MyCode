@@ -35,6 +35,16 @@ android {
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 
+
+    def libsuVersion = '6.0.0'
+
+    // The core module that provides APIs to a shell
+    implementation "com.github.topjohnwu.libsu:core:${libsuVersion}"
+    // Optional: APIs for creating root services. Depends on ":core"
+    implementation "com.github.topjohnwu.libsu:service:${libsuVersion}"
+
+
+
     implementation 'androidx.appcompat:appcompat:1.3.1'  
     implementation 'androidx.constraintlayout:constraintlayout:2.1.0'  
 	testImplementation 'junit:junit:4.12'  

@@ -25,7 +25,7 @@ https://github.com/happmaoo/MyCode/tree/main/MyDeskNote/app/release
 
 ## MyAudioRecorder
 一个简单的录音APP，本地和网络传输录音  
-https://github.com/happmaoo/MyCode/tree/main/MyAudioRecorder/app/build/outputs/apk/debug/  
+https://github.com/happmaoo/MyCode/tree/main/MyAudioRecorder/app/release
 
 
 
