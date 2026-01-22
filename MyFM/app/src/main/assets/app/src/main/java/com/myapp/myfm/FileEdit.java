@@ -2,6 +2,7 @@ package com.myapp.myfm;
 
 import android.content.Intent;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.view.View;
@@ -42,7 +43,17 @@ public class FileEdit extends AppCompatActivity {
 
         myapp = (MyFmApp) getApplicationContext();
         plistfile = myapp.getString("plistfile","myfm.txt");
-        FILE_PATH = Environment.getExternalStorageDirectory().getPath() + "/myapp/"+plistfile;
+
+
+        if (Build.VERSION.SDK_INT >= 29) {
+            // 获取应用私有外部存储目录（不需要任何存储权限）
+            File appPrivateDir = getExternalFilesDir(null);
+            FILE_PATH = appPrivateDir +"/"+ plistfile;
+        } else {
+            FILE_PATH = Environment.getExternalStorageDirectory().getPath() + "/myapp/"+plistfile;
+        }
+
+
 
         textView_file.setText(FILE_PATH);
 

@@ -797,10 +797,21 @@ public class MainActivity extends AppCompatActivity {
 
     // --------------获取 内置存储卡里的电台列表 ----------------
     private File getRadioStationsFile(String filename) {
-        // 获取内置存储的根目录 (注意：这个方法在API 29+已被弃用，但在API 26仍可用)
-        File rootDir = Environment.getExternalStorageDirectory();
-        File myfmDir = new File(rootDir, "myapp");
-        return new File(myfmDir, filename);
+
+        if (Build.VERSION.SDK_INT >= 29) {
+            // 获取应用私有外部存储目录（不需要任何存储权限）
+            File appPrivateDir = getExternalFilesDir(null);
+            return new File(appPrivateDir, filename);
+        } else {
+            // 获取内置存储的根目录 (注意：这个方法在API 29+已被弃用，但在API 26仍可用)
+            File rootDir = Environment.getExternalStorageDirectory();
+            File myfmDir = new File(rootDir, "myapp");
+            return new File(myfmDir, filename);
+        }
+
+
+
+
     }
 
     private String loadRadioStationsFromFile(String filename) {

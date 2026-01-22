@@ -371,7 +371,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
         if (isRunning) return;
 
 
-        if(myapp.getBoolean("forceSPK", true)) {
+        if(myapp.getBoolean("forceSPK", false)) {
             runcmd("sendevent /dev/input/" + headsetEvent + " 5 2 0");
             runcmd("sendevent /dev/input/" + headsetEvent + " 0 0 0");
         }
