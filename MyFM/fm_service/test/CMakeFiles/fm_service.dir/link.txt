@@ -1,1 +1,0 @@
-/home/happmaoo/Android/Sdk/ndk/20.0.5594570/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang CMakeFiles/fm_service.dir/fm_service.c.o -o fm_service  -landroid -llog 
