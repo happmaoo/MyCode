@@ -8,7 +8,7 @@ MIUI的亮度调节不好用，于是就自己写一个，目前很不错。
 https://github.com/happmaoo/MyCode/tree/main/autobrightness/app/release
 
 ## clockwidget 一个最简洁的桌面时钟小部件
-简洁，省资源，没有联网啥乱七八糟的权限。
+简洁，省资源，没有联网啥乱七八糟的权限。  
 https://github.com/happmaoo/MyCode/tree/main/clockwidget/app/release
 
 ## MyBleServer 和 MyBleClient 用于主机和备用机的蓝牙监测app
