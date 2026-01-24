@@ -82,6 +82,9 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
     AudioManager audioManager;
 
+
+
+
     public class LocalBinder extends Binder {
         FMService getService() {
             return FMService.this;
@@ -127,6 +130,10 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // Android 15 强化了对启动意图的检查
+        if (intent == null) {
+            return START_STICKY;
+        }
         return START_STICKY;
     }
 
@@ -427,11 +434,11 @@ public class FMService extends Service implements FMClient.MessageCallback {
                             // 2. 核心算法修改：增加动态系数
                             // 将原有的线性映射逻辑修改为：(原始占比 * 灵敏度系数)
                             // 这里的 1.5 是灵敏度因子，可以根据需要调整 (1.0~2.5)
-                            int level = (int) (maxAbs / 80000 * 100 * 1.5);
+                            int level = (int) (maxAbs / 50000 * 100 * 1.5);
 
                             // 3. 加入“非对称平衡”：让它弹上去快，掉下来有过程
                             if (level < lastLevel) {
-                                level = (int) (lastLevel * 0.8); // 缓慢掉落，避免闪烁
+                                level = (int) (lastLevel * 0.6); // 缓慢掉落，避免闪烁
                             }
                             lastLevel = level;
 

@@ -712,7 +712,7 @@ public class MainActivity extends AppCompatActivity {
                             0,
                             FlexboxLayout.LayoutParams.WRAP_CONTENT
                     );
-            lp.setFlexBasisPercent(0.247f);// 每个按钮占 24.7%
+            lp.setFlexBasisPercent(0.249f);// 每个按钮占 24.9%
 
             Button button = new Button(this);
             // 给按钮设置一个 Tag，存入频率数值，方便以后查找
