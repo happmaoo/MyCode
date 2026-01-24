@@ -1,0 +1,4 @@
+#Sat Jan 24 08:41:46 CST 2026
+base.0=/home/happmaoo/AndroidStudioProjects/autobrightness/app/build/intermediates/dex/release/out/classes.dex
+path.0=classes.dex
+renamed.0=classes.dex
