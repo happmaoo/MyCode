@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.myapp.myfm"
     android:versionCode="2"
-    android:versionName="2.1.20260124.1212" >
+    android:versionName="2.1.20260124.1519" >
 
     <uses-sdk
         android:minSdkVersion="25"
