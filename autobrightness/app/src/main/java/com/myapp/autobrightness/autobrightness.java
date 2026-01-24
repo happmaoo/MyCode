@@ -106,57 +106,60 @@ public class autobrightness extends Service {
         lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
 
         lightSensorListener = new SensorEventListener() {
+
+
             @Override
             public void onSensorChanged(SensorEvent event) {
                 long currentTime = System.currentTimeMillis();
-                //  ms 采样一次逻辑，降低 CPU 占用
                 if (currentTime - lastProcessingTime < 500) return;
                 lastProcessingTime = currentTime;
 
                 lightLevel = event.values[0];
 
-
-
-
-
-                // 发送更新到 UI
+                // 发送广播到 UI (保持原样)
                 Intent broadcastIntent = new Intent("com.myapp.LIGHT_LEVEL_UPDATE");
                 broadcastIntent.putExtra("lightLevel", lightLevel);
                 sendBroadcast(broadcastIntent);
 
-                // --- 匹配逻辑优化：解决 300 降到 100 没反应的问题 ---
+
+
+
+                // --- 匹配逻辑优化：支持跨区间计数 & 极速响应 0 ---
+                int currentTarget = -1;
+
+                // 1. 寻找当前光照对应的目标亮度 (从高到低遍历)
                 for (int i = cachedConfigData.size() - 1; i >= 0; i--) {
                     int[] rule = cachedConfigData.get(i);
-                    int ruleLight = rule[0];
-                    int ruleBrightness = rule[1];
-
-                    if (lightLevel >= ruleLight) {
-
-                        // 如果光感值为0，直接设置亮度并跳过检测逻辑
-                        if (lightLevel == 0) {
-                            setScreenBrightnessSmoothly(ruleBrightness);
-                            lastProcessedLightLevel = lightLevel;
-                            break;
-                        }
-
-
-
-                        // 如果光线进入了新区间
-                        if (ruleLight != lastMatchedLightRule) {
-                            consecutiveCount = 1;
-                            lastMatchedLightRule = ruleLight;
-                        } else {
-                            consecutiveCount++;
-                        }
-
-                        //Log.i("TAG", "consecutiveCount:"+consecutiveCount+"configLmd: "+configLmd);
-
-                        // 如果满足连续计数,则立即调整亮度
-                        if (consecutiveCount >= configLmd) {
-                            setScreenBrightnessSmoothly(ruleBrightness);
-                            lastProcessedLightLevel = lightLevel; // 更新记录点
-                        }
+                    if (lightLevel >= rule[0]) {
+                        currentTarget = rule[1];
                         break;
+                    }
+                }
+
+                // 2. 执行判定逻辑
+                if (currentTarget != -1) {
+
+                    // 特殊处理：如果光感值为0，立即调整亮度，不参与计数逻辑
+                    if (lightLevel == 0) {
+                        if (currentTarget != lastTargetBrightness) {
+                            setScreenBrightnessSmoothly(currentTarget);
+                            consecutiveCount = 0; // 重置计数，因为已经调整过了
+                        }
+                        return; // 直接返回，不再执行后续计数判断
+                    }
+
+                    // 常规处理：如果目标亮度发生了变化
+                    if (currentTarget != lastTargetBrightness) {
+                        consecutiveCount++;
+
+                        // 达到连续计数阈值，执行调整
+                        if (consecutiveCount >= configLmd) {
+                            setScreenBrightnessSmoothly(currentTarget);
+                            consecutiveCount = 0; // 调整完毕，重置计数
+                        }
+                    } else {
+                        // 如果环境亮度回到了当前档位，说明环境已稳定，重置计数
+                        consecutiveCount = 0;
                     }
                 }
             }

@@ -3,7 +3,7 @@
     package="com.myapp.autobrightness"
     android:targetSandboxVersion="2"
     android:versionCode="1"
-    android:versionName="2.1.20260124.0840" >
+    android:versionName="2.1.20260124.1112" >
 
     <uses-sdk
         android:minSdkVersion="25"
