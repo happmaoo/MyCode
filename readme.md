@@ -17,7 +17,7 @@ https://github.com/happmaoo/MyCode/tree/main/MyBleServer/app/build/outputs/apk/d
 https://github.com/happmaoo/MyCode/tree/main/MyBleClient/app/build/outputs/apk/debug/  
 
 ## MyFM 红米Note4x 的收音机APP
-红米Note4x和lineageOS自带的收音机不好用，自己写的代码，需要root，我的机子是 lineageOS15 安卓8.1版本，可能其他高版本不能使用请自己测试。  
+红米Note4x和lineageOS自带的收音机不好用，自己写的代码，需要root，我的机子是 lineageOS 15.1 安卓8.1版本，可能其他高版本不能使用请自己测试。  
 https://github.com/happmaoo/MyCode/tree/main/MyFM/app/release
 
 ## MyDeskNote 超小的桌面便签APP
