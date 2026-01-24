@@ -12,16 +12,16 @@ https://github.com/happmaoo/MyCode/tree/main/autobrightness/app/release
 https://github.com/happmaoo/MyCode/tree/main/clockwidget/app/release
 
 ## MyBleServer 和 MyBleClient 用于主机和备用机的蓝牙监测app
-可以在备用机上连接主力机的蓝牙数据网络，用在备用机没有网络连接的情况下，用wifi共享太费电了，还可以查看主力机的电池电量等情况。
+可以在备用机上连接主力机的蓝牙数据网络，用在备用机没有网络连接的情况下，用wifi共享太费电了，还可以查看主力机的电池电量等情况。  
 https://github.com/happmaoo/MyCode/tree/main/MyBleServer/app/build/outputs/apk/debug/  
 https://github.com/happmaoo/MyCode/tree/main/MyBleClient/app/build/outputs/apk/debug/  
 
 ## MyFM 红米Note4x 的收音机APP
-红米Note4x和lineageOS自带的收音机不好用，自己写的代码，需要root，我的机子是 lineageOS 安卓8版本(安卓8在系统流畅和兼容方面最佳)，可能其他高版本不能使用请自己测试。
+红米Note4x和lineageOS自带的收音机不好用，自己写的代码，需要root，我的机子是 lineageOS 安卓8版本(安卓8在系统流畅和兼容方面最佳)，可能其他高版本不能使用请自己测试。  
 https://github.com/happmaoo/MyCode/tree/main/MyFM/app/release
 
 ## MyDeskNote 超小的桌面便签APP
-功能简单，可以设置字体大小，可以很小，不占用桌面空间。
+功能简单，可以设置字体大小，可以很小，不占用桌面空间。  
 https://github.com/happmaoo/MyCode/tree/main/MyDeskNote/app/release
 
 ## MyAudioRecorder 录音机，可以手机录音也可以同一WIFI下电脑录音代替麦克风
