@@ -115,6 +115,10 @@ public class autobrightness extends Service {
 
                 lightLevel = event.values[0];
 
+
+
+
+
                 // 发送更新到 UI
                 Intent broadcastIntent = new Intent("com.myapp.LIGHT_LEVEL_UPDATE");
                 broadcastIntent.putExtra("lightLevel", lightLevel);
@@ -136,19 +140,19 @@ public class autobrightness extends Service {
                         }
 
 
-                        // 计算光线变动跨度
-                        float lightDiff = Math.abs(lightLevel - lastProcessedLightLevel);
 
-                        // 如果光线剧烈变化（跨度 > 50 lux）或者进入了新区间
-                        if (lightDiff > 50 || ruleLight != lastMatchedLightRule) {
+                        // 如果光线进入了新区间
+                        if (ruleLight != lastMatchedLightRule) {
                             consecutiveCount = 1;
                             lastMatchedLightRule = ruleLight;
                         } else {
                             consecutiveCount++;
                         }
 
-                        // 如果满足连续计数，或者光线剧烈变化，则立即调整亮度
-                        if (lightDiff > 50 || consecutiveCount >= configLmd) {
+                        //Log.i("TAG", "consecutiveCount:"+consecutiveCount+"configLmd: "+configLmd);
+
+                        // 如果满足连续计数,则立即调整亮度
+                        if (consecutiveCount >= configLmd) {
                             setScreenBrightnessSmoothly(ruleBrightness);
                             lastProcessedLightLevel = lightLevel; // 更新记录点
                         }
