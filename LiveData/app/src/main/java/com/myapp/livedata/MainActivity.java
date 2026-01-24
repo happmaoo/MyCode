@@ -53,6 +53,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onDestroy() {
+        if (messageObserver != null) {
+            DataManager.getInstance().getLiveDataMessage().removeObserver(messageObserver);
+            Log.i("Activity", "onDestroy: removeObserver");
+        }
+        super.onDestroy();
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
     }

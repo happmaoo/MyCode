@@ -21,6 +21,11 @@ public class MyService extends Service {
 
     private Observer<Pair<String, String>> messageObserver; // 添加观察者变量
 
+    @Override
+    public void onCreate() {
+        setupMessageObserver();
+        super.onCreate();
+    }
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -33,6 +38,7 @@ public class MyService extends Service {
     public void onDestroy() {
         if (messageObserver != null) {
             DataManager.getInstance().getLiveDataMessage().removeObserver(messageObserver);
+            Log.i("Service", "onDestroy: removeObserver");
         }
         super.onDestroy();
     }
@@ -40,7 +46,7 @@ public class MyService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
 
-        setupMessageObserver();
+
 
         createNotificationChannel();
 
