@@ -10,13 +10,17 @@ import android.os.IBinder;
 import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
+import androidx.core.util.Pair;
 import androidx.lifecycle.Observer;
 
 public class MyService extends Service {
 
     private static final int NOTIFICATION_ID = 1;
     private static final String CHANNEL_ID = "my_channel";
-    private static final String TAG = "MyService";
+    private static final String TAG = "Service";
+
+    private Observer<Pair<String, String>> messageObserver; // 添加观察者变量
+
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -26,7 +30,17 @@ public class MyService extends Service {
 
 
     @Override
+    public void onDestroy() {
+        if (messageObserver != null) {
+            DataManager.getInstance().getLiveDataMessage().removeObserver(messageObserver);
+        }
+        super.onDestroy();
+    }
+
+    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+
+        setupMessageObserver();
 
         createNotificationChannel();
 
@@ -40,20 +54,37 @@ public class MyService extends Service {
         startForeground(NOTIFICATION_ID, notification);
 
         // 发送数据 还可以在DataManager类中定义消息类型枚举，用来区分不同消息类型和来源
-        DataManager.getInstance().getLiveDataMessage().postValue("此消息来自 MyService.");
+        DataManager.getInstance().sendMessage("Service","我是 Service.");
 
 
-
-        // 监听数据变化 - 使用 observeForever
-        DataManager.getInstance().getLiveDataMessage().observeForever(new Observer<String>() {
-            @Override
-            public void onChanged(String newMessage) {
-                Log.i(TAG, "收到:" + newMessage);
-            }
-        });
 
 
         return START_STICKY;
+    }
+
+
+    // 设置消息观察者
+    private void setupMessageObserver() {
+        messageObserver = new Observer<Pair<String, String>>() {
+            @Override
+            public void onChanged(Pair<String, String> pair) {
+                if (pair != null) {
+                    String from = pair.first;
+                    String content = pair.second;
+                    //Log.i(TAG, "来自 " + from + " 的消息: " + content);
+
+                    if ("Service".equals(from)) {
+                        // 处理来自服务的消息
+                    } else if ("Activity".equals(from)) {
+                        // 处理来自Activity的消息
+                        Log.i(TAG, "收到消息: " + content);
+                    }
+                }
+            }
+        };
+
+        // 使用observeForever而不是observe
+        DataManager.getInstance().getLiveDataMessage().observeForever(messageObserver);
     }
 
     private void createNotificationChannel() {

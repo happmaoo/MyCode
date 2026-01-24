@@ -1,17 +1,26 @@
 package com.myapp.livedata;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.util.Pair;
+import androidx.lifecycle.Observer;
 
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
+import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
 
 public class MainActivity extends AppCompatActivity {
 
 
     Intent serviceIntent;
+    TextView textView;
+    Button btn;
+    private Observer<Pair<String, String>> messageObserver; // 添加观察者变量
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -19,16 +28,12 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
 
-        TextView textView = findViewById(R.id.textView_log);
-
-        // 监听数据变化
-        DataManager.getInstance().getLiveDataMessage().observe(this, newMessage -> {
-            textView.setText(newMessage);
-        });
+        textView = findViewById(R.id.textView_log);
+        btn = findViewById(R.id.btn_start);
 
 
 
-
+        setupMessageObserver();
 
         serviceIntent = new Intent(this, MyService.class);
 
@@ -38,17 +43,24 @@ public class MainActivity extends AppCompatActivity {
             startService(serviceIntent);
         }
 
+        btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                DataManager.getInstance().sendMessage("Activity","我是Activity.");
+            }
+        });
+
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        DataManager.getInstance().getLiveDataMessage().postValue("此消息来自 MainActivity.");
     }
 
     @Override
     protected void onStart() {
         super.onStart();
+
     }
 
     @Override
@@ -57,7 +69,27 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    // 设置消息观察者
+    private void setupMessageObserver() {
+        messageObserver = new Observer<Pair<String, String>>() {
+            @Override
+            public void onChanged(Pair<String, String> pair) {
+                if (pair != null) {
+                    String from = pair.first;
+                    String content = pair.second;
+                    //Log.i("TAG", "来自 " + from + " 的消息: " + content);
 
+                    if ("Service".equals(from)) {
+                        textView.setText(content);
+                        Log.i("Activity", "收到消息: " + content);
+                    }
+                }
+            }
+        };
+
+        // 使用observeForever而不是observe
+        DataManager.getInstance().getLiveDataMessage().observeForever(messageObserver);
+    }
 
 
 

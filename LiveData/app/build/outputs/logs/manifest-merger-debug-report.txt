@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-26:12
-INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-26:12
-INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-26:12
-INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-26:12
+ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-29:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-29:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-29:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-29:12
 MERGED from [androidx.constraintlayout:constraintlayout:2.1.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/bd29d58f5125c52777771c04ab43b1c7/constraintlayout-2.1.0/AndroidManifest.xml:2:1-11:12
 MERGED from [androidx.appcompat:appcompat:1.3.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/897c36cf5f6e43faaed425576a4a23cc/appcompat-1.3.1/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.fragment:fragment:1.3.6] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/c0fd0ebcf23e3371d02fa537f8cbbfb5/fragment-1.3.6/AndroidManifest.xml:17:1-24:12
@@ -28,25 +28,29 @@ MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.3.1] /home/happmaoo/.g
 MERGED from [androidx.arch.core:core-runtime:2.1.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/02e272269748a331fcc448332a33a66d/core-runtime-2.1.0/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.interpolator:interpolator:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/2e208f9141563db79bd49ce93534ac4d/interpolator-1.0.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.annotation:annotation-experimental:1.0.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/0a4c23a06b3dbfca19007c663bc138f3/jetified-annotation-experimental-1.0.0/AndroidManifest.xml:17:1-24:12
-INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-26:12
-INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-26:12
-INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-26:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-29:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-29:12
+INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-29:12
 	package
 		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:3:5-33
 		INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml
 		INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml
 	android:versionName
 		INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml
-		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-26:12
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-29:12
 		INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml
 	android:versionCode
 		INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml
-		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-26:12
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:1-29:12
 		INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml
 	xmlns:android
 		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:2:11-69
+uses-permission#android.permission.FOREGROUND_SERVICE
+ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:5:5-77
+	android:name
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:5:22-74
 application
-ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:5:5-24:19
+ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:8:5-27:19
 MERGED from [androidx.constraintlayout:constraintlayout:2.1.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/bd29d58f5125c52777771c04ab43b1c7/constraintlayout-2.1.0/AndroidManifest.xml:9:5-20
 MERGED from [androidx.constraintlayout:constraintlayout:2.1.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/bd29d58f5125c52777771c04ab43b1c7/constraintlayout-2.1.0/AndroidManifest.xml:9:5-20
 MERGED from [androidx.core:core:1.5.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/48cd7bd08e89712a0952f96bb9006374/core-1.5.0/AndroidManifest.xml:24:5-89
@@ -56,39 +60,39 @@ MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] /home/happm
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.5.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/48cd7bd08e89712a0952f96bb9006374/core-1.5.0/AndroidManifest.xml:24:18-86
 	android:supportsRtl
-		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:10:9-35
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:13:9-35
 	android:label
-		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:8:9-41
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:11:9-41
 	android:roundIcon
-		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:9:9-54
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:12:9-54
 	android:icon
-		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:7:9-43
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:10:9-43
 	android:allowBackup
-		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:6:9-35
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:9:9-35
 	android:theme
-		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:11:9-40
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:14:9-40
 service#com.myapp.livedata.MyService
-ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:12:9-15:47
+ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:15:9-18:47
 	android:enabled
-		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:14:13-35
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:17:13-35
 	android:exported
-		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:15:13-36
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:18:13-36
 	android:name
-		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:13:13-38
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:16:13-38
 activity#com.myapp.livedata.MainActivity
-ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:17:9-23:20
+ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:20:9-26:20
 	android:name
-		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:17:19-47
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:20:19-47
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:18:13-22:29
+ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:21:13-25:29
 action#android.intent.action.MAIN
-ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:19:17-69
+ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:22:17-69
 	android:name
-		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:19:25-66
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:22:25-66
 category#android.intent.category.LAUNCHER
-ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:21:17-77
+ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:24:17-77
 	android:name
-		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:21:27-74
+		ADDED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml:24:27-74
 uses-sdk
 INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /home/happmaoo/AndroidStudioProjects/LiveData/app/src/main/AndroidManifest.xml
