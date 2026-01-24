@@ -168,6 +168,16 @@ public class MainActivity extends AppCompatActivity {
             addScanList(scanlist);
             myapp.setString("plistfile",plistfile);
         }
+
+
+        // 其他信息处理
+        Matcher matcher_INFO = Pattern.compile("INFO:(.*)").matcher(message);
+        if (matcher_INFO.find()) {
+            String info = matcher_INFO.group(1);
+            tvName.setText(info);
+        }
+
+
     }
 
     // 接收服务发送的状态
@@ -346,9 +356,9 @@ public class MainActivity extends AppCompatActivity {
                 tvInfo.setText("SCANING...");
                 btnScan.setEnabled(false);
 
+                // 移除所有按钮
                 FlexboxLayout flexboxLayoutButtons = findViewById(R.id.flexboxLayoutButtons);
-                flexboxLayoutButtons.removeAllViews(); // 移除所有按钮
-                //flexboxLayoutButtons.setVisibility(View.GONE); // 隐藏整个布局
+                flexboxLayoutButtons.removeAllViews();
             }
         });
 

@@ -140,6 +140,7 @@
                     android:layout_height="30dp"
                     android:textSize="10sp"
                     android:padding="0dp"
+                    android:textColor="#167c80"
                     android:textOn="●"
                 android:textOff="○" />
 

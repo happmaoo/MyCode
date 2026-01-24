@@ -577,6 +577,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
             Thread.sleep(100);
 
         } catch (Exception e) {
+            onMessageReceived("INFO:root 权限错误.");
             e.printStackTrace();
         }
     }

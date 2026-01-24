@@ -168,6 +168,16 @@ public class MainActivity extends AppCompatActivity {
             addScanList(scanlist);
             myapp.setString("plistfile",plistfile);
         }
+
+
+        // 其他信息处理
+        Matcher matcher_INFO = Pattern.compile("INFO:(.*)").matcher(message);
+        if (matcher_INFO.find()) {
+            String info = matcher_INFO.group(1);
+            tvName.setText(info);
+        }
+
+
     }
 
     // 接收服务发送的状态
