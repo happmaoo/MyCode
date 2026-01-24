@@ -2,7 +2,7 @@
 2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 3    package="com.myapp.myfm"
 4    android:versionCode="2"
-5    android:versionName="2.1.20260124.1040" >
+5    android:versionName="2.1.20260124.1211" >
 6
 7    <uses-sdk
 8        android:minSdkVersion="25"
@@ -43,62 +43,65 @@
 21    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 21-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:6:5-80
 21-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:6:22-77
-22
-23    <application
-23-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:18:5-43:19
-24        android:name="com.myapp.myfm.MyFmApp"
-24-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:19:9-32
-25        android:allowBackup="true"
-25-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:20:9-35
-26        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
-26-->[androidx.core:core:1.6.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/22398bac318b43860c740d0df5d9af4a/core-1.6.0/AndroidManifest.xml:24:18-86
-27        android:debuggable="true"
-28        android:extractNativeLibs="false"
-29        android:icon="@mipmap/ic_launcher"
-29-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:21:9-43
-30        android:label="@string/app_name"
-30-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:22:9-41
-31        android:roundIcon="@mipmap/ic_launcher_round"
-31-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:23:9-54
-32        android:supportsRtl="true"
-32-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:24:9-35
-33        android:testOnly="true"
-34        android:theme="@style/AppTheme" >
-34-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:25:9-40
-35        <activity android:name="com.myapp.myfm.SettingActivity" />
-35-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:26:9-62
-35-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:26:19-50
-36        <activity android:name="com.myapp.myfm.MainActivity" >
-36-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:27:9-33:20
-36-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:27:19-47
-37            <intent-filter>
-37-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:28:13-32:29
-38                <action android:name="android.intent.action.MAIN" />
-38-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:29:17-69
-38-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:29:25-66
-39
-40                <category android:name="android.intent.category.LAUNCHER" />
-40-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:31:17-77
-40-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:31:27-74
-41            </intent-filter>
-42        </activity>
-43        <activity
-43-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:34:9-36:58
-44            android:name="com.myapp.myfm.FileEdit"
-44-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:35:13-37
-45            android:windowSoftInputMode="adjustResize" />
-45-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:36:13-55
-46
-47        <service
-47-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:38:9-42:61
-48            android:name="com.myapp.myfm.FMService"
-48-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:39:13-38
-49            android:enabled="true"
-49-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:40:13-35
-50            android:exported="false"
-50-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:41:13-37
-51            android:foregroundServiceType="mediaPlayback" />
-51-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:42:13-58
-52    </application>
-53
-54</manifest>
+22    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+22-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:9:5-88
+22-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:9:22-85
+23
+24    <application
+24-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:19:5-44:19
+25        android:name="com.myapp.myfm.MyFmApp"
+25-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:20:9-32
+26        android:allowBackup="true"
+26-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:21:9-35
+27        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+27-->[androidx.core:core:1.6.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/22398bac318b43860c740d0df5d9af4a/core-1.6.0/AndroidManifest.xml:24:18-86
+28        android:debuggable="true"
+29        android:extractNativeLibs="false"
+30        android:icon="@mipmap/ic_launcher"
+30-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:22:9-43
+31        android:label="@string/app_name"
+31-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:23:9-41
+32        android:roundIcon="@mipmap/ic_launcher_round"
+32-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:24:9-54
+33        android:supportsRtl="true"
+33-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:25:9-35
+34        android:testOnly="true"
+35        android:theme="@style/AppTheme" >
+35-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:26:9-40
+36        <activity android:name="com.myapp.myfm.SettingActivity" />
+36-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:27:9-62
+36-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:27:19-50
+37        <activity android:name="com.myapp.myfm.MainActivity" >
+37-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:28:9-34:20
+37-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:28:19-47
+38            <intent-filter>
+38-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:29:13-33:29
+39                <action android:name="android.intent.action.MAIN" />
+39-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:30:17-69
+39-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:30:25-66
+40
+41                <category android:name="android.intent.category.LAUNCHER" />
+41-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:32:17-77
+41-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:32:27-74
+42            </intent-filter>
+43        </activity>
+44        <activity
+44-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:35:9-37:58
+45            android:name="com.myapp.myfm.FileEdit"
+45-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:36:13-37
+46            android:windowSoftInputMode="adjustResize" />
+46-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:37:13-55
+47
+48        <service
+48-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:39:9-43:61
+49            android:name="com.myapp.myfm.FMService"
+49-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:40:13-38
+50            android:enabled="true"
+50-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:41:13-35
+51            android:exported="false"
+51-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:42:13-37
+52            android:foregroundServiceType="mediaPlayback" />
+52-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:43:13-58
+53    </application>
+54
+55</manifest>

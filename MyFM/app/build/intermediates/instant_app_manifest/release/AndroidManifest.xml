@@ -3,7 +3,7 @@
     package="com.myapp.myfm"
     android:targetSandboxVersion="2"
     android:versionCode="2"
-    android:versionName="2.1.20260124.1041" >
+    android:versionName="2.1.20260124.1212" >
 
     <uses-sdk
         android:minSdkVersion="25"
@@ -20,6 +20,7 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <application
         android:name="com.myapp.myfm.MyFmApp"

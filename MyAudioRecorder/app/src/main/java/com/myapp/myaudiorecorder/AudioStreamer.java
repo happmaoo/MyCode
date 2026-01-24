@@ -17,7 +17,7 @@ import java.nio.ByteBuffer;
 public class AudioStreamer {
     private static final String MIME_TYPE = MediaFormat.MIMETYPE_AUDIO_AAC;
     private static final int SAMPLE_RATE = 44100;
-    private static final int BIT_RATE = 96000;
+    private static final int BIT_RATE = 96000;//96kbps
     private static final int CHANNEL_COUNT = 1;
 
     private AudioRecord audioRecord;

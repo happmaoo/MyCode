@@ -1,4 +1,4 @@
-#Thu Jan 22 14:41:31 CST 2026
+#Sat Jan 24 12:10:15 CST 2026
 base.0=/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/build/intermediates/dex/debug/mergeExtDexDebug/out/classes.dex
 path.1=classes.dex
 renamed.1=classes2.dex
