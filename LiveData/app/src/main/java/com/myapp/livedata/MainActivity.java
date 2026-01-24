@@ -32,9 +32,6 @@ public class MainActivity extends AppCompatActivity {
         btn = findViewById(R.id.btn_start);
 
 
-
-        setupMessageObserver();
-
         serviceIntent = new Intent(this, MyService.class);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -46,18 +43,35 @@ public class MainActivity extends AppCompatActivity {
         btn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                //发送消息
                 DataManager.getInstance().sendMessage("Activity","我是Activity.");
             }
         });
+
+
+
+        // Activity：使用生命周期感知的 observe 自动注销
+        DataManager.getInstance().getLiveDataMessage().observe(this, new Observer<Pair<String, String>>() {
+            @Override
+            public void onChanged(Pair<String, String> pair) {
+                if (pair != null) {
+                    String from = pair.first;
+                    String content = pair.second;
+                    //Log.i("TAG", "来自 " + from + " 的消息: " + content);
+
+                    if ("Service".equals(from)) {
+                        textView.setText(content);
+                        Log.i("Activity", "收到消息: " + content);
+                    }
+                }
+            }
+        });
+
 
     }
 
     @Override
     protected void onDestroy() {
-        if (messageObserver != null) {
-            DataManager.getInstance().getLiveDataMessage().removeObserver(messageObserver);
-            Log.i("Activity", "onDestroy: removeObserver");
-        }
         super.onDestroy();
     }
 
@@ -77,29 +91,6 @@ public class MainActivity extends AppCompatActivity {
         super.onStop();
 
     }
-
-    // 设置消息观察者
-    private void setupMessageObserver() {
-        messageObserver = new Observer<Pair<String, String>>() {
-            @Override
-            public void onChanged(Pair<String, String> pair) {
-                if (pair != null) {
-                    String from = pair.first;
-                    String content = pair.second;
-                    //Log.i("TAG", "来自 " + from + " 的消息: " + content);
-
-                    if ("Service".equals(from)) {
-                        textView.setText(content);
-                        Log.i("Activity", "收到消息: " + content);
-                    }
-                }
-            }
-        };
-
-        // 使用observeForever而不是observe
-        DataManager.getInstance().getLiveDataMessage().observeForever(messageObserver);
-    }
-
 
 
 }

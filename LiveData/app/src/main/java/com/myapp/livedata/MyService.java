@@ -59,7 +59,7 @@ public class MyService extends Service {
 
         startForeground(NOTIFICATION_ID, notification);
 
-        // 发送数据 还可以在DataManager类中定义消息类型枚举，用来区分不同消息类型和来源
+        // 发送数据
         DataManager.getInstance().sendMessage("Service","我是 Service.");
 
 
@@ -69,7 +69,7 @@ public class MyService extends Service {
     }
 
 
-    // 设置消息观察者
+    // Service: 设置消息观察者,需手动注册/注销
     private void setupMessageObserver() {
         messageObserver = new Observer<Pair<String, String>>() {
             @Override
@@ -88,10 +88,12 @@ public class MyService extends Service {
                 }
             }
         };
-
-        // 使用observeForever而不是observe
+        // 使用observeForever
         DataManager.getInstance().getLiveDataMessage().observeForever(messageObserver);
     }
+
+
+
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
