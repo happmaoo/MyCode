@@ -68,7 +68,6 @@ public class MainActivity extends AppCompatActivity {
     // FileEdit 界面返回参数
     private static final int FILE_EDIT_REQUEST_CODE = 1001;
 
-
     TextView tvFreq;
     TextView tvInfo,tvName;
     Button btnPower,btnPre,btnNext,btnTuneDown,btnTuneUp,btnEdit,btnScan,btnMenu;
@@ -100,7 +99,7 @@ public class MainActivity extends AppCompatActivity {
     private Thread browsingThread;
 
 
-    // ------------------------- 广播接收器 ---------------------------
+    // ------------------------- 广播接收器  ---------------------------
     private final BroadcastReceiver fmReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -873,7 +872,6 @@ public class MainActivity extends AppCompatActivity {
             writer.write(defaultContent);
         } catch (IOException e) {
             e.printStackTrace();
-            // 写入失败处理
         }
     }
 

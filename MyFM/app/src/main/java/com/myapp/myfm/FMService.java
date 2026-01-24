@@ -164,6 +164,70 @@ public class FMService extends Service implements FMClient.MessageCallback {
         System.exit(0);
     }
 
+
+
+
+    // 音频焦点
+    private AudioManager.OnAudioFocusChangeListener audioFocusChangeListener = new AudioManager.OnAudioFocusChangeListener() {
+        @Override
+        public void onAudioFocusChange(int focusChange) {
+            switch (focusChange) {
+                case AudioManager.AUDIOFOCUS_GAIN:
+                    // 重新获得焦点：恢复播放或恢复音量
+                    Log.d(TAG, "AudioFocus: GAIN");
+                    if (!isRunning && "PLAY".equals(playstatus)) {
+                        startLoopback();
+                    }
+                    if (audioTrack != null) {
+                        audioTrack.setStereoVolume(1.0f, 1.0f); // 恢复正常音量
+                    }
+                    break;
+
+                case AudioManager.AUDIOFOCUS_LOSS:
+                    // 永久失去焦点（如其他播放器启动）：停止播放
+                    Log.d(TAG, "AudioFocus: LOSS");
+                    Intent intent = new Intent(ACTION_SERVICE_CMD);
+                    intent.putExtra("cmd", "pause");
+                    intent.setPackage(getPackageName());
+                    sendBroadcast(intent);
+                    break;
+
+                case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
+                    // 短暂失去焦点（如来电）：暂停音频流，但不销毁
+                    Log.d(TAG, "AudioFocus: LOSS_TRANSIENT");
+                    stopLoopback();
+                    break;
+
+                case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+                    // 允许共存但需减小音量（如导航播报）：
+                    Log.d(TAG, "AudioFocus: DUCK");
+                    if (audioTrack != null) {
+                        audioTrack.setStereoVolume(0.2f, 0.2f); // 降低音量到 20%
+                    }
+                    break;
+            }
+        }
+    };
+
+
+    private boolean requestAudioFocus() {
+        if (audioManager == null) return false;
+
+        int result = audioManager.requestAudioFocus(
+                audioFocusChangeListener,
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN // 长期占用
+        );
+
+        return result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
+    }
+
+    private void abandonAudioFocus() {
+        if (audioManager != null) {
+            audioManager.abandonAudioFocus(audioFocusChangeListener);
+        }
+    }
+
     /**
      * 启动前台服务通知 (适配 Android 7 - 14)
      */
@@ -559,6 +623,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
                 }
                 if("stop".equals(cmd)){
                     Log.d(TAG, "通过通知栏停止服务");
+                    abandonAudioFocus();
                     sendFmCommand("QUIT");
                     stopLoopback();
                     // 1. 立即取消通知栏
@@ -572,6 +637,12 @@ public class FMService extends Service implements FMClient.MessageCallback {
                     System.exit(0);
                 }
                 if("start".equals(cmd)){
+
+                    // 请求音频焦点
+                    if (!requestAudioFocus()) {
+                        Log.e(TAG, "无法获取音频焦点，启动失败");
+                        return;
+                    }
 
                     if (!isRunning) {
                         String fmPath = installFMExecutable();
@@ -596,6 +667,7 @@ public class FMService extends Service implements FMClient.MessageCallback {
                     NotificationToggleIcon = 0;
                 }
                 if("pause".equals(cmd)){
+                    abandonAudioFocus();
                     sendFmCommand("QUIT");
                     stopLoopback();
 
