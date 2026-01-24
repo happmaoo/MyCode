@@ -345,6 +345,10 @@ public class MainActivity extends AppCompatActivity {
                 fmService.sendFmCommand("SCAN");
                 tvInfo.setText("SCANING...");
                 btnScan.setEnabled(false);
+
+                // 移除所有按钮
+                FlexboxLayout flexboxLayoutButtons = findViewById(R.id.flexboxLayoutButtons);
+                flexboxLayoutButtons.removeAllViews();
             }
         });
 
