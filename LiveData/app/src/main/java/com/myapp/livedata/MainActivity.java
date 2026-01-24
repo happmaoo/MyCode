@@ -57,7 +57,6 @@ public class MainActivity extends AppCompatActivity {
                 if (pair != null) {
                     String from = pair.first;
                     String content = pair.second;
-                    //Log.i("TAG", "来自 " + from + " 的消息: " + content);
 
                     if ("Service".equals(from)) {
                         textView.setText(content);

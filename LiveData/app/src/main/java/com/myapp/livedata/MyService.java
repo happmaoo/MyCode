@@ -77,7 +77,7 @@ public class MyService extends Service {
                 if (pair != null) {
                     String from = pair.first;
                     String content = pair.second;
-                    //Log.i(TAG, "来自 " + from + " 的消息: " + content);
+                    //Log.i(TAG, "messageObserver log: " + from + " 发来: " + content);
 
                     if ("Activity".equals(from)) {
                         // 处理来自Activity的消息
