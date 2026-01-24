@@ -79,9 +79,7 @@ public class MyService extends Service {
                     String content = pair.second;
                     //Log.i(TAG, "来自 " + from + " 的消息: " + content);
 
-                    if ("Service".equals(from)) {
-                        // 处理来自服务的消息
-                    } else if ("Activity".equals(from)) {
+                    if ("Activity".equals(from)) {
                         // 处理来自Activity的消息
                         Log.i(TAG, "收到消息: " + content);
                     }
