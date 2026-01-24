@@ -1,0 +1,164 @@
+package com.myapp.myaudiorecorder;
+
+import android.media.AudioFormat;
+import android.media.AudioRecord;
+import android.media.MediaCodec;
+import android.media.MediaCodecInfo;
+import android.media.MediaFormat;
+import android.media.MediaRecorder;
+import android.os.Handler;
+import android.util.Log;
+
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.nio.ByteBuffer;
+
+public class AudioStreamer {
+    private static final String MIME_TYPE = MediaFormat.MIMETYPE_AUDIO_AAC;
+    private static final int SAMPLE_RATE = 44100;
+    private static final int BIT_RATE = 96000;
+    private static final int CHANNEL_COUNT = 1;
+
+    private AudioRecord audioRecord;
+    private MediaCodec mediaCodec;
+    private boolean isRecording = false;
+    private String serverIp;
+    private int serverPort;
+
+    private long startTime;
+    private Handler timerHandler = new Handler();
+    private Runnable timerRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (isRecording) {
+                long millis = System.currentTimeMillis() - startTime;
+                int seconds = (int) (millis / 1000);
+                int minutes = seconds / 60;
+                seconds = seconds % 60;
+                DataManager.getInstance().sendMessage("AudioStreamer", String.format("当前录制时长: %02d:%02d", minutes, seconds));
+                timerHandler.postDelayed(this, 1000);
+            }
+        }
+    };
+
+    public AudioStreamer(String ip, int port) {
+        this.serverIp = ip;
+        this.serverPort = port;
+    }
+
+    public void start() {
+        isRecording = true;
+        new Thread(this::recordingLoop).start();
+    }
+
+    public void stop() {
+        isRecording = false;
+    }
+
+    private void recordingLoop() {
+        DatagramSocket socket = null; // 改用 UDP Socket
+        InetAddress address;
+
+        try {
+            DataManager.getInstance().sendMessage("AudioStreamer", "UDP 准备中");
+
+            // 1. 初始化 UDP
+            socket = new DatagramSocket();
+            address = InetAddress.getByName(serverIp);
+
+            startTime = System.currentTimeMillis();
+            timerHandler.postDelayed(timerRunnable, 0);
+
+            // 2. 初始化 AudioRecord
+            int bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE,
+                    AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+            audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC,
+                    SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
+
+            // 3. 初始化 MediaCodec
+            MediaFormat format = MediaFormat.createAudioFormat(MIME_TYPE, SAMPLE_RATE, CHANNEL_COUNT);
+            format.setInteger(MediaFormat.KEY_BIT_RATE, BIT_RATE);
+            format.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC);
+            format.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, bufferSize);
+
+            mediaCodec = MediaCodec.createEncoderByType(MIME_TYPE);
+            mediaCodec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+            mediaCodec.start();
+
+            audioRecord.startRecording();
+
+            byte[] pcmBuffer = new byte[bufferSize];
+            MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
+
+            while (isRecording) {
+                int readSize = audioRecord.read(pcmBuffer, 0, pcmBuffer.length);
+                if (readSize > 0) {
+                    int inputBufferIndex = mediaCodec.dequeueInputBuffer(10000);
+                    if (inputBufferIndex >= 0) {
+                        ByteBuffer inputBuffer = mediaCodec.getInputBuffer(inputBufferIndex);
+                        inputBuffer.clear();
+                        inputBuffer.put(pcmBuffer, 0, readSize);
+                        mediaCodec.queueInputBuffer(inputBufferIndex, 0, readSize, System.nanoTime() / 1000, 0);
+                    }
+                }
+
+                int outputBufferIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, 10000);
+                while (outputBufferIndex >= 0) {
+                    ByteBuffer outputBuffer = mediaCodec.getOutputBuffer(outputBufferIndex);
+                    int outPacketSize = bufferInfo.size + 7;
+
+                    byte[] outData = new byte[outPacketSize];
+                    addADTStoPacket(outData, outPacketSize);
+                    outputBuffer.get(outData, 7, bufferInfo.size);
+
+                    // 4. 通过 UDP 发送数据包
+                    DatagramPacket packet = new DatagramPacket(outData, outPacketSize, address, serverPort);
+                    socket.send(packet);
+
+                    mediaCodec.releaseOutputBuffer(outputBufferIndex, false);
+                    outputBufferIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, 0);
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            DataManager.getInstance().sendMessage("AudioStreamer", "发送异常");
+            timerHandler.removeCallbacks(timerRunnable);
+        } finally {
+            cleanup(socket);
+        }
+    }
+
+    private void addADTStoPacket(byte[] packet, int packetLen) {
+        int profile = 2;  // AAC LC
+        int freqIdx = 4;  // 44.1KHz
+        int chanCfg = 1;  // Mono
+
+        packet[0] = (byte)0xFF;
+        packet[1] = (byte)0xF1;
+        packet[2] = (byte)(((profile-1)<<6) + (freqIdx<<2) +(chanCfg>>2));
+        packet[3] = (byte)(((chanCfg&3)<<6) + (packetLen>>11));
+        packet[4] = (byte)((packetLen&0x7FF) >> 3);
+        packet[5] = (byte)(((packetLen&7)<<5) + 0x1F);
+        packet[6] = (byte)0xFC;
+    }
+
+    private void cleanup(DatagramSocket s) {
+        try {
+            if (audioRecord != null) {
+                audioRecord.stop();
+                audioRecord.release();
+            }
+            if (mediaCodec != null) {
+                mediaCodec.stop();
+                mediaCodec.release();
+            }
+            if (s != null) {
+                s.close();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}

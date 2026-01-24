@@ -1,0 +1,4 @@
+#Thu Jan 22 14:42:29 CST 2026
+base.0=/home/happmaoo/AndroidStudioProjects/MyAudioRecorder/app/build/intermediates/dex/release/out/classes.dex
+path.0=classes.dex
+renamed.0=classes.dex

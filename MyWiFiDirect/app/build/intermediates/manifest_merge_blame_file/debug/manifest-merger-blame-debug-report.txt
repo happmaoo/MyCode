@@ -1,0 +1,90 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.myapp.mywifidirect"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="25"
+8-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml
+9        android:targetSdkVersion="29" />
+9-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml
+10
+11    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+11-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:5:5-76
+11-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:5:22-73
+12    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+12-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:6:5-76
+12-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:6:22-73
+13    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+13-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:7:5-79
+13-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:7:22-76
+14    <uses-permission android:name="android.permission.INTERNET" />
+14-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:8:5-67
+14-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:8:22-64
+15    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+15-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:9:5-77
+15-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:9:22-74
+16    <uses-permission android:name="android.permission.INTERNET" />
+16-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:8:5-67
+16-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:8:22-64
+17    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+17-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:5:5-76
+17-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:5:22-73
+18    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+18-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:6:5-76
+18-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:6:22-73
+19    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+19-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:9:5-77
+19-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:9:22-74
+20    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+20-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:7:5-79
+20-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:7:22-76
+21
+22    <application
+22-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:20:5-42:19
+23        android:allowBackup="true"
+23-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:21:9-35
+24        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+24-->[androidx.core:core:1.1.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/da95e0dd41fd0c634661df2a0f122634/core-1.1.0/AndroidManifest.xml:24:18-86
+25        android:debuggable="true"
+26        android:extractNativeLibs="false"
+27        android:icon="@mipmap/ic_launcher"
+27-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:22:9-43
+28        android:label="@string/app_name"
+28-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:23:9-41
+29        android:roundIcon="@mipmap/ic_launcher_round"
+29-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:24:9-54
+30        android:supportsRtl="true"
+30-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:25:9-35
+31        android:testOnly="true"
+32        android:theme="@style/AppTheme" >
+32-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:26:9-40
+33        <activity android:name="com.myapp.mywifidirect.MainActivity" >
+33-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:27:9-33:20
+33-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:27:19-47
+34            <intent-filter>
+34-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:28:13-32:29
+35                <action android:name="android.intent.action.MAIN" />
+35-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:29:17-69
+35-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:29:25-66
+36
+37                <category android:name="android.intent.category.LAUNCHER" />
+37-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:31:17-77
+37-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:31:27-74
+38            </intent-filter>
+39        </activity>
+40
+41        <service
+41-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:36:9-40:63
+42            android:name="com.myapp.mywifidirect.WiFiDirectService"
+42-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:37:13-46
+43            android:enabled="true"
+43-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:38:13-35
+44            android:exported="false"
+44-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:39:13-37
+45            android:foregroundServiceType="connectedDevice" />
+45-->/home/happmaoo/AndroidStudioProjects/MyWiFiDirect/app/src/main/AndroidManifest.xml:40:13-60
+46    </application>
+47
+48</manifest>

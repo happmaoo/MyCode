@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:padding="16dp"
+    tools:context=".MainActivity">
+
+
+    <RadioGroup
+        android:id="@+id/RadioGroup"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <RadioButton
+            android:id="@+id/radioButton_loc"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="本地" />
+
+        <RadioButton
+            android:id="@+id/radioButton_net"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="网络" />
+    </RadioGroup>
+
+
+    <LinearLayout
+        android:id="@+id/layout_local"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/textView_local"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="保存文件地址:" />
+
+        <EditText
+            android:id="@+id/editText_local"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:enabled="false"
+            android:text="/sdcard/..." />
+
+    </LinearLayout>
+
+
+    <LinearLayout
+        android:id="@+id/layout_net"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/textView_net_help"
+            android:typeface="monospace"
+            android:fontFamily="monospace"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textIsSelectable="true"
+            android:text="@string/sample_string" />
+
+
+        <LinearLayout
+            android:id="@+id/layout_net2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/textView_net"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="电脑IP:端口:" />
+
+        <EditText
+        android:id="@+id/editText_net"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="192.168.0.1:7777" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+
+    <TextView
+        android:id="@+id/textView_log"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:text="log" />
+
+    <Button
+        android:id="@+id/btn_start"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:enabled="true"
+        android:text="Start" />
+
+
+</LinearLayout>

@@ -1,0 +1,79 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 29
+    buildToolsVersion "29.0.3"
+
+    defaultConfig {
+        applicationId "com.myapp.myfm"
+        minSdkVersion 25
+        targetSdkVersion 29
+        versionCode 2
+        //versionName "2.1"
+
+        def currentTime = new Date().format("yyyyMMdd.HHmm", TimeZone.getTimeZone("GMT+8"))
+        versionName "2.1.${currentTime}"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            // 禁用 testOnly 属性
+            testCoverageEnabled false
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    task copyFilesToAssets(type: Copy) {
+        // 每次运行前强制清理目标目录
+        doFirst {
+            delete "${projectDir}/src/main/assets/"
+        }
+
+        from("${project.rootDir}/fm_service/") {
+            include "fm_service"
+            include "CMakeLists.txt"
+            include "fm_service.c"
+            include "clean.sh"
+            include "make.sh"
+        }
+
+        from("${project.rootDir}") {
+            include "app/src/main/java/**"
+            include "app/src/main/res/**"
+            include "app/src/main/AndroidManifest.xml"
+        }
+
+
+        into "${projectDir}/src/main/assets/"
+        includeEmptyDirs = false
+    }
+
+    project.afterEvaluate {
+        tasks.matching { it.name.startsWith('generate') && it.name.contains('Assets') }.all {
+            dependsOn copyFilesToAssets
+        }
+    }
+}
+
+dependencies {
+    implementation files('libs/flexbox-3.0.0.aar')
+
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    implementation "androidx.media:media:1.7.0"
+
+    implementation 'androidx.appcompat:appcompat:1.0.2'
+    implementation 'androidx.constraintlayout:constraintlayout:1.1.3'
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
+}

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/menu_plist1"
+        android:title="电台列表 - 1" />
+
+    <item
+        android:id="@+id/menu_plist2"
+        android:title="电台列表 - 2" />
+
+    <item
+        android:id="@+id/menu_plist3"
+        android:title="电台列表 - 临时" />
+
+
+    <item
+        android:id="@+id/menu_settings"
+        android:title="设置" />
+    <item
+        android:id="@+id/menu_editlist"
+        android:title="编辑电台列表" />
+
+    <item
+        android:id="@+id/menu_about"
+        android:title="使用帮助和关于" />
+
+</menu>
