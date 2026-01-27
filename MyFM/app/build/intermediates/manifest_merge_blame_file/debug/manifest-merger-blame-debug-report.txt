@@ -2,7 +2,7 @@
 2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 3    package="com.myapp.myfm"
 4    android:versionCode="2"
-5    android:versionName="2.1.20260124.1518" >
+5    android:versionName="2.1.20260127.1055" >
 6
 7    <uses-sdk
 8        android:minSdkVersion="25"
@@ -93,15 +93,15 @@
 46-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:37:13-55
 47
 48        <service
-48-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:39:9-43:61
+48-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:39:9-43:57
 49            android:name="com.myapp.myfm.FMService"
 49-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:40:13-38
 50            android:enabled="true"
 50-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:41:13-35
 51            android:exported="false"
 51-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:42:13-37
-52            android:foregroundServiceType="mediaPlayback" />
-52-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:43:13-58
+52            android:foregroundServiceType="microphone" />
+52-->/home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:43:13-55
 53    </application>
 54
 55</manifest>

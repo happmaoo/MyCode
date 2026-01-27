@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.myapp.myfm"
     android:versionCode="2"
-    android:versionName="2.1.20260124.1519" >
+    android:versionName="2.1.20260127.1040" >
 
     <uses-sdk
         android:minSdkVersion="25"
@@ -47,7 +47,7 @@
             android:name="com.myapp.myfm.FMService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="microphone" />
     </application>
 
 </manifest>

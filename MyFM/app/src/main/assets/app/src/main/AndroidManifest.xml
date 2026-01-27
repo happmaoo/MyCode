@@ -40,7 +40,7 @@
             android:name=".FMService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="microphone"/>
     </application>
 
 </manifest>
