@@ -20,7 +20,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public class MainActivity extends AppCompatActivity {
-    private ScreenOffReceiver screenOffReceiver;
     private TextView lightLevelTextView;
 
     SharedPreferences sharedPref;
@@ -95,12 +94,6 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-        // 初始化并注册屏幕状态广播接收器
-        screenOffReceiver = new ScreenOffReceiver();
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(Intent.ACTION_SCREEN_OFF); // 监听屏幕关闭
-        filter.addAction(Intent.ACTION_SCREEN_ON);  // 监听屏幕开启
-        //registerReceiver(screenOffReceiver, filter);
 
 
         Intent serviceIntent = new Intent(this, autobrightness.class);
@@ -128,7 +121,6 @@ public class MainActivity extends AppCompatActivity {
         if(enableapp){
 
             checkbox.setChecked(true);
-            registerReceiver(screenOffReceiver, filter);
             // 针对 API 26 及更高版本，使用 startForegroundService
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent);
@@ -149,7 +141,6 @@ public class MainActivity extends AppCompatActivity {
                 editor.apply();
                 Toast.makeText(MainActivity.this, "已启用.", Toast.LENGTH_SHORT).show();
 
-                registerReceiver(screenOffReceiver, filter);
                 // 针对 API 26 及更高版本，使用 startForegroundService
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     startForegroundService(serviceIntent);
@@ -165,7 +156,6 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(MainActivity.this, "已停用.", Toast.LENGTH_SHORT).show();
 
                 stopService(serviceIntent);
-                unregisterReceiver(screenOffReceiver);
                 unregisterReceiver(lightLevelReceiver);
             }
         });
@@ -195,7 +185,6 @@ public class MainActivity extends AppCompatActivity {
         stopService(serviceIntent);
         unregisterReceiver(lightLevelReceiver);
 
-        screenOffReceiver = new ScreenOffReceiver();
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_SCREEN_OFF); // 监听屏幕关闭
         filter.addAction(Intent.ACTION_SCREEN_ON);  // 监听屏幕开启
@@ -210,7 +199,6 @@ public class MainActivity extends AppCompatActivity {
         String config = sharedPref.getString("config", null);
         serviceIntent.putExtra("arg-config", config);
 
-        registerReceiver(screenOffReceiver, filter);
         // 针对 API 26 及更高版本，使用 startForegroundService
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent);
@@ -246,7 +234,6 @@ public class MainActivity extends AppCompatActivity {
         Log.d("TAG", "MainActivity, onPause");
         try {
             unregisterReceiver(lightLevelReceiver);
-            unregisterReceiver(screenOffReceiver);
         } catch (IllegalArgumentException e) {
             // 已经注销过了，无视即可
 

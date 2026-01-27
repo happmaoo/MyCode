@@ -8,6 +8,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Build;
 import android.os.IBinder;
 import android.hardware.Sensor;
@@ -30,6 +31,9 @@ public class autobrightness extends Service {
     private Sensor lightSensor;
     private SensorEventListener lightSensorListener;
 
+
+    private ScreenOffReceiver screenOffReceiver;
+
     // --- 成员变量声明 (解决 Cannot resolve symbol 错误) ---
     private List<int[]> cachedConfigData = new ArrayList<>();
     private int configLmd = 3;
@@ -48,6 +52,15 @@ public class autobrightness extends Service {
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
+
+
+
+        // 初始化并注册屏幕状态广播接收器
+        screenOffReceiver = new ScreenOffReceiver();
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_SCREEN_OFF); // 监听屏幕关闭
+        filter.addAction(Intent.ACTION_SCREEN_ON);  // 监听屏幕开启
+        registerReceiver(screenOffReceiver, filter);
     }
 
     // --- 改进的解析逻辑：支持排序，确保匹配准确 ---
@@ -205,8 +218,12 @@ public class autobrightness extends Service {
 
     @Override
     public void onDestroy() {
-        super.onDestroy();
+
         if (sensorManager != null) sensorManager.unregisterListener(lightSensorListener);
+
+        unregisterReceiver(screenOffReceiver);
+
+        super.onDestroy();
     }
 
     @Override
