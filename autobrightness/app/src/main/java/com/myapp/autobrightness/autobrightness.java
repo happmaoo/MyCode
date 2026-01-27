@@ -6,6 +6,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -32,7 +33,6 @@ public class autobrightness extends Service {
     private SensorEventListener lightSensorListener;
 
 
-    private ScreenOffReceiver screenOffReceiver;
 
     // --- 成员变量声明 (解决 Cannot resolve symbol 错误) ---
     private List<int[]> cachedConfigData = new ArrayList<>();
@@ -54,13 +54,10 @@ public class autobrightness extends Service {
         createNotificationChannel();
 
 
-
-        // 初始化并注册屏幕状态广播接收器
-        screenOffReceiver = new ScreenOffReceiver();
         IntentFilter filter = new IntentFilter();
-        filter.addAction(Intent.ACTION_SCREEN_OFF); // 监听屏幕关闭
-        filter.addAction(Intent.ACTION_SCREEN_ON);  // 监听屏幕开启
-        registerReceiver(screenOffReceiver, filter);
+        filter.addAction(Intent.ACTION_SCREEN_OFF);
+        filter.addAction(Intent.ACTION_SCREEN_ON);
+        registerReceiver(screenStateReceiver, filter);
     }
 
     // --- 改进的解析逻辑：支持排序，确保匹配准确 ---
@@ -219,9 +216,12 @@ public class autobrightness extends Service {
     @Override
     public void onDestroy() {
 
-        if (sensorManager != null) sensorManager.unregisterListener(lightSensorListener);
+        unregisterReceiver(screenStateReceiver);
+        if (sensorManager != null) {
+            sensorManager.unregisterListener(lightSensorListener);
+        }
 
-        unregisterReceiver(screenOffReceiver);
+
 
         super.onDestroy();
     }
@@ -237,4 +237,24 @@ public class autobrightness extends Service {
             if (manager != null) manager.createNotificationChannel(serviceChannel);
         }
     }
+
+
+    private final BroadcastReceiver screenStateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
+                // 屏幕关闭：注销传感器监听，节省耗电
+                if (sensorManager != null) {
+                    sensorManager.unregisterListener(lightSensorListener);
+                    Log.d("AutoBrightness", "屏幕关闭，停止采样");
+                }
+            } else if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
+                // 屏幕开启：重新注册传感器监听
+                if (sensorManager != null && lightSensor != null) {
+                    sensorManager.registerListener(lightSensorListener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);
+                    Log.d("AutoBrightness", "屏幕开启，恢复采样");
+                }
+            }
+        }
+    };
 }
