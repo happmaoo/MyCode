@@ -132,13 +132,13 @@ ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifes
 	android:name
 		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:36:13-37
 service#com.myapp.myfm.FMService
-ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:39:9-43:57
+ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:39:9-43:71
 	android:enabled
 		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:41:13-35
 	android:exported
 		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:42:13-37
 	android:foregroundServiceType
-		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:43:13-55
+		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:43:13-69
 	android:name
 		ADDED from /home/happmaoo/AndroidStudioProjects/MyFM/app/src/main/AndroidManifest.xml:40:13-38
 uses-sdk

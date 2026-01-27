@@ -9,6 +9,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Handler;
@@ -82,9 +83,6 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
     AudioManager audioManager;
 
-
-    // 在代码顶部定义常量，避免直接在方法里写魔法数字
-    private static final int TYPE_MICROPHONE = 128; // 对应 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
 
     public class LocalBinder extends Binder {
         FMService getService() {
@@ -265,14 +263,11 @@ public class FMService extends Service implements FMClient.MessageCallback {
 
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) { // Q 即 API 29
-            // 使用硬编码值 128 绕过编译检查
-            startForeground(NOTIFICATION_ID, notification, TYPE_MICROPHONE);
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
         } else {
             startForeground(NOTIFICATION_ID, notification);
         }
 
-        // 启动前台服务
-        //startForeground(NOTIFICATION_ID, notification);
     }
 
 
