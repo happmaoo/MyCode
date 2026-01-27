@@ -262,8 +262,10 @@ public class FMService extends Service implements FMClient.MessageCallback {
                 .build();
 
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) { // Q 即 API 29
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
+        if (Build.VERSION.SDK_INT >= 30) {
+            startForeground(NOTIFICATION_ID, notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE |
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
         } else {
             startForeground(NOTIFICATION_ID, notification);
         }
