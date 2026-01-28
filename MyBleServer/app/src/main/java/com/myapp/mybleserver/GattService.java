@@ -303,7 +303,7 @@ public class GattService extends Service {
 
                 }
             }
-            // 信号检测 红米note9特定参数
+            // 信号检测
             if("sig".equals(data)) {
                 int status = -1;
                 try {
