@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.myapp.autobrightness"
     android:versionCode="1"
-    android:versionName="2.1.20260128.0932" >
+    android:versionName="2.1.20260128.0941" >
 
     <uses-sdk
         android:minSdkVersion="25"

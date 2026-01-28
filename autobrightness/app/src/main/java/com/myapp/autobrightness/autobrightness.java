@@ -266,7 +266,7 @@ public class autobrightness extends Service {
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(CHANNEL_ID,
-                    "AutoBrightnessService", NotificationManager.IMPORTANCE_DEFAULT);
+                    "AutoBrightnessService", NotificationManager.IMPORTANCE_LOW);
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) manager.createNotificationChannel(serviceChannel);
         }
