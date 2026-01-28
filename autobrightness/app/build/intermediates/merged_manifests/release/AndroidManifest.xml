@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.myapp.autobrightness"
     android:versionCode="1"
-    android:versionName="2.1.20260127.0907" >
+    android:versionName="2.1.20260128.0932" >
 
     <uses-sdk
         android:minSdkVersion="25"
@@ -11,6 +11,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -31,7 +33,9 @@
 
         <service
             android:name="com.myapp.autobrightness.autobrightness"
-            android:foregroundServiceType="location" />
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <receiver
             android:name="com.myapp.autobrightness.BootReceiver"

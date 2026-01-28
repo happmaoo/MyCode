@@ -222,6 +222,9 @@ public class MainActivity extends AppCompatActivity {
         //Intent serviceIntent = new Intent(this, MyForegroundService.class);
         //serviceIntent.putExtra("arg1", "run");
         //startService(serviceIntent);
+
+        // 重新获取最新的开关状态
+        boolean isEnabled = sharedPref.getBoolean("enable", false);
         if(enableapp) {// 注册广播接收器
             IntentFilter filter2 = new IntentFilter("com.myapp.LIGHT_LEVEL_UPDATE");
             registerReceiver(lightLevelReceiver, filter2);

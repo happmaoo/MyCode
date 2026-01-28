@@ -9,7 +9,8 @@
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -27,9 +28,13 @@
         </activity>
 
         <service
-            android:name="com.myapp.autobrightness.autobrightness"
-            android:foregroundServiceType="location"
-            tools:ignore="ForegroundServicePermission" />
+            android:name=".autobrightness"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+
+
         <receiver android:name="com.myapp.autobrightness.BootReceiver" android:enabled="true" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

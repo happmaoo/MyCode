@@ -11,11 +11,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Looper;
 import android.util.Log;
 import java.util.ArrayList;
 import java.util.Collections; // 记得导入排序工具
@@ -42,11 +44,15 @@ public class autobrightness extends Service {
     private ValueAnimator currentAnimator;
 
     private float lightLevel;
-    private float lastProcessedLightLevel = -1f; // 此处即为报错的变量声明
-    private int lastMatchedLightRule = -1;
     private int consecutiveCount = 0;
     private int lastTargetBrightness = -1;
     private boolean firstStart = true;
+
+
+    private Handler brightnessHandler = new Handler(Looper.getMainLooper());
+    private Runnable brightnessRunnable;
+    private int currentStep = 0;
+    private static final int TOTAL_STEPS = 25; // 步数越多越平滑，25步通常足够
 
     @Override
     public void onCreate() {
@@ -125,6 +131,7 @@ public class autobrightness extends Service {
                 lastProcessingTime = currentTime;
 
                 lightLevel = event.values[0];
+                //Log.i("TAG", "onSensorChanged: lightLevel"+lightLevel);
 
                 // 发送广播到 UI (保持原样)
                 Intent broadcastIntent = new Intent("com.myapp.LIGHT_LEVEL_UPDATE");
@@ -184,29 +191,56 @@ public class autobrightness extends Service {
 
     private void setScreenBrightnessSmoothly(int targetBrightness) {
         if (targetBrightness == lastTargetBrightness) return;
-        lastTargetBrightness = targetBrightness;
 
-        if (currentAnimator != null && currentAnimator.isRunning()) {
-            currentAnimator.cancel();
+        // 停止之前的任务
+        if (brightnessRunnable != null) {
+            brightnessHandler.removeCallbacks(brightnessRunnable);
         }
 
-        int currentBrightness = getCurrentBrightness();
-        currentAnimator = ValueAnimator.ofInt(currentBrightness, targetBrightness);
-        currentAnimator.setDuration(configDuration);
-        currentAnimator.addUpdateListener(animation -> {
-            int val = (int) animation.getAnimatedValue();
-            try {
-                Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, val);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+        lastTargetBrightness = targetBrightness;
+        final int startBrightness = getCurrentBrightness();
+        currentStep = 0;
 
-        });
-        currentAnimator.start();
+        // 计算每一步的时间间隔 (总时长 / 总步数)
+        final long stepDelay = configDuration / TOTAL_STEPS;
+
+        brightnessRunnable = new Runnable() {
+            @Override
+            public void run() {
+                currentStep++;
+
+                // 计算当前步应该达到的亮度值 (线性插值)
+                float fraction = (float) currentStep / TOTAL_STEPS;
+                int nextVal = (int) (startBrightness + (targetBrightness - startBrightness) * fraction);
+
+                try {
+                    // 确保在调节前是手动模式，防止 MIUI 自动亮度冲突
+                    if (currentStep == 1) {
+                        Settings.System.putInt(getContentResolver(),
+                                Settings.System.SCREEN_BRIGHTNESS_MODE,
+                                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+                    }
+
+                    Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, nextVal);
+                    // Log.i("TAG", "后台调节进度: " + currentStep + "/" + TOTAL_STEPS + " 值: " + nextVal);
+                } catch (Exception e) {
+                    Log.e("TAG", "写入亮度失败", e);
+                }
+
+                // 如果还没达到总步数，继续跑下一步
+                if (currentStep < TOTAL_STEPS) {
+                    brightnessHandler.postDelayed(this, stepDelay);
+                }
+            }
+        };
+
+        // 立即开始执行
+        brightnessHandler.post(brightnessRunnable);
     }
 
     private int getCurrentBrightness() {
         try {
+            //Log.i("TAG", "---------getCurrentBrightness:-------- ");
             return Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS);
         } catch (Settings.SettingNotFoundException e) {
             return 125;
@@ -232,7 +266,7 @@ public class autobrightness extends Service {
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(CHANNEL_ID,
-                    "AutoBrightnessService", NotificationManager.IMPORTANCE_LOW);
+                    "AutoBrightnessService", NotificationManager.IMPORTANCE_DEFAULT);
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) manager.createNotificationChannel(serviceChannel);
         }

@@ -2,7 +2,7 @@
 2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 3    package="com.myapp.autobrightness"
 4    android:versionCode="1"
-5    android:versionName="2.1.20260127.0907" >
+5    android:versionName="2.1.20260128.0932" >
 6
 7    <uses-sdk
 8        android:minSdkVersion="25"
@@ -19,61 +19,71 @@
 13    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 13-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:10:5-81
 13-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:10:22-78
-14
-15    <application
-15-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:14:5-40:19
-16        android:allowBackup="true"
-16-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:15:9-35
-17        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
-17-->[androidx.core:core:1.5.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/48cd7bd08e89712a0952f96bb9006374/core-1.5.0/AndroidManifest.xml:24:18-86
-18        android:extractNativeLibs="false"
-19        android:icon="@mipmap/ic_launcher_round"
-19-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:16:9-49
-20        android:label="@string/app_name"
-20-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:17:9-41
-21        android:roundIcon="@mipmap/ic_launcher_round"
-21-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:18:9-54
-22        android:supportsRtl="true"
-22-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:19:9-35
-23        android:theme="@style/AppTheme" >
-23-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:20:9-40
-24        <activity android:name="com.myapp.autobrightness.MainActivity" >
-24-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:21:9-27:20
-24-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:21:19-71
-25            <intent-filter>
-25-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:22:13-26:29
-26                <action android:name="android.intent.action.MAIN" />
-26-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:23:17-69
-26-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:23:25-66
-27
-28                <category android:name="android.intent.category.LAUNCHER" />
-28-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:25:17-77
-28-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:25:27-74
-29            </intent-filter>
-30        </activity>
-31
-32        <service
-32-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:29:9-32:58
-33            android:name="com.myapp.autobrightness.autobrightness"
-33-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:30:13-67
-34            android:foregroundServiceType="location" />
-34-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:31:13-53
-35
-36        <receiver
-36-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:33:9-37:20
-37            android:name="com.myapp.autobrightness.BootReceiver"
-37-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:33:19-71
-38            android:enabled="true"
-38-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:33:72-94
-39            android:exported="false" >
-39-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:33:95-119
-40            <intent-filter>
-40-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:34:13-36:29
-41                <action android:name="android.intent.action.BOOT_COMPLETED" />
-41-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:35:17-79
-41-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:35:25-76
-42            </intent-filter>
-43        </receiver>
-44    </application>
-45
-46</manifest>
+14    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+14-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:12:5-79
+14-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:12:22-76
+15    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+15-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:13:5-77
+15-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:13:22-74
+16
+17    <application
+17-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:15:5-45:19
+18        android:allowBackup="true"
+18-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:16:9-35
+19        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+19-->[androidx.core:core:1.5.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/48cd7bd08e89712a0952f96bb9006374/core-1.5.0/AndroidManifest.xml:24:18-86
+20        android:extractNativeLibs="false"
+21        android:icon="@mipmap/ic_launcher_round"
+21-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:17:9-49
+22        android:label="@string/app_name"
+22-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:18:9-41
+23        android:roundIcon="@mipmap/ic_launcher_round"
+23-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:19:9-54
+24        android:supportsRtl="true"
+24-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:20:9-35
+25        android:theme="@style/AppTheme" >
+25-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:21:9-40
+26        <activity android:name="com.myapp.autobrightness.MainActivity" >
+26-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:22:9-28:20
+26-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:22:19-71
+27            <intent-filter>
+27-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:23:13-27:29
+28                <action android:name="android.intent.action.MAIN" />
+28-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:24:17-69
+28-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:24:25-66
+29
+30                <category android:name="android.intent.category.LAUNCHER" />
+30-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:26:17-77
+30-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:26:27-74
+31            </intent-filter>
+32        </activity>
+33
+34        <service
+34-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:30:9-34:56
+35            android:name="com.myapp.autobrightness.autobrightness"
+35-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:31:13-43
+36            android:enabled="true"
+36-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:32:13-35
+37            android:exported="false"
+37-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:33:13-37
+38            android:foregroundServiceType="dataSync" />
+38-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:34:13-53
+39
+40        <receiver
+40-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:38:9-42:20
+41            android:name="com.myapp.autobrightness.BootReceiver"
+41-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:38:19-71
+42            android:enabled="true"
+42-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:38:72-94
+43            android:exported="false" >
+43-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:38:95-119
+44            <intent-filter>
+44-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:39:13-41:29
+45                <action android:name="android.intent.action.BOOT_COMPLETED" />
+45-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:40:17-79
+45-->/home/happmaoo/AndroidStudioProjects/autobrightness/app/src/main/AndroidManifest.xml:40:25-76
+46            </intent-filter>
+47        </receiver>
+48    </application>
+49
+50</manifest>
