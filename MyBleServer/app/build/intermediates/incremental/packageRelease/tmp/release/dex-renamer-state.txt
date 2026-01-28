@@ -1,0 +1,4 @@
+#Wed Jan 28 09:44:23 CST 2026
+base.0=/home/happmaoo/AndroidStudioProjects/MyBleServer/app/build/intermediates/dex/release/out/classes.dex
+path.0=classes.dex
+renamed.0=classes.dex

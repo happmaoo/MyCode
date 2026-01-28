@@ -107,15 +107,15 @@
 53        </activity>
 54
 55        <service
-55-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:52:9-56:63
+55-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:52:9-56:56
 56            android:name="com.myapp.mybleserver.GattService"
 56-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:53:13-40
 57            android:enabled="true"
 57-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:54:13-35
 58            android:exported="false"
 58-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:55:13-37
-59            android:foregroundServiceType="connectedDevice" />
-59-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:56:13-60
+59            android:foregroundServiceType="dataSync" />
+59-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:56:13-53
 60        <service
 60-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:59:9-66:19
 61            android:name="com.myapp.mybleserver.MyNotificationListenerService"

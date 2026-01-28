@@ -13,7 +13,7 @@ https://github.com/happmaoo/MyCode/tree/main/clockwidget/app/release
 
 ## MyBleServer 和 MyBleClient 用于主机和备用机的蓝牙监测app
 可以在备用机上连接主力机的蓝牙数据网络，用在备用机没有网络连接的情况下，用wifi共享太费电了，还可以查看主力机的电池电量等情况。  
-https://github.com/happmaoo/MyCode/tree/main/MyBleServer/app/build/outputs/apk/debug/  
+https://github.com/happmaoo/MyCode/tree/main/MyBleServer/app/release
 https://github.com/happmaoo/MyCode/tree/main/MyBleClient/app/build/outputs/apk/debug/  
 
 ## MyFM 红米Note4x 的收音机APP

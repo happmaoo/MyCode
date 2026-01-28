@@ -29,6 +29,7 @@ import androidx.core.app.NotificationCompat;
 
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
@@ -275,24 +276,24 @@ public class GattService extends Service {
             }
             // 信号检测 红米note9特定参数
             if("sig".equals(data)) {
+                int status = -1;
                 try {
-                    Process p = Runtime.getRuntime().exec("su");
-                    DataOutputStream os = new DataOutputStream(p.getOutputStream());
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
-                    os.writeBytes("dumpsys telephony.registry | grep \"mSignalStrength\" | tail -n 1 | sed -n 's/.* level=\\([0-9]\\).*/\\1/p'\n");
-                    os.flush();
-                    String line = reader.readLine();
-                    if (line != null) {
-                        sig = Integer.parseInt(line.trim());
-                    }
-                    os.writeBytes("exit\n");
-                    os.flush();
-                    p.waitFor();
-
+                    Process p = Runtime.getRuntime().exec("ping -c 1 baidu.com");
+                    status = p.waitFor();
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-                serverManager.setMyCharacteristicValue("sig:"+sig);
+                if(status==0){
+                    serverManager.setMyCharacteristicValue("sig:1");
+                }else{
+                    serverManager.setMyCharacteristicValue("sig:0");
+                    //没网络尝试打开数据开关
+                    try {
+                        Runtime.getRuntime().exec("svc data enable");
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
 
             }
             serverManager.setMyCharacteristicValue("received:"+data);

@@ -57,7 +57,7 @@
             android:name="com.myapp.mybleserver.GattService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
+            android:foregroundServiceType="dataSync" />
         <service
             android:name="com.myapp.mybleserver.MyNotificationListenerService"
             android:exported="true"

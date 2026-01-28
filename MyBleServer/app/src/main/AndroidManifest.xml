@@ -53,7 +53,7 @@
             android:name=".GattService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
+            android:foregroundServiceType="dataSync" />
 
 
         <service
