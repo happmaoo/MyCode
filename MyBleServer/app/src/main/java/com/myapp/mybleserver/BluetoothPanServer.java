@@ -3,6 +3,7 @@ package com.myapp.mybleserver;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
+import android.os.Build;
 import android.util.Log;
 
 import java.io.IOException;
@@ -14,6 +15,10 @@ public class BluetoothPanServer {
 
     // 修改点：添加了 boolean enable 参数
     public void enableBtPan(Context context, final boolean enable) {
+
+
+
+
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
         // 1. 如果是开启操作，先确保蓝牙是打开的
@@ -35,21 +40,24 @@ public class BluetoothPanServer {
             }
         }
 
-        // 2. 获取 PAN Profile 代理
-        mBluetoothAdapter.getProfileProxy(context, new BluetoothProfile.ServiceListener() {
-            @Override
-            public void onServiceConnected(int profile, BluetoothProfile proxy) {
-                if (profile == 5) {
-                    mBluetoothPan = proxy;
-                    setTetheringOn(enable); // 修改点：传入参数
+        // 安卓12以上开启 btpan 太难
+        if (Build.VERSION.SDK_INT < 31) {
+            // 2. 获取 PAN Profile 代理
+            mBluetoothAdapter.getProfileProxy(context, new BluetoothProfile.ServiceListener() {
+                @Override
+                public void onServiceConnected(int profile, BluetoothProfile proxy) {
+                    if (profile == 5) {
+                        mBluetoothPan = proxy;
+                        setTetheringOn(enable); // 修改点：传入参数
+                    }
                 }
-            }
 
-            @Override
-            public void onServiceDisconnected(int profile) {
-                mBluetoothPan = null;
-            }
-        }, 5);
+                @Override
+                public void onServiceDisconnected(int profile) {
+                    mBluetoothPan = null;
+                }
+            }, 5);
+        }
     }
 
     private void setTetheringOn(boolean enabled) {

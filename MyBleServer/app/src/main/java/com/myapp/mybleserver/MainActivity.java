@@ -299,6 +299,32 @@ public class MainActivity extends AppCompatActivity {
             requestNotificationPermission(context);
             return false;
         }
+
+        if (Build.VERSION.SDK_INT >= 31) { // Android 12+
+            String packageName = getPackageName();
+            String[] permissions = {
+                    "android.permission.BLUETOOTH_CONNECT",
+                    "android.permission.BLUETOOTH_SCAN",
+                    "android.permission.BLUETOOTH_ADVERTISE"
+            };
+
+            try {
+                Process p = Runtime.getRuntime().exec("su");
+                DataOutputStream os = new DataOutputStream(p.getOutputStream());
+                for (String perm : permissions) {
+                    os.writeBytes("pm grant " + packageName + " " + perm + "\n");
+                }
+                os.writeBytes("exit\n");
+                os.flush();
+                int result = p.waitFor();
+                if (result == 0) {
+                    Log.d("ROOT", "所有蓝牙权限已通过 Root 强制授予");
+                }
+            } catch (Exception e) {
+                Log.e("ROOT", "Root 授权失败", e);
+            }
+        }
+
         return true;
     }
 

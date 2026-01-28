@@ -70,65 +70,65 @@
 33-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:31:22-82
 34
 35    <application
-35-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:35:5-69:19
+35-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:38:5-72:19
 36        android:name="com.myapp.mybleserver.MyApp"
-36-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:38:9-30
+36-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:41:9-30
 37        android:allowBackup="true"
-37-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:36:9-35
+37-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:39:9-35
 38        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
 38-->[androidx.core:core:1.0.1] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/aa782ce88e4a65071c9b22f6f1fd262a/core-1.0.1/AndroidManifest.xml:22:18-86
 39        android:debuggable="true"
 40        android:extractNativeLibs="false"
 41        android:icon="@mipmap/ic_launcher"
-41-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:39:9-43
+41-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:42:9-43
 42        android:label="@string/app_name"
-42-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:40:9-41
+42-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:43:9-41
 43        android:roundIcon="@mipmap/ic_launcher_round"
-43-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:41:9-54
+43-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:44:9-54
 44        android:supportsRtl="true"
-44-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:42:9-35
+44-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:45:9-35
 45        android:testOnly="true"
-45-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:37:9-33
+45-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:40:9-33
 46        android:theme="@style/AppTheme" >
-46-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:43:9-40
+46-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:46:9-40
 47        <activity android:name="com.myapp.mybleserver.MainActivity" >
-47-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:44:9-50:20
-47-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:44:19-47
+47-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:47:9-53:20
+47-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:47:19-47
 48            <intent-filter>
-48-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:45:13-49:29
+48-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:48:13-52:29
 49                <action android:name="android.intent.action.MAIN" />
-49-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:46:17-69
-49-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:46:25-66
+49-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:49:17-69
+49-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:49:25-66
 50
 51                <category android:name="android.intent.category.LAUNCHER" />
-51-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:48:17-77
-51-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:48:27-74
+51-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:51:17-77
+51-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:51:27-74
 52            </intent-filter>
 53        </activity>
 54
 55        <service
-55-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:52:9-56:56
+55-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:55:9-59:56
 56            android:name="com.myapp.mybleserver.GattService"
-56-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:53:13-40
+56-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:56:13-40
 57            android:enabled="true"
-57-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:54:13-35
+57-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:57:13-35
 58            android:exported="false"
-58-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:55:13-37
+58-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:58:13-37
 59            android:foregroundServiceType="dataSync" />
-59-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:56:13-53
+59-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:59:13-53
 60        <service
-60-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:59:9-66:19
+60-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:62:9-69:19
 61            android:name="com.myapp.mybleserver.MyNotificationListenerService"
-61-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:60:13-58
+61-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:63:13-58
 62            android:exported="true"
-62-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:62:13-36
+62-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:65:13-36
 63            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" >
-63-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:61:13-87
+63-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:64:13-87
 64            <intent-filter>
-64-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:63:13-65:29
+64-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:66:13-68:29
 65                <action android:name="android.service.notification.NotificationListenerService" />
-65-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:64:17-99
-65-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:64:25-96
+65-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:67:17-99
+65-->/home/happmaoo/AndroidStudioProjects/MyBleServer/app/src/main/AndroidManifest.xml:67:25-96
 66            </intent-filter>
 67        </service>
 68    </application>

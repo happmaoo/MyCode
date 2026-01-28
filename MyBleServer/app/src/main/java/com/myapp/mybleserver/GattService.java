@@ -247,31 +247,60 @@ public class GattService extends Service {
             }
             if("enable_wifi".equals(data)){
                 //如果客户端发来 enable_wifi 开启wifi
-                try {
-                    // Android 10 对应的 startSoftAp 方法编号通常在 40-50 之间
-                    // 可以通过 `adb shell service list` 查看 wifi 服务的编号
-                    Process p = Runtime.getRuntime().exec("su");
-                    DataOutputStream os = new DataOutputStream(p.getOutputStream());
-                    os.writeBytes("svc data enable\n");
-                    os.writeBytes("service call wifi 42\n");
-                    os.writeBytes("exit\n");
-                    os.flush();
-                } catch (Exception e) {
-                    e.printStackTrace();
+
+
+                if (Build.VERSION.SDK_INT < 31) {
+                    try {
+                        // Android 10 对应的 startSoftAp 方法编号通常在 40-50 之间
+                        // 可以通过 `adb shell service list` 查看 wifi 服务的编号
+                        Process p = Runtime.getRuntime().exec("su");
+                        DataOutputStream os = new DataOutputStream(p.getOutputStream());
+                        os.writeBytes("svc data enable\n");
+                        os.writeBytes("service call wifi 42\n");
+                        os.writeBytes("exit\n");
+                        os.flush();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }else{
+                    try {
+                        Process p = Runtime.getRuntime().exec("su");
+                        DataOutputStream os = new DataOutputStream(p.getOutputStream());
+                        os.writeBytes("svc data enable\n");
+                        os.writeBytes("cmd wifi start-softap redmin9 wpa2 happmaoo\n");
+                        os.writeBytes("exit\n");
+                        os.flush();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+
                 }
             }
             if("disable_wifi".equals(data)){
-                try {
-                    // Android 10 对应的 startSoftAp 方法编号通常在 40-50 之间
-                    // 可以通过 `adb shell service list` 查看 wifi 服务的编号
-                    Process p = Runtime.getRuntime().exec("su");
-                    DataOutputStream os = new DataOutputStream(p.getOutputStream());
+                if (Build.VERSION.SDK_INT < 31) {
+                    try {
+                        // Android 10 对应的 startSoftAp 方法编号通常在 40-50 之间
+                        // 可以通过 `adb shell service list` 查看 wifi 服务的编号
+                        Process p = Runtime.getRuntime().exec("su");
+                        DataOutputStream os = new DataOutputStream(p.getOutputStream());
 
-                    os.writeBytes("service call wifi 43\n");
-                    os.writeBytes("exit\n");
-                    os.flush();
-                } catch (Exception e) {
-                    e.printStackTrace();
+                        os.writeBytes("service call wifi 43\n");
+                        os.writeBytes("exit\n");
+                        os.flush();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }else{
+                    try {
+                        Process p = Runtime.getRuntime().exec("su");
+                        DataOutputStream os = new DataOutputStream(p.getOutputStream());
+                        os.writeBytes("cmd wifi stop-softap\n");
+                        os.writeBytes("exit\n");
+                        os.flush();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+
                 }
             }
             // 信号检测 红米note9特定参数
