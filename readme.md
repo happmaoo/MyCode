@@ -1,7 +1,7 @@
 # 我开发的一些实用小APP
 
 [![last commit](https://img.shields.io/github/last-commit/happmaoo/MyCode.svg?style=for-the-badge)](https://github.com/happmaoo/MyCode/commits/main)
-![repo size](https://img.shields.io/github/repo-size/happmaoo/MyCode.svg)
+![repo size](https://img.shields.io/github/repo-size/happmaoo/MyCode.svg?style=for-the-badge)
 
 
 ## autobrightness 亮度调节
