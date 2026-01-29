@@ -43,4 +43,4 @@ LiveData 互发消息的方法
 
 ---
 
-![图片描述](https://i0.hdslb.com/bfs/static/jinkela/long/images/favicon.ico) bilibili 主页:https://space.bilibili.com/8286319
+![图片描述](https://i0.hdslb.com/bfs/static/jinkela/long/images/favicon.ico) bilibili: https://space.bilibili.com/8286319
