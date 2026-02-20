@@ -40,7 +40,7 @@ blescan ble扫描代码
 MyWiFiDirect 连接后可以手动运行 python ftp 收发文件  
 handler 线程 或 界面和服务互发消息的方法  
 LiveData 互发消息的方法  
-MyMQTT 物联网卡小服务器,用ipv6连接服务器控制设备  
+MyMQTT 物联网卡小服务器,可用ipv6连接服务器控制设备  
 
 ---
 
