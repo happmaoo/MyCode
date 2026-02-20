@@ -2,10 +2,13 @@ package com.myapp.mymqtt;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.util.Pair;
+import androidx.core.widget.NestedScrollView;
 import androidx.lifecycle.Observer;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -14,28 +17,40 @@ import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MainActivity extends AppCompatActivity {
 
 
     Intent serviceIntent;
     TextView textView;
-    Button btn_start,btn_serversettings,btn_connect;
+    Button btn_start,btn_settings,btn_connect;
+    RadioGroup radioGroup;
+    ImageView imageView;
+    NestedScrollView scrollView;
 
     private Observer<Pair<String, String>> messageObserver; // 添加观察者变量
 
     MyMQTT myapp;
-    MyMQTT application;
 
 
     private AutoCompleteTextView editText_cmd;
-
+    List<MyMQTT.ServerItem> serverList;
+    MyMQTT.ServerItem cur_server;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,14 +64,14 @@ public class MainActivity extends AppCompatActivity {
         myapp = (MyMQTT) getApplicationContext();
 
 
-
-
         textView = findViewById(R.id.textView_log);
         btn_start = findViewById(R.id.btn_start);
-        btn_serversettings = findViewById(R.id.btn_serversettings);
+        btn_settings = findViewById(R.id.btn_settings);
         btn_connect = findViewById(R.id.btn_connect);
-
+        radioGroup = findViewById(R.id.radiogroup);
+        imageView = findViewById(R.id.imageView);
         editText_cmd = findViewById(R.id.editText_cmd);
+        scrollView = findViewById(R.id.scrollView);
 
 
 
@@ -65,6 +80,80 @@ public class MainActivity extends AppCompatActivity {
             fontSizeStr = "12";  // 默认值
         }
         textView.setTextSize(Float.parseFloat(fontSizeStr));
+
+
+
+        serverList = myapp.getServerList();
+
+        String selected = myapp.getString("server","");
+
+        cur_server = getServer(myapp.getString("server",""));
+
+
+        for (int i = 0; i < serverList.size(); i++) {
+            MyMQTT.ServerItem server = serverList.get(i);
+            // 创建RadioButton
+            RadioButton radioButton = new RadioButton(this);
+            radioButton.setId(View.generateViewId()); // 生成唯一ID
+            radioButton.setText(server.name); // 显示服务器名称
+            radioButton.setTag(server); // 可以把整个server对象作为tag保存
+            // 添加到RadioGroup
+            radioGroup.addView(radioButton);
+
+            // 设置点击事件
+            radioButton.setOnClickListener(v -> {
+                RadioButton rb = (RadioButton) v;
+                MyMQTT.ServerItem selectedServer = (MyMQTT.ServerItem) rb.getTag();
+                myapp.setString("server",selectedServer.name);
+
+                //重新加载界面
+                recreate();
+            });
+
+            if(selected.equals(server.name)){
+                radioButton.setChecked(true);
+            }
+        }
+
+
+
+        // 添加动态按钮。
+        if(!cur_server.send_command.isEmpty()){
+
+            // 正则表达式：匹配 name=//(.*?)//cmd=//(.*?)//
+            String regex = "name=//(.*?)//cmd=//(.*?)//";
+            Pattern pattern = Pattern.compile(regex);
+            Matcher matcher = pattern.matcher(cur_server.send_command);
+
+            int groupCount = 0;
+            while (matcher.find()) {
+                groupCount++;
+                String name = matcher.group(1);
+                String cmd = matcher.group(2);
+
+
+                LinearLayout buttonContainer = findViewById(R.id.Layout_btns);
+                Button dynamicButton = new Button(this);
+                dynamicButton.setLayoutParams(new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                ));
+                dynamicButton.setText(name);
+                dynamicButton.setEnabled(true);
+                dynamicButton.setAllCaps(false);
+                dynamicButton.setId(View.generateViewId());
+                dynamicButton.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        DataManager.getInstance().sendMessage("Activity", cmd);
+                    }
+                });
+                buttonContainer.addView(dynamicButton);
+            }
+
+
+        }
+
 
         myapp.historyList = new ArrayList<>();
         // 设置适配器
@@ -84,6 +173,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 String cmd = editText_cmd.getText().toString().trim();
+                editText_cmd.setText("");
                 if (!cmd.isEmpty()) {
                     // 发送消息
                     DataManager.getInstance().sendMessage("Activity", cmd);
@@ -104,11 +194,11 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        btn_serversettings.setOnClickListener(new View.OnClickListener() {
+        btn_settings.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Intent EditIntent = new Intent(MainActivity.this,settings.class);
-                startActivity(EditIntent);
+                startActivityForResult(EditIntent,1001);
             }
         });
 
@@ -144,8 +234,19 @@ public class MainActivity extends AppCompatActivity {
                     String content = pair.second;
 
                     if ("Service".equals(from)) {
-                        textView.setText(content);
-                        Log.i("Activity", "收到消息: " + content);
+                        if ("data_image".equals(content)) {
+                            scrollView.setVisibility(View.GONE);
+                            imageView.setVisibility(View.VISIBLE);
+
+                            Bitmap bitmap = BitmapFactory.decodeByteArray(myapp.imageData, 0, myapp.imageData.length);
+                            imageView.setImageBitmap(bitmap);
+
+                        }else{
+                            scrollView.setVisibility(View.VISIBLE);
+                            imageView.setVisibility(View.GONE);
+                            textView.setText(content);
+                            Log.i("Activity", "收到消息: " + content);
+                        }
                     }
                 }
             }
@@ -223,6 +324,40 @@ public class MainActivity extends AppCompatActivity {
         savePrefs();
 
     }
+
+    // 获取某个服务器的信息
+    private MyMQTT.ServerItem getServer(String name) {
+
+        if (name == null || name.isEmpty() || serverList == null) {
+            return null;
+        }
+
+        for (MyMQTT.ServerItem server : serverList) {
+            if (server.name.equals(name)) {
+                return server;  // 返回找到的服务器
+            }
+        }
+        return null;  // 没找到返回null
+    }
+
+    // settings 界面回调
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == 1001) {
+            if (resultCode == RESULT_OK && data != null) {
+                boolean settings_ok = data.getBooleanExtra("settings_ok", false);
+                if (settings_ok) {
+                    Toast.makeText(this,"已保存.",Toast.LENGTH_SHORT).show();
+                    recreate();
+                }
+            }
+        }
+    }
+
+
+
 
 
 }

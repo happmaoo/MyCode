@@ -901,6 +901,7 @@ drawable tooltip_frame_light
 id ALT
 id CTRL
 id FUNCTION
+id Layout_btns
 id META
 id NO_DEBUG
 id SHIFT
@@ -991,10 +992,9 @@ id bounceBoth
 id bounceEnd
 id bounceStart
 id btn_connect
-id btn_serversettings
+id btn_settings
 id btn_start
 id buttonPanel
-id button_clearhistory
 id cache_measures
 id carryVelocity
 id center
@@ -1040,14 +1040,8 @@ id easeIn
 id easeInOut
 id easeOut
 id east
-id editText_FontSize
+id editTextServers
 id editText_cmd
-id editText_mqqt_server_keepalive
-id editText_mqqt_server_password
-id editText_mqqt_server_port
-id editText_mqqt_server_url
-id editText_mqqt_server_username
-id editText_mqqt_topic
 id edit_query
 id end
 id expand_activities_button
@@ -1072,6 +1066,7 @@ id ifRoom
 id ignore
 id ignoreRequest
 id image
+id imageView
 id immediateStop
 id included
 id info
@@ -1118,6 +1113,7 @@ id postLayout
 id progress_circular
 id progress_horizontal
 id radio
+id radiogroup
 id ratio
 id rectangles
 id reverseSawtooth

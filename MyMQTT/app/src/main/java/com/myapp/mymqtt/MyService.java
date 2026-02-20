@@ -22,9 +22,12 @@ import androidx.lifecycle.Observer;
 import androidx.core.app.NotificationCompat;
 
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -58,20 +61,14 @@ public class MyService extends Service {
 
 
     MyMQTT myapp;
-    MyMQTT application;
 
     private MqttClient mqttClient;
 
     private ConnectivityManager.NetworkCallback networkCallback;
+    List<MyMQTT.ServerItem> serverList;
+    MyMQTT.ServerItem server;
+    String server_gist_url = "";
 
-    String mqqt_server_url;
-    String mqqt_server_addr;
-    int mqqt_server_port;
-    int mqqt_server_keepalive;
-    String mqqt_server_username;
-    String mqqt_server_password;
-    String mqqt_topic;
-    String topic_request;
 
     int retries = 0;
 
@@ -86,18 +83,24 @@ public class MyService extends Service {
 
         // SharedPreferences 全局保存
         myapp = (MyMQTT) getApplicationContext();
-
-        mqqt_server_url = myapp.getString("mqqt_server_url","");
-        mqqt_server_port = myapp.getInt("mqqt_server_port",0);
-        mqqt_server_keepalive = myapp.getInt("mqqt_server_keepalive",60);
-        mqqt_server_username = myapp.getString("mqqt_server_username","");
-        mqqt_server_password = myapp.getString("mqqt_server_password","");
-        mqqt_topic = myapp.getString("mqqt_topic","");
-
-
-        Log.i(TAG, "onCreate: ");
-        topic_request = "cmd/request";
+        serverList = myapp.getServerList();
+        server = getServer(myapp.getString("server",""));
     }
+
+    // 获取某个服务器的信息
+    private MyMQTT.ServerItem getServer(String name) {
+        if (name == null || name.isEmpty() || serverList == null) {
+            return null;
+        }
+
+        for (MyMQTT.ServerItem server : serverList) {
+            if (server.name.equals(name)) {
+                return server;  // 返回找到的服务器
+            }
+        }
+        return null;  // 没找到返回null
+    }
+
 
 
 
@@ -173,7 +176,14 @@ public class MyService extends Service {
         //initMqtt();
 
 
-        getServerAddr();
+        String pattern_gist = "^https://gist\\.githubusercontent\\.com.*";
+        // 如果mqqt_server_url是gist页面则需要先获取gist上的服务器地址
+        if(Pattern.matches(pattern_gist, server.url)){
+            getServerAddr();
+        }else{
+            //使用默认url
+            initMqtt();
+        }
         //setupNetworkMonitoring();
 
 
@@ -185,6 +195,10 @@ public class MyService extends Service {
     private  void getServerAddr(){
         new Thread(() -> {
 
+            if(server_gist_url.isEmpty()){
+                server_gist_url = server.url;//保存 url
+            }
+
             Log.i(TAG, "getServerAddr()");
             SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
             String currentTime = sdf.format(Calendar.getInstance().getTime());
@@ -195,8 +209,9 @@ public class MyService extends Service {
                     .readTimeout(10, TimeUnit.SECONDS)
                     .writeTimeout(10, TimeUnit.SECONDS)
                     .build();
+            Log.i(TAG, "getServerAddr()"+server_gist_url);
             Request request = new Request.Builder()
-                    .url(mqqt_server_url + "?t=" + currentTime)
+                    .url(server_gist_url + "?t=" + currentTime)
                     .build();
 
             try (Response response = client.newCall(request).execute()) {
@@ -208,8 +223,8 @@ public class MyService extends Service {
                 Matcher matcher_addr = pattern_addr.matcher(result);
 
                 if (matcher_addr.find()) {
-                    mqqt_server_addr = matcher_addr.group(1);
-                    DataManager.getInstance().sendMessage("Service","Get Server Address:\n"+mqqt_server_addr);
+                    server.url = matcher_addr.group(1);
+                    DataManager.getInstance().sendMessage("Service","Get Server Address:\n"+server.url);
                     initMqtt();
                 }else{
                     DataManager.getInstance().sendMessage("Service","Get Server Address Error.");
@@ -246,8 +261,8 @@ public class MyService extends Service {
         }
 
 
-        String formattedAddr = mqqt_server_addr.contains(":") ? "[" + mqqt_server_addr + "]" : mqqt_server_addr;
-        String brokerUrl = "tcp://" + formattedAddr + ":" + mqqt_server_port;
+        String formattedAddr = server.url.contains(":") ? "[" + server.url + "]" : server.url;
+        String brokerUrl = "tcp://" + formattedAddr + ":" + server.port;
         Log.i(TAG, "initMqtt: "+brokerUrl);
         String clientId = MqttClient.generateClientId();
 
@@ -262,8 +277,8 @@ public class MyService extends Service {
                     // 自动重连成功后，必须重新订阅
                     Log.i(TAG, "连接成功/重连成功: " + serverURI);
                     DataManager.getInstance().sendMessage("Service", "MQTT 已连接");
-                    updateNotification("MQTT", "MQTT 已连接");
-                    subscribeToTopic(mqqt_topic);
+                    updateNotification(server.name, "MQTT 已连接");
+                    subscribeToTopics(server.topic_receive);
                 }
 
                 @Override
@@ -279,11 +294,38 @@ public class MyService extends Service {
                     }, 5000);
                 }
 
+                // 收到消息
                 @Override
                 public void messageArrived(String topic, MqttMessage message) {
-                    String payload = new String(message.getPayload());
-                    Log.d(TAG, "收到消息 [" + topic + "]: " + payload);
-                    DataManager.getInstance().sendMessage("Service", payload);
+                    if (topic.endsWith("/image")) {
+                        Log.d(TAG, "收到消息 [" + topic + "].");
+                        // 获取图片数据（直接是二进制数据）
+                        myapp.imageData = message.getPayload();
+                        DataManager.getInstance().sendMessage("Service", "data_image");
+
+//                        // 方式1：保存为文件（根据时间戳命名）
+//                        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+//                        String fileName = "/data/data/com.termux/files/home/received_" + timestamp + ".webp";
+//
+//                        // 保存图片
+//                        try (FileOutputStream fos = new FileOutputStream(fileName)) {
+//                            fos.write(imageData);
+//                            fos.flush();
+//                            System.out.println("图片已保存: " + fileName);
+//                            System.out.println("图片大小: " + imageData.length + " 字节");
+//                        } catch (Exception e) {
+//                            System.err.println("保存图片失败: " + e.getMessage());
+//                        }
+
+                        // 方式2：如果需要直接使用图片数据（例如显示或处理）
+                        // processImage(imageData);
+
+                    } else {
+                        // 其他topic的普通文本消息
+                        String payload = new String(message.getPayload());
+                        Log.d(TAG, "收到消息 [" + topic + "]: " + payload);
+                        DataManager.getInstance().sendMessage("Service", payload);
+                    }
                 }
 
                 @Override
@@ -292,12 +334,12 @@ public class MyService extends Service {
 
             // 3. 配置连接参数
             MqttConnectOptions options = new MqttConnectOptions();
-            options.setUserName(mqqt_server_username);
-            options.setPassword(mqqt_server_password.toCharArray());
+            options.setUserName(server.username);
+            options.setPassword(server.password.toCharArray());
             options.setAutomaticReconnect(true);  // 开启自动重连
             options.setCleanSession(true);
             options.setConnectionTimeout(10);     // 关键：10秒超时
-            options.setKeepAliveInterval(mqqt_server_keepalive);     // 心跳间隔
+            options.setKeepAliveInterval(Integer.parseInt(server.keepalive));     // 心跳间隔
 
             // 4. 发起连接 (Paho 的 connect 是阻塞的，建议在子线程执行)
             new Thread(() -> {
@@ -319,7 +361,7 @@ public class MyService extends Service {
         String errorInfo;
         switch (e.getReasonCode()) {
             case MqttException.REASON_CODE_CLIENT_TIMEOUT:
-                errorInfo = "连接超时：请检查端口 " + mqqt_server_port + " 是否开放或网络是否支持 IPv6";
+                errorInfo = "连接超时：请检查端口 " + server.port + " 是否开放或网络是否支持 IPv6";
                 break;
             case MqttException.REASON_CODE_FAILED_AUTHENTICATION:
                 errorInfo = "认证失败：用户名或密码错误";
@@ -333,6 +375,7 @@ public class MyService extends Service {
                 if(retries<5){
                     getServerAddr();
                     retries++;
+                    sleep(2000);
                 }
                 break;
 
@@ -349,6 +392,36 @@ public class MyService extends Service {
             } catch (MqttException e) {
                 e.printStackTrace();
             }
+        }
+    }
+
+    private void subscribeToTopics(String topicsStr) {
+        if (mqttClient != null && mqttClient.isConnected()) {
+            try {
+                // 按逗号分割字符串
+                String[] topics = topicsStr.split(",");
+                for (int i = 0; i < topics.length; i++) {
+                    topics[i] = topics[i].trim();
+                }
+                int[] qosArray = new int[topics.length];
+                for (int i = 0; i < qosArray.length; i++) {
+                    qosArray[i] = 0;
+                }
+                mqttClient.subscribe(topics, qosArray);
+                for (String topic : topics) {
+                    Log.i(TAG, "订阅成功: " + topic);
+                }
+                Log.i(TAG, "共订阅 " + topics.length + " 个主题");
+
+            } catch (MqttException e) {
+                Log.e(TAG, "订阅失败: " + topicsStr, e);
+                e.printStackTrace();
+            } catch (Exception e) {
+                Log.e(TAG, "处理主题字符串时出错: " + topicsStr, e);
+                e.printStackTrace();
+            }
+        } else {
+            Log.e(TAG, "MQTT客户端未连接");
         }
     }
 
@@ -379,7 +452,7 @@ public class MyService extends Service {
                     if ("Activity".equals(from)) {
                         // 处理来自Activity的消息
                         Log.i(TAG, "收到消息: " + content);
-                        publish(topic_request,content);
+                        publish(server.topic_send,content);
 
                     }
                 }
@@ -462,6 +535,14 @@ public class MyService extends Service {
 
         // 关键：使用创建时相同的 NOTIFICATION_ID
         notificationManager.notify(NOTIFICATION_ID, updatedNotification);
+    }
+
+    private void sleep(int ms){
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
 }
