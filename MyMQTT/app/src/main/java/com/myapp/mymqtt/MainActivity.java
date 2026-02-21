@@ -1,6 +1,7 @@
 package com.myapp.mymqtt;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.core.util.Pair;
 import androidx.core.widget.NestedScrollView;
 import androidx.lifecycle.Observer;
@@ -9,10 +10,12 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
@@ -20,6 +23,7 @@ import android.widget.EditText;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
@@ -29,6 +33,7 @@ import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -38,10 +43,13 @@ public class MainActivity extends AppCompatActivity {
 
     Intent serviceIntent;
     TextView textView;
-    Button btn_start,btn_settings,btn_connect;
+    Button btn_start,btn_settings,btn_connect,btn_cmds,btn_editcmds;
     RadioGroup radioGroup;
     ImageView imageView;
     NestedScrollView scrollView;
+    LinearLayout Layout_cmds;
+    ListView listview;
+    EditText editText_cmds;
 
     private Observer<Pair<String, String>> messageObserver; // 添加观察者变量
 
@@ -51,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
     private AutoCompleteTextView editText_cmd;
     List<MyMQTT.ServerItem> serverList;
     MyMQTT.ServerItem cur_server;
+    String[] cmdsItems;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,11 +77,16 @@ public class MainActivity extends AppCompatActivity {
         btn_start = findViewById(R.id.btn_start);
         btn_settings = findViewById(R.id.btn_settings);
         btn_connect = findViewById(R.id.btn_connect);
+        btn_cmds = findViewById(R.id.btn_cmds);
+        btn_editcmds = findViewById(R.id.btn_editcmds);
+
         radioGroup = findViewById(R.id.radiogroup);
         imageView = findViewById(R.id.imageView);
         editText_cmd = findViewById(R.id.editText_cmd);
         scrollView = findViewById(R.id.scrollView);
-
+        listview = findViewById(R.id.listview);
+        Layout_cmds = findViewById(R.id.Layout_cmds);
+        editText_cmds = findViewById(R.id.editText_cmds);
 
 
         String fontSizeStr = myapp.getString("fontsize", "12");
@@ -88,6 +102,8 @@ public class MainActivity extends AppCompatActivity {
         String selected = myapp.getString("server","");
 
         cur_server = getServer(myapp.getString("server",""));
+
+
 
 
         for (int i = 0; i < serverList.size(); i++) {
@@ -118,7 +134,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         // 添加动态按钮。
-        if(!cur_server.send_command.isEmpty()){
+        if(cur_server != null && !cur_server.send_command.isEmpty()){
 
             // 正则表达式：匹配 name=//(.*?)//cmd=//(.*?)//
             String regex = "name=//(.*?)//cmd=//(.*?)//";
@@ -145,7 +161,9 @@ public class MainActivity extends AppCompatActivity {
                 dynamicButton.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
+                        if(myapp.isRunning){
                         DataManager.getInstance().sendMessage("Activity", cmd);
+                        }
                     }
                 });
                 buttonContainer.addView(dynamicButton);
@@ -153,6 +171,12 @@ public class MainActivity extends AppCompatActivity {
 
 
         }
+
+
+
+
+
+
 
 
         myapp.historyList = new ArrayList<>();
@@ -262,7 +286,108 @@ public class MainActivity extends AppCompatActivity {
             return false;
         });
 
+        btn_cmds.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (Layout_cmds.getVisibility() == View.VISIBLE) {
+                    Layout_cmds.setVisibility(View.GONE);
+                    scrollView.setVisibility(View.VISIBLE);
+                    imageView.setVisibility(View.GONE);
+                } else {
+                    Layout_cmds.setVisibility(View.VISIBLE);
+                    scrollView.setVisibility(View.GONE);
+                    imageView.setVisibility(View.GONE);
+                }
+            }
+        });
+
+
+
+        myapp.cmds = myapp.loadCommands();
+
+
+        String[] items = myapp.cmds.keySet().toArray(new String[0]);
+
+
+        String[] displayItems = new String[myapp.cmds.size()];
+        int index = 0;
+        for (Map.Entry<String, String> entry : myapp.cmds.entrySet()) {
+            displayItems[index] = entry.getKey() + ": " + entry.getValue();
+            index++;
+        }
+
+        ArrayAdapter<String> arrayAdapter = new ArrayAdapter<>(
+                this,
+                R.layout.listview,
+                displayItems
+        );
+
+        listview.setAdapter(arrayAdapter);
+
+
+        listview.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+
+                String selectedItem = (String) parent.getItemAtPosition(position);
+                String[] parts = selectedItem.split(":", 2);
+                String commandName = parts[0].trim();
+                String fullCommand = myapp.cmds.get(commandName);
+
+                if(myapp.isRunning){
+                    DataManager.getInstance().sendMessage("Activity", fullCommand);
+                }
+
+                textView.setText("RUN:"+parts[1] + "...");
+
+                Layout_cmds.setVisibility(View.GONE);
+                scrollView.setVisibility(View.VISIBLE);
+                imageView.setVisibility(View.GONE);
+            }
+        });
+        //Log.i("aaa", "Command: " + myapp.findCommandByName(myapp.cmds,"ls"));
+
+        btn_editcmds.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (listview.getVisibility() == View.VISIBLE) {
+                    listview.setVisibility(View.GONE);
+                    editText_cmds.setVisibility(View.VISIBLE);
+                    editText_cmds.setText(myapp.mapToString(myapp.loadCommands()));
+                }else{
+                    listview.setVisibility(View.VISIBLE);
+                    editText_cmds.setVisibility(View.GONE);
+
+                    myapp.cmds = myapp.parseCommands(editText_cmds.getText().toString());
+                    myapp.saveCommands(myapp.cmds);
+                    refreshListView();
+                }
+
+            }
+        });
+
+
+
+
     }
+
+    private void refreshListView() {
+        cmdsItems = new String[myapp.cmds.size()];
+        int i = 0;
+        for (Map.Entry<String, String> entry : myapp.cmds.entrySet()) {
+            cmdsItems[i] = entry.getKey() + ": " + entry.getValue();
+            i++;
+        }
+
+        // 创建新Adapter并设置
+        ArrayAdapter<String> newAdapter = new ArrayAdapter<>(
+                MainActivity.this,
+                R.layout.listview,
+                cmdsItems
+        );
+        listview.setAdapter(newAdapter);
+    }
+
 
     private void saveToHistory(String cmd) {
         // 检查是否已存在，避免重复

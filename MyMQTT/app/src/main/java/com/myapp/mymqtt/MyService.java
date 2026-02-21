@@ -22,6 +22,8 @@ import androidx.lifecycle.Observer;
 import androidx.core.app.NotificationCompat;
 
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -31,6 +33,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.GZIPInputStream;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -176,14 +179,7 @@ public class MyService extends Service {
         //initMqtt();
 
 
-        String pattern_gist = "^https://gist\\.githubusercontent\\.com.*";
-        // 如果mqqt_server_url是gist页面则需要先获取gist上的服务器地址
-        if(Pattern.matches(pattern_gist, server.url)){
-            getServerAddr();
-        }else{
-            //使用默认url
-            initMqtt();
-        }
+        getServerAddr();
         //setupNetworkMonitoring();
 
 
@@ -193,6 +189,19 @@ public class MyService extends Service {
 
 
     private  void getServerAddr(){
+
+        String pattern_gist = "^https://gist\\.githubusercontent\\.com.*";
+        // 如果mqqt_server_url是gist页面则需要先获取gist上的服务器地址
+        if(Pattern.matches(pattern_gist, server.url)){
+            //继续
+        }else{
+            //使用默认url
+            initMqtt();
+            return;
+        }
+
+
+
         new Thread(() -> {
 
             if(server_gist_url.isEmpty()){
@@ -297,7 +306,14 @@ public class MyService extends Service {
                 // 收到消息
                 @Override
                 public void messageArrived(String topic, MqttMessage message) {
-                    if (topic.endsWith("/image")) {
+
+                    if (isGzipHeader(message.getPayload())) {
+                        Log.d(TAG, "收到的是Gzip压缩数据");
+                        byte[] decompressedData = decompressGzip(message.getPayload());
+                        String data_text = new String(decompressedData);
+                        DataManager.getInstance().sendMessage("Service", data_text);
+                    }
+                    else if (isWebPHeader(message.getPayload())) {
                         Log.d(TAG, "收到消息 [" + topic + "].");
                         // 获取图片数据（直接是二进制数据）
                         myapp.imageData = message.getPayload();
@@ -375,7 +391,6 @@ public class MyService extends Service {
                 if(retries<5){
                     getServerAddr();
                     retries++;
-                    sleep(2000);
                 }
                 break;
 
@@ -452,7 +467,8 @@ public class MyService extends Service {
                     if ("Activity".equals(from)) {
                         // 处理来自Activity的消息
                         Log.i(TAG, "收到消息: " + content);
-                        publish(server.topic_send,content);
+                            Log.i(TAG, "myapp.isRunning");
+                            publish(server.topic_send,content);
 
                     }
                 }
@@ -537,12 +553,52 @@ public class MyService extends Service {
         notificationManager.notify(NOTIFICATION_ID, updatedNotification);
     }
 
-    private void sleep(int ms){
+
+
+    private boolean isGzipHeader(byte[] data) {
+        if (data == null || data.length < 2) {
+            return false;
+        }
+        // Gzip 魔数是 0x1f8b
+        return (data[0] & 0xFF) == 0x1F && (data[1] & 0xFF) == 0x8B;
+    }
+
+    private boolean isWebPHeader(byte[] data) {
+        if (data == null || data.length < 12) {
+            return false;
+        }
+        return data[0] == 'R' && data[1] == 'I' && data[2] == 'F' && data[3] == 'F' &&
+                data[8] == 'W' && data[9] == 'E' && data[10] == 'B' && data[11] == 'P';
+    }
+
+
+    private byte[] decompressGzip(byte[] compressedData) {
+        if (compressedData == null || compressedData.length == 0) {
+            return null;
+        }
+
         try {
-            Thread.sleep(ms);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+            ByteArrayInputStream bis = new ByteArrayInputStream(compressedData);
+            GZIPInputStream gzipInputStream = new GZIPInputStream(bis);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+            byte[] buffer = new byte[1024];
+            int len;
+            while ((len = gzipInputStream.read(buffer)) != -1) {
+                baos.write(buffer, 0, len);
+            }
+
+            gzipInputStream.close();
+            baos.close();
+
+            return baos.toByteArray();
+
+        } catch (IOException e) {
+            Log.e(TAG, "解压Gzip数据失败", e);
+            return null;
         }
     }
+
+
 
 }

@@ -8,12 +8,16 @@
         "source": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/src/main/res/drawable/ic_launcher_background.xml"
     },
     {
-        "merged": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/build/intermediates/res/merged/debug/mipmap-xxhdpi_ic_launcher.png.flat",
-        "source": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/src/main/res/mipmap-xxhdpi/ic_launcher.png"
+        "merged": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/build/intermediates/res/merged/debug/layout_listview.xml.flat",
+        "source": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/src/main/res/layout/listview.xml"
     },
     {
         "merged": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/build/intermediates/res/merged/debug/mipmap-hdpi_ic_launcher.png.flat",
         "source": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/src/main/res/mipmap-hdpi/ic_launcher.png"
+    },
+    {
+        "merged": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/build/intermediates/res/merged/debug/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/src/main/res/mipmap-xxhdpi/ic_launcher.png"
     },
     {
         "merged": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/build/intermediates/res/merged/debug/mipmap-mdpi_ic_launcher.png.flat",

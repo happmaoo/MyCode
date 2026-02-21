@@ -9,7 +9,13 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class MyMQTT extends Application {
 
@@ -17,6 +23,11 @@ public class MyMQTT extends Application {
     private static MyMQTT instance;
     private SharedPreferences sharedPreferences;
     private Gson gson;
+
+
+    private static final String PREFS_NAME = "command_prefs";
+    private static final String KEY_COMMANDS = "commands_map";
+
 
     @Override
     public void onCreate() {
@@ -62,8 +73,6 @@ public class MyMQTT extends Application {
 
     }
 
-
-    // 方法1：使用Gson保存Server列表（推荐）
     public void saveServerList(List<ServerItem> serverList) {
         String json = gson.toJson(serverList);
         setString("server_list", json);
@@ -77,6 +86,76 @@ public class MyMQTT extends Application {
         Type type = new TypeToken<List<ServerItem>>(){}.getType();
         return gson.fromJson(json, type);
     }
+
+
+    //  cmds --------------------------
+
+    public Map<String, String> cmds;
+
+    public static Map<String, String> parseCommands(String input) {
+        // 使用LinkedHashMap保持插入顺序
+        Map<String, String> commandMap = new LinkedHashMap<>();
+
+        String regex = "^(.+?):(.*)$";
+        Pattern pattern = Pattern.compile(regex, Pattern.MULTILINE);
+        Matcher matcher = pattern.matcher(input);
+
+        while (matcher.find()) {
+            String name = matcher.group(1).trim();
+            String command = matcher.group(2).trim();
+            commandMap.put(name, command);
+        }
+
+        return commandMap;
+    }
+
+
+    public static String findCommandByName(Map<String, String> commandMap, String name) {
+        return commandMap.get(name);
+    }
+
+
+    // 保存Map到SharedPreferences
+    public void saveCommands(Map<String, String> commands) {
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+
+        // 将Map转换为JSON字符串
+        String json = gson.toJson(commands);
+        editor.putString(KEY_COMMANDS, json);
+        editor.apply(); // 或使用commit()进行同步保存
+    }
+
+    // 从SharedPreferences读取Map
+    public Map<String, String> loadCommands() {
+        String json = sharedPreferences.getString(KEY_COMMANDS, "");
+
+        if (json.isEmpty()) {
+            return new HashMap<>(); // 返回空Map
+        }
+
+        // 将JSON字符串转换回Map
+        Type type = new TypeToken<Map<String, String>>(){}.getType();
+        Map<String, String> commands = gson.fromJson(json, type);
+
+        return commands;
+    }
+
+    public static String mapToString(Map<String, String> commandMap) {
+        return commandMap.entrySet()
+                .stream()
+                .map(entry -> entry.getKey() + ":" + entry.getValue())
+                .collect(Collectors.joining("\n"));
+    }
+
+    // 清除保存的命令
+    public void clearCommands() {
+        sharedPreferences.edit().remove(KEY_COMMANDS).apply();
+    }
+    //  end cmds --------------------------
+
+
+
+
 
 
 

@@ -3,6 +3,7 @@ package com.myapp.mymqtt;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
@@ -19,7 +20,7 @@ public class settings extends AppCompatActivity {
     private EditText editTextServers;
     MyMQTT app;
     List<MyMQTT.ServerItem> serverList;
-
+    Button button_clearhistory;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -28,7 +29,7 @@ public class settings extends AppCompatActivity {
 
 
         editTextServers = findViewById(R.id.editTextServers);
-
+        button_clearhistory = findViewById(R.id.button_clearhistory);
 
         // 获取Application实例
         app = MyMQTT.getInstance();
@@ -36,6 +37,18 @@ public class settings extends AppCompatActivity {
         serverList = app.getServerList();
 
         loadServersToEditText();
+
+
+
+        button_clearhistory.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                SharedPreferences prefs = getSharedPreferences("mqtt_history", MODE_PRIVATE);
+                prefs.edit().clear().apply(); // apply() 比 commit() 更推荐，异步不卡顿
+                app.historyList.clear();
+
+            }
+        });
 
 
     }

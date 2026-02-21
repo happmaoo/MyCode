@@ -221,6 +221,11 @@ attr editTextColor
 attr editTextStyle
 attr elevation
 attr expandActivityOverflowButtonDrawable
+attr fastScrollEnabled
+attr fastScrollHorizontalThumbDrawable
+attr fastScrollHorizontalTrackDrawable
+attr fastScrollVerticalThumbDrawable
+attr fastScrollVerticalTrackDrawable
 attr firstBaselineToTopHeight
 attr flow_firstHorizontalBias
 attr flow_firstHorizontalStyle
@@ -280,6 +285,7 @@ attr lastBaselineToBottomHeight
 attr layout
 attr layoutDescription
 attr layoutDuringTransition
+attr layoutManager
 attr layout_constrainedHeight
 attr layout_constrainedWidth
 attr layout_constraintBaseline_creator
@@ -441,10 +447,12 @@ attr reactiveGuide_animateChange
 attr reactiveGuide_applyToAllConstraintSets
 attr reactiveGuide_applyToConstraintSet
 attr reactiveGuide_valueId
+attr recyclerViewStyle
 attr region_heightLessThan
 attr region_heightMoreThan
 attr region_widthLessThan
 attr region_widthMoreThan
+attr reverseLayout
 attr rotationCenterId
 attr round
 attr roundPercent
@@ -464,6 +472,7 @@ attr showText
 attr showTitle
 attr singleChoiceItemLayout
 attr sizePercent
+attr spanCount
 attr spinBars
 attr spinnerDropDownItemStyle
 attr spinnerStyle
@@ -474,6 +483,7 @@ attr springMass
 attr springStiffness
 attr springStopThreshold
 attr srcCompat
+attr stackFromEnd
 attr staggered
 attr state_above_anchor
 attr subMenuArrow
@@ -765,6 +775,9 @@ dimen compat_notification_large_icon_max_height
 dimen compat_notification_large_icon_max_width
 dimen disabled_alpha_material_dark
 dimen disabled_alpha_material_light
+dimen fastscroll_default_thickness
+dimen fastscroll_margin
+dimen fastscroll_minimum_range
 dimen highlight_alpha_material_colored
 dimen highlight_alpha_material_dark
 dimen highlight_alpha_material_light
@@ -772,6 +785,9 @@ dimen hint_alpha_material_dark
 dimen hint_alpha_material_light
 dimen hint_pressed_alpha_material_dark
 dimen hint_pressed_alpha_material_light
+dimen item_touch_helper_max_drag_scroll_per_frame
+dimen item_touch_helper_swipe_escape_max_velocity
+dimen item_touch_helper_swipe_escape_velocity
 dimen notification_action_icon_size
 dimen notification_action_text_size
 dimen notification_big_circle_margin
@@ -902,6 +918,7 @@ id ALT
 id CTRL
 id FUNCTION
 id Layout_btns
+id Layout_cmds
 id META
 id NO_DEBUG
 id SHIFT
@@ -991,10 +1008,13 @@ id bounce
 id bounceBoth
 id bounceEnd
 id bounceStart
+id btn_cmds
 id btn_connect
+id btn_editcmds
 id btn_settings
 id btn_start
 id buttonPanel
+id button_clearhistory
 id cache_measures
 id carryVelocity
 id center
@@ -1042,6 +1062,7 @@ id easeOut
 id east
 id editTextServers
 id editText_cmd
+id editText_cmds
 id edit_query
 id end
 id expand_activities_button
@@ -1072,6 +1093,7 @@ id included
 id info
 id invisible
 id italic
+id item_touch_helper_previous_elevation
 id jumpToEnd
 id jumpToStart
 id layout
@@ -1082,6 +1104,7 @@ id line3
 id linear
 id listMode
 id list_item
+id listview
 id match_constraint
 id match_parent
 id message
@@ -1256,6 +1279,7 @@ layout abc_tooltip
 layout activity_main
 layout activity_settings
 layout custom_dialog
+layout listview
 layout notification_action
 layout notification_action_tombstone
 layout notification_template_custom_big
@@ -1713,6 +1737,7 @@ styleable PopupWindow android_popupBackground android_popupAnimationStyle overla
 styleable PopupWindowBackgroundState state_above_anchor
 styleable PropertySet android_visibility android_alpha layout_constraintTag motionProgress visibilityMode
 styleable RecycleListView paddingBottomNoButtons paddingTopNoTitle
+styleable RecyclerView android_orientation android_clipToPadding android_descendantFocusability fastScrollEnabled fastScrollHorizontalThumbDrawable fastScrollHorizontalTrackDrawable fastScrollVerticalThumbDrawable fastScrollVerticalTrackDrawable layoutManager reverseLayout spanCount stackFromEnd
 styleable SearchView android_focusable android_maxWidth android_inputType android_imeOptions closeIcon commitIcon defaultQueryHint goIcon iconifiedByDefault layout queryBackground queryHint searchHintIcon searchIcon submitBackground suggestionRowLayout voiceIcon
 styleable Spinner android_entries android_popupBackground android_prompt android_dropDownWidth popupTheme
 styleable State android_id constraints
