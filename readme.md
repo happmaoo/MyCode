@@ -32,6 +32,8 @@ https://github.com/happmaoo/MyCode/tree/main/MyDeskNote/app/release
 一个简单的录音APP，本地和网络传输录音  
 https://github.com/happmaoo/MyCode/tree/main/MyAudioRecorder/app/release
 
+## MyMQTT 可用于物联网卡小服务器APP控制
+MyMQTT 物联网卡小服务器,可用ipv6连接服务器控制设备  
 
 
 # 测试用的项目:
@@ -40,7 +42,6 @@ blescan ble扫描代码
 MyWiFiDirect 连接后可以手动运行 python ftp 收发文件  
 handler 线程 或 界面和服务互发消息的方法  
 LiveData 互发消息的方法  
-MyMQTT 物联网卡小服务器,可用ipv6连接服务器控制设备  
 
 ---
 
