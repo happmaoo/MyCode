@@ -919,6 +919,7 @@ id CTRL
 id FUNCTION
 id Layout_btns
 id Layout_cmds
+id Layout_image
 id META
 id NO_DEBUG
 id SHIFT
@@ -1207,6 +1208,7 @@ id text
 id text2
 id textSpacerNoButtons
 id textSpacerNoTitle
+id textView_imgsize
 id textView_log
 id time
 id title

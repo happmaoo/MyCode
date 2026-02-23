@@ -3,10 +3,13 @@ package com.myapp.mymqtt;
 import android.app.Application;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Log;
 import android.widget.ArrayAdapter;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -154,9 +157,22 @@ public class MyMQTT extends Application {
     //  end cmds --------------------------
 
 
+    // 在文本开头追加文本写入 (最新在最前)
+    public void log(String newText) {
+        String key = "log";
+        String existingText = sharedPreferences.getString(key, "");
 
+        // 新内容加在前面
+        String newLog = newText + "\n" + existingText;
 
+        // 限制总字符数
+        int MAX_CHARS = 50000;//~50KB
+        if (newLog.length() > MAX_CHARS) {
+            newLog = newLog.substring(0, MAX_CHARS);
+        }
 
+        sharedPreferences.edit().putString(key, newLog).apply();
+    }
 
 
     // SharedPreferences基础方法

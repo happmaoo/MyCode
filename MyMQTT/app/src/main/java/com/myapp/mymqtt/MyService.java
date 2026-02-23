@@ -77,7 +77,7 @@ public class MyService extends Service {
 
     private final android.os.Handler mHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
-
+    private volatile boolean isDestroyed = false;
 
     @Override
     public void onCreate() {
@@ -114,43 +114,51 @@ public class MyService extends Service {
     }
 
 
+
     @Override
     public void onDestroy() {
-        // A. 立即截断所有 Handler 延时任务，防止 5 秒后 Service "诈尸" 执行逻辑
+        isDestroyed = true; // 标志位：后续所有异步回调看到它就立即停止
+
+        // A. 停止 Handler 消息
         mHandler.removeCallbacksAndMessages(null);
 
-        // B. 移除消息观察者
+        // B. 移除消息观察者 (这里要用 observeForever 对应的 removeObserver)
         if (messageObserver != null) {
             DataManager.getInstance().getLiveDataMessage().removeObserver(messageObserver);
         }
 
-        // C. 注销网络监听
+        // C. 注销网络监听 (建议增加判空)
         if (networkCallback != null) {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
             if (cm != null) {
                 try {
                     cm.unregisterNetworkCallback(networkCallback);
                 } catch (Exception e) {
-                    // 防止重复注销崩溃
+                    Log.e(TAG, "NetworkCallback unregister error");
                 }
             }
         }
 
-        // D. 同步关闭 MQTT (移除 Thread)
-        // 在 onDestroy 中，为了确保关闭指令发出，建议直接同步操作或设极短超时
-        if (mqttClient != null) {
-            try {
-                mqttClient.setCallback(null); // 1. 关掉回调，防止断开时又跑进 connectionLost
-                if (mqttClient.isConnected()) {
-                    mqttClient.disconnectForcibly(500); // 2. 强制断开，最多等 500ms
+        // D. 彻底断开 MQTT
+        // 放到子线程执行，避免阻塞主线程，但要断开所有引用
+        new Thread(() -> {
+            if (mqttClient != null) {
+                try {
+                    mqttClient.setCallback(null); // 断开回调关联
+                    if (mqttClient.isConnected()) {
+                        mqttClient.disconnectForcibly(500, 1000); // 强制断开
+                    }
+                    mqttClient.close();
+                    Log.i(TAG, "MQTT Connection Closed");
+                } catch (Exception e) {
+                    Log.e(TAG, "MQTT Close Error: " + e.getMessage());
+                } finally {
+                    mqttClient = null;
                 }
-                mqttClient.close();
-            } catch (Exception e) {
-                Log.e(TAG, "MQTT Close Error: " + e.getMessage());
             }
-        }
+        }).start();
 
-        // E. 停止前台服务
+        // E. 停止前台状态
         stopForeground(true);
         myapp.isRunning = false;
 
@@ -190,13 +198,17 @@ public class MyService extends Service {
 
     private  void getServerAddr(){
 
+        if (isDestroyed) return; // 如果已经销毁，直接退出线程
+
         String pattern_gist = "^https://gist\\.githubusercontent\\.com.*";
         // 如果mqqt_server_url是gist页面则需要先获取gist上的服务器地址
         if(Pattern.matches(pattern_gist, server.url)){
             //继续
         }else{
             //使用默认url
-            initMqtt();
+            if (!isDestroyed) {
+                initMqtt();
+            }
             return;
         }
 
@@ -309,15 +321,26 @@ public class MyService extends Service {
 
                     if (isGzipHeader(message.getPayload())) {
                         Log.d(TAG, "收到的是Gzip压缩数据");
+                        int originalCompressedSize = message.getPayload().length;
+                        Log.d(TAG, "原始压缩数据大小: " + originalCompressedSize + " 字节");
+
                         byte[] decompressedData = decompressGzip(message.getPayload());
+
+                        int decompressedSize = decompressedData.length;
+                        Log.d(TAG, "解压后数据大小: " + decompressedSize + " 字节");
+
                         String data_text = new String(decompressedData);
                         DataManager.getInstance().sendMessage("Service", data_text);
+                        myapp.log(data_text);
                     }
                     else if (isWebPHeader(message.getPayload())) {
                         Log.d(TAG, "收到消息 [" + topic + "].");
                         // 获取图片数据（直接是二进制数据）
                         myapp.imageData = message.getPayload();
-                        DataManager.getInstance().sendMessage("Service", "data_image");
+                        int picSize = message.getPayload().length;
+                        DataManager.getInstance().sendMessage("Service", "data_image/"+picSize);
+
+
 
 //                        // 方式1：保存为文件（根据时间戳命名）
 //                        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
@@ -341,6 +364,7 @@ public class MyService extends Service {
                         String payload = new String(message.getPayload());
                         Log.d(TAG, "收到消息 [" + topic + "]: " + payload);
                         DataManager.getInstance().sendMessage("Service", payload);
+                        myapp.log(payload);
                     }
                 }
 
@@ -389,7 +413,11 @@ public class MyService extends Service {
                 errorInfo = "连接失败 [" + e.getReasonCode() + "]: " + e.getMessage();
                 //连接失败可能是ipv6地址更新了，获取新地址
                 if(retries<5){
-                    getServerAddr();
+
+                    if (!isDestroyed) {
+                        getServerAddr();
+                    }
+
                     retries++;
                 }
                 break;
@@ -468,7 +496,10 @@ public class MyService extends Service {
                         // 处理来自Activity的消息
                         Log.i(TAG, "收到消息: " + content);
                             Log.i(TAG, "myapp.isRunning");
+
+                        if (!isDestroyed) {
                             publish(server.topic_send,content);
+                        }
 
                     }
                 }
@@ -501,6 +532,8 @@ public class MyService extends Service {
             public void onLost(Network network) {
                 Log.e(TAG, "网络丢失");
                 DataManager.getInstance().sendMessage("Service", "网络连接中断");
+                if (!isDestroyed) return;
+
                 //  主动断开客户端，防止 Paho 在后台尝试 Automatic Reconnect
                 new Thread(() -> {
                     try {

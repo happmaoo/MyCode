@@ -55,12 +55,33 @@
     </LinearLayout>
 
 
-
-    <ImageView
-        android:id="@+id/imageView"
+    <LinearLayout
+        android:id="@+id/Layout_image"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:visibility="gone"/>
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/imageView"
+            android:layout_width="match_parent"
+            android:paddingRight="50dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:adjustViewBounds="true"/>
+
+        <TextView
+            android:id="@+id/textView_imgsize"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top"
+            android:fontFamily="monospace"
+            android:gravity="top"
+            android:text="log"
+            android:textColor="#000000"
+            android:paddingLeft="8dp"/>
+    </LinearLayout>
+
 
 
     <androidx.core.widget.NestedScrollView

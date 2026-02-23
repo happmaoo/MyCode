@@ -1,5 +1,6 @@
 package com.myapp.mymqtt;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.util.Pair;
@@ -14,6 +15,7 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -42,12 +44,12 @@ public class MainActivity extends AppCompatActivity {
 
 
     Intent serviceIntent;
-    TextView textView;
+    TextView textView,textView_imgsize;
     Button btn_start,btn_settings,btn_connect,btn_cmds,btn_editcmds;
     RadioGroup radioGroup;
     ImageView imageView;
     NestedScrollView scrollView;
-    LinearLayout Layout_cmds;
+    LinearLayout Layout_image,Layout_cmds;
     ListView listview;
     EditText editText_cmds;
 
@@ -60,6 +62,7 @@ public class MainActivity extends AppCompatActivity {
     List<MyMQTT.ServerItem> serverList;
     MyMQTT.ServerItem cur_server;
     String[] cmdsItems;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,6 +77,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         textView = findViewById(R.id.textView_log);
+        textView_imgsize = findViewById(R.id.textView_imgsize);
         btn_start = findViewById(R.id.btn_start);
         btn_settings = findViewById(R.id.btn_settings);
         btn_connect = findViewById(R.id.btn_connect);
@@ -85,6 +89,7 @@ public class MainActivity extends AppCompatActivity {
         editText_cmd = findViewById(R.id.editText_cmd);
         scrollView = findViewById(R.id.scrollView);
         listview = findViewById(R.id.listview);
+        Layout_image = findViewById(R.id.Layout_image);
         Layout_cmds = findViewById(R.id.Layout_cmds);
         editText_cmds = findViewById(R.id.editText_cmds);
 
@@ -162,7 +167,8 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onClick(View v) {
                         if(myapp.isRunning){
-                        DataManager.getInstance().sendMessage("Activity", cmd);
+                            textView.setText(name + "...");
+                            DataManager.getInstance().sendMessage("Activity", cmd);
                         }
                     }
                 });
@@ -258,16 +264,25 @@ public class MainActivity extends AppCompatActivity {
                     String content = pair.second;
 
                     if ("Service".equals(from)) {
-                        if ("data_image".equals(content)) {
+                        if (content.startsWith("data_image")) {
                             scrollView.setVisibility(View.GONE);
-                            imageView.setVisibility(View.VISIBLE);
+                            Layout_image.setVisibility(View.VISIBLE);
 
                             Bitmap bitmap = BitmapFactory.decodeByteArray(myapp.imageData, 0, myapp.imageData.length);
                             imageView.setImageBitmap(bitmap);
 
+                            String[] parts = content.split("/");
+                            int size = 0;
+                            if (parts.length > 1) {
+                                size = Integer.parseInt(parts[1]);
+                                Log.d("TAG", "图片大小: " + size);
+                                double size2 = size / 1024.0;
+                                textView_imgsize.setText(String.format("%.1f KB", size2));
+                            }
+
                         }else{
                             scrollView.setVisibility(View.VISIBLE);
-                            imageView.setVisibility(View.GONE);
+                            Layout_image.setVisibility(View.GONE);
                             textView.setText(content);
                             Log.i("Activity", "收到消息: " + content);
                         }
@@ -292,11 +307,11 @@ public class MainActivity extends AppCompatActivity {
                 if (Layout_cmds.getVisibility() == View.VISIBLE) {
                     Layout_cmds.setVisibility(View.GONE);
                     scrollView.setVisibility(View.VISIBLE);
-                    imageView.setVisibility(View.GONE);
+                    Layout_image.setVisibility(View.GONE);
                 } else {
                     Layout_cmds.setVisibility(View.VISIBLE);
                     scrollView.setVisibility(View.GONE);
-                    imageView.setVisibility(View.GONE);
+                    Layout_image.setVisibility(View.GONE);
                 }
             }
         });
@@ -342,7 +357,7 @@ public class MainActivity extends AppCompatActivity {
 
                 Layout_cmds.setVisibility(View.GONE);
                 scrollView.setVisibility(View.VISIBLE);
-                imageView.setVisibility(View.GONE);
+                Layout_image.setVisibility(View.GONE);
             }
         });
         //Log.i("aaa", "Command: " + myapp.findCommandByName(myapp.cmds,"ls"));
@@ -369,7 +384,46 @@ public class MainActivity extends AppCompatActivity {
 
 
 
+
+        // 注册返回键回调 用于 cms 列表显示的时候按返回时隐藏 cmds 列表
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (Layout_cmds.getVisibility() == View.VISIBLE) {
+                    //
+                    Layout_cmds.setVisibility(View.GONE);
+                    scrollView.setVisibility(View.VISIBLE);
+                    Layout_image.setVisibility(View.GONE);
+                }else{
+                    finish();
+                }
+
+
+            }
+        });
+
+
+
+
+
     }
+
+
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        // 监听物理菜单键（三大金刚键之一）
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            if (Layout_cmds.getVisibility() == View.GONE) {
+                Layout_cmds.setVisibility(View.VISIBLE);
+            } else {
+                Layout_cmds.setVisibility(View.GONE);
+            }
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
 
     private void refreshListView() {
         cmdsItems = new String[myapp.cmds.size()];
