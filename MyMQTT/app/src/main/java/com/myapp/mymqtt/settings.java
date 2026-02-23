@@ -1,6 +1,7 @@
 package com.myapp.mymqtt;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.widget.NestedScrollView;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -8,7 +9,9 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -20,7 +23,11 @@ public class settings extends AppCompatActivity {
     private EditText editTextServers;
     MyMQTT app;
     List<MyMQTT.ServerItem> serverList;
-    Button button_clearhistory;
+    Button button_clearhistory,button_showlog;
+
+    NestedScrollView scrollView;
+    TextView textView_log;
+    CheckBox checkBox_sound;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,6 +37,10 @@ public class settings extends AppCompatActivity {
 
         editTextServers = findViewById(R.id.editTextServers);
         button_clearhistory = findViewById(R.id.button_clearhistory);
+        button_showlog = findViewById(R.id.button_showlog);
+        scrollView = findViewById(R.id.scrollView);
+        textView_log = findViewById(R.id.textView_log);
+        checkBox_sound = findViewById(R.id.checkBox_sound);
 
         // 获取Application实例
         app = MyMQTT.getInstance();
@@ -38,7 +49,19 @@ public class settings extends AppCompatActivity {
 
         loadServersToEditText();
 
+        button_showlog.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
 
+                
+                textView_log.setText(app.getString("log",""));
+
+                editTextServers.setVisibility(View.GONE);
+                scrollView.setVisibility(View.VISIBLE);
+
+
+            }
+        });
 
         button_clearhistory.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -50,6 +73,18 @@ public class settings extends AppCompatActivity {
             }
         });
 
+
+        checkBox_sound.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) {
+                app.setBoolean("sound",true);
+            }else{
+                app.setBoolean("sound",false);
+            }
+        });
+
+        if(app.getBoolean("sound",false)){
+            checkBox_sound.setChecked(true);
+        }
 
     }
 

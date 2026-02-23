@@ -36,6 +36,10 @@
         "source": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/src/main/res/layout/activity_main.xml"
     },
     {
+        "merged": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/build/intermediates/res/merged/debug/drawable-v24_edittext_border.xml.flat",
+        "source": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/src/main/res/drawable-v24/edittext_border.xml"
+    },
+    {
         "merged": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/build/intermediates/res/merged/debug/mipmap-xxxhdpi_ic_launcher.png.flat",
         "source": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
     },

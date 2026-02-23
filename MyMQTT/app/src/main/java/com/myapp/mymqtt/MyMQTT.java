@@ -166,7 +166,7 @@ public class MyMQTT extends Application {
         String newLog = newText + "\n" + existingText;
 
         // 限制总字符数
-        int MAX_CHARS = 50000;//~50KB
+        int MAX_CHARS = 200000;//~200KB
         if (newLog.length() > MAX_CHARS) {
             newLog = newLog.substring(0, MAX_CHARS);
         }

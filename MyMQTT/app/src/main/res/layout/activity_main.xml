@@ -85,6 +85,7 @@
 
 
     <androidx.core.widget.NestedScrollView
+        style="@style/CustomEditText"
         android:id="@+id/scrollView"
         android:layout_width="match_parent"
         android:layout_height="0dp"

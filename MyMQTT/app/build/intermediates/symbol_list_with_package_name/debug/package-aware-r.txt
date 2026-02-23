@@ -898,6 +898,7 @@ drawable btn_radio_off_mtrl
 drawable btn_radio_off_to_on_mtrl_animation
 drawable btn_radio_on_mtrl
 drawable btn_radio_on_to_off_mtrl_animation
+drawable edittext_border
 drawable ic_launcher_background
 drawable ic_launcher_foreground
 drawable notification_action_background
@@ -1016,12 +1017,14 @@ id btn_settings
 id btn_start
 id buttonPanel
 id button_clearhistory
+id button_showlog
 id cache_measures
 id carryVelocity
 id center
 id center_vertical
 id chain
 id chains
+id checkBox_sound
 id checkbox
 id checked
 id chronometer
@@ -1486,6 +1489,7 @@ style Base_Widget_AppCompat_TextView
 style Base_Widget_AppCompat_TextView_SpinnerItem
 style Base_Widget_AppCompat_Toolbar
 style Base_Widget_AppCompat_Toolbar_Button_Navigation
+style CustomEditText
 style MyButtonStyle
 style Platform_AppCompat
 style Platform_AppCompat_Light

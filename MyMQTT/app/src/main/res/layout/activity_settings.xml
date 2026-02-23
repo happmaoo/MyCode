@@ -10,19 +10,75 @@
     tools:context=".MainActivity">
 
 
+    <CheckBox
+        android:id="@+id/checkBox_sound"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="message sound" />
+
 
     <EditText
         android:id="@+id/editTextServers"
+        style="@style/CustomEditText"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:textSize="14dp"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:fontFamily="monospace"
         android:inputType="textMultiLine" />
 
-    <Button
-        android:id="@+id/button_clearhistory"
-        android:layout_width="wrap_content"
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scrollView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scrollbars="vertical"
+        android:fillViewport="true"
+        android:visibility="gone">
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="horizontal">
+
+            <TextView
+                style="@style/CustomEditText"
+                android:id="@+id/textView_log"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textIsSelectable="true"
+                android:gravity="top"
+                android:textSize="12dp"
+                android:fontFamily="monospace"
+                android:textColor="#000000"
+                android:text="log" />
+
+        </HorizontalScrollView>
+    </androidx.core.widget.NestedScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="clear history" />
+        android:layout_marginBottom="10dp"
+        android:orientation="horizontal">
+
+
+        <Button
+            android:id="@+id/button_showlog"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="log" />
+
+        <Button
+            android:id="@+id/button_clearhistory"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="clear history" />
+
+    </LinearLayout>
+
 
 </LinearLayout>

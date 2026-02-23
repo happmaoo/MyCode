@@ -167,6 +167,7 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onClick(View v) {
                         if(myapp.isRunning){
+                            Layout_image.setVisibility(View.GONE);
                             textView.setText(name + "...");
                             DataManager.getInstance().sendMessage("Activity", cmd);
                         }

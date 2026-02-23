@@ -6,6 +6,9 @@ import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
+import android.media.ToneGenerator;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -71,7 +74,7 @@ public class MyService extends Service {
     List<MyMQTT.ServerItem> serverList;
     MyMQTT.ServerItem server;
     String server_gist_url = "";
-
+    boolean sound;
 
     int retries = 0;
 
@@ -88,6 +91,7 @@ public class MyService extends Service {
         myapp = (MyMQTT) getApplicationContext();
         serverList = myapp.getServerList();
         server = getServer(myapp.getString("server",""));
+        sound = myapp.getBoolean("sound",false);
     }
 
     // 获取某个服务器的信息
@@ -319,6 +323,7 @@ public class MyService extends Service {
                 @Override
                 public void messageArrived(String topic, MqttMessage message) {
 
+
                     if (isGzipHeader(message.getPayload())) {
                         Log.d(TAG, "收到的是Gzip压缩数据");
                         int originalCompressedSize = message.getPayload().length;
@@ -331,7 +336,7 @@ public class MyService extends Service {
 
                         String data_text = new String(decompressedData);
                         DataManager.getInstance().sendMessage("Service", data_text);
-                        myapp.log(data_text);
+                        myapp.log(server.name+":"+data_text+"\n\n\n\n");
                     }
                     else if (isWebPHeader(message.getPayload())) {
                         Log.d(TAG, "收到消息 [" + topic + "].");
@@ -364,8 +369,20 @@ public class MyService extends Service {
                         String payload = new String(message.getPayload());
                         Log.d(TAG, "收到消息 [" + topic + "]: " + payload);
                         DataManager.getInstance().sendMessage("Service", payload);
-                        myapp.log(payload);
+                        myapp.log(server.name+":"+payload+"\n\n\n\n");
                     }
+
+
+                     if(sound){
+                        ToneGenerator toneGen = new ToneGenerator(AudioManager.STREAM_MUSIC, 80);
+                        toneGen.startTone(ToneGenerator.TONE_PROP_ACK, 1000);
+                        try {
+                            Thread.sleep(500);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        toneGen.release();
+                     }
                 }
 
                 @Override
