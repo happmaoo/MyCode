@@ -97,38 +97,6 @@
             ]
         },
         {
-            "outputFile": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/build/intermediates/res/merged/debug/values-iw_values-iw.arsc.flat",
-            "map": [
-                {
-                    "source": "/home/happmaoo/.gradle/caches/transforms-2/files-2.1/897c36cf5f6e43faaed425576a4a23cc/appcompat-1.3.1/res/values-iw/values-iw.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29",
-                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "105,210,310,418,502,604,720,799,877,968,1062,1156,1250,1350,1443,1538,1631,1722,1814,1895,2000,2103,2201,2306,2408,2510,2664,2761",
-                        "endColumns": "104,99,107,83,101,115,78,77,90,93,93,93,99,92,94,92,90,91,80,104,102,97,104,101,101,153,96,81",
-                        "endOffsets": "205,305,413,497,599,715,794,872,963,1057,1151,1245,1345,1438,1533,1626,1717,1809,1890,1995,2098,2196,2301,2403,2505,2659,2756,2838"
-                    }
-                },
-                {
-                    "source": "/home/happmaoo/.gradle/caches/transforms-2/files-2.1/48cd7bd08e89712a0952f96bb9006374/core-1.5.0/res/values-iw/values-iw.xml",
-                    "from": {
-                        "startLines": "2",
-                        "startColumns": "4",
-                        "startOffsets": "55",
-                        "endColumns": "100",
-                        "endOffsets": "151"
-                    },
-                    "to": {
-                        "startLines": "30",
-                        "startColumns": "4",
-                        "startOffsets": "2843",
-                        "endColumns": "100",
-                        "endOffsets": "2939"
-                    }
-                }
-            ]
-        },
-        {
             "outputFile": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/build/intermediates/res/merged/debug/values-nb_values-nb.arsc.flat",
             "map": [
                 {
@@ -156,6 +124,38 @@
                         "startOffsets": "105,208,303,417,503,603,716,793,868,959,1052,1146,1240,1340,1433,1528,1626,1717,1808,1886,1989,2087,2183,2287,2386,2487,2640,2737",
                         "endColumns": "102,94,113,85,99,112,76,74,90,92,93,93,99,92,94,97,90,90,77,102,97,95,103,98,100,152,96,79",
                         "endOffsets": "203,298,412,498,598,711,788,863,954,1047,1141,1235,1335,1428,1523,1621,1712,1803,1881,1984,2082,2178,2282,2381,2482,2635,2732,2812"
+                    }
+                }
+            ]
+        },
+        {
+            "outputFile": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/build/intermediates/res/merged/debug/values-iw_values-iw.arsc.flat",
+            "map": [
+                {
+                    "source": "/home/happmaoo/.gradle/caches/transforms-2/files-2.1/897c36cf5f6e43faaed425576a4a23cc/appcompat-1.3.1/res/values-iw/values-iw.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "105,210,310,418,502,604,720,799,877,968,1062,1156,1250,1350,1443,1538,1631,1722,1814,1895,2000,2103,2201,2306,2408,2510,2664,2761",
+                        "endColumns": "104,99,107,83,101,115,78,77,90,93,93,93,99,92,94,92,90,91,80,104,102,97,104,101,101,153,96,81",
+                        "endOffsets": "205,305,413,497,599,715,794,872,963,1057,1151,1245,1345,1438,1533,1626,1717,1809,1890,1995,2098,2196,2301,2403,2505,2659,2756,2838"
+                    }
+                },
+                {
+                    "source": "/home/happmaoo/.gradle/caches/transforms-2/files-2.1/48cd7bd08e89712a0952f96bb9006374/core-1.5.0/res/values-iw/values-iw.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "100",
+                        "endOffsets": "151"
+                    },
+                    "to": {
+                        "startLines": "30",
+                        "startColumns": "4",
+                        "startOffsets": "2843",
+                        "endColumns": "100",
+                        "endOffsets": "2939"
                     }
                 }
             ]
@@ -337,38 +337,6 @@
             ]
         },
         {
-            "outputFile": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/build/intermediates/res/merged/debug/values-hr_values-hr.arsc.flat",
-            "map": [
-                {
-                    "source": "/home/happmaoo/.gradle/caches/transforms-2/files-2.1/897c36cf5f6e43faaed425576a4a23cc/appcompat-1.3.1/res/values-hr/values-hr.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29",
-                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "105,210,305,412,498,602,721,806,888,979,1072,1167,1261,1361,1454,1549,1644,1735,1826,1912,2016,2128,2229,2334,2448,2550,2719,2816",
-                        "endColumns": "104,94,106,85,103,118,84,81,90,92,94,93,99,92,94,94,90,90,85,103,111,100,104,113,101,168,96,84",
-                        "endOffsets": "205,300,407,493,597,716,801,883,974,1067,1162,1256,1356,1449,1544,1639,1730,1821,1907,2011,2123,2224,2329,2443,2545,2714,2811,2896"
-                    }
-                },
-                {
-                    "source": "/home/happmaoo/.gradle/caches/transforms-2/files-2.1/48cd7bd08e89712a0952f96bb9006374/core-1.5.0/res/values-hr/values-hr.xml",
-                    "from": {
-                        "startLines": "2",
-                        "startColumns": "4",
-                        "startOffsets": "55",
-                        "endColumns": "100",
-                        "endOffsets": "151"
-                    },
-                    "to": {
-                        "startLines": "30",
-                        "startColumns": "4",
-                        "startOffsets": "2901",
-                        "endColumns": "100",
-                        "endOffsets": "2997"
-                    }
-                }
-            ]
-        },
-        {
             "outputFile": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/build/intermediates/res/merged/debug/values-zh-rCN_values-zh-rCN.arsc.flat",
             "map": [
                 {
@@ -396,6 +364,38 @@
                         "startOffsets": "105,200,295,395,477,574,680,757,832,923,1016,1113,1209,1303,1396,1491,1583,1674,1765,1843,1939,2034,2129,2226,2322,2420,2568,2662",
                         "endColumns": "94,94,99,81,96,105,76,74,90,92,96,95,93,92,94,91,90,90,77,95,94,94,96,95,97,147,93,78",
                         "endOffsets": "195,290,390,472,569,675,752,827,918,1011,1108,1204,1298,1391,1486,1578,1669,1760,1838,1934,2029,2124,2221,2317,2415,2563,2657,2736"
+                    }
+                }
+            ]
+        },
+        {
+            "outputFile": "/home/happmaoo/AndroidStudioProjects/MyMQTT/app/build/intermediates/res/merged/debug/values-hr_values-hr.arsc.flat",
+            "map": [
+                {
+                    "source": "/home/happmaoo/.gradle/caches/transforms-2/files-2.1/897c36cf5f6e43faaed425576a4a23cc/appcompat-1.3.1/res/values-hr/values-hr.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "105,210,305,412,498,602,721,806,888,979,1072,1167,1261,1361,1454,1549,1644,1735,1826,1912,2016,2128,2229,2334,2448,2550,2719,2816",
+                        "endColumns": "104,94,106,85,103,118,84,81,90,92,94,93,99,92,94,94,90,90,85,103,111,100,104,113,101,168,96,84",
+                        "endOffsets": "205,300,407,493,597,716,801,883,974,1067,1162,1256,1356,1449,1544,1639,1730,1821,1907,2011,2123,2224,2329,2443,2545,2714,2811,2896"
+                    }
+                },
+                {
+                    "source": "/home/happmaoo/.gradle/caches/transforms-2/files-2.1/48cd7bd08e89712a0952f96bb9006374/core-1.5.0/res/values-hr/values-hr.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "100",
+                        "endOffsets": "151"
+                    },
+                    "to": {
+                        "startLines": "30",
+                        "startColumns": "4",
+                        "startOffsets": "2901",
+                        "endColumns": "100",
+                        "endOffsets": "2997"
                     }
                 }
             ]

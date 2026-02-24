@@ -1010,6 +1010,7 @@ id bounce
 id bounceBoth
 id bounceEnd
 id bounceStart
+id btn_action
 id btn_cmds
 id btn_connect
 id btn_editcmds

@@ -7,16 +7,21 @@ import androidx.core.util.Pair;
 import androidx.core.widget.NestedScrollView;
 import androidx.lifecycle.Observer;
 
+import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
@@ -32,6 +37,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 
+import org.json.JSONArray;
+import org.json.JSONException;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -45,7 +53,7 @@ public class MainActivity extends AppCompatActivity {
 
     Intent serviceIntent;
     TextView textView,textView_imgsize;
-    Button btn_start,btn_settings,btn_connect,btn_cmds,btn_editcmds;
+    Button btn_start,btn_settings,btn_connect,btn_cmds,btn_editcmds,btn_action;
     RadioGroup radioGroup;
     ImageView imageView;
     NestedScrollView scrollView;
@@ -62,6 +70,12 @@ public class MainActivity extends AppCompatActivity {
     List<MyMQTT.ServerItem> serverList;
     MyMQTT.ServerItem cur_server;
     String[] cmdsItems;
+    // action 按钮动作定义
+    String action = "";
+    //map
+    String latitude;
+    String longitude;
+    String accuracy;
 
 
     @Override
@@ -83,6 +97,7 @@ public class MainActivity extends AppCompatActivity {
         btn_connect = findViewById(R.id.btn_connect);
         btn_cmds = findViewById(R.id.btn_cmds);
         btn_editcmds = findViewById(R.id.btn_editcmds);
+        btn_action = findViewById(R.id.btn_action);
 
         radioGroup = findViewById(R.id.radiogroup);
         imageView = findViewById(R.id.imageView);
@@ -203,7 +218,7 @@ public class MainActivity extends AppCompatActivity {
         btn_start.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String cmd = editText_cmd.getText().toString().trim();
+                String cmd = editText_cmd.getText().toString();//.trim()
                 editText_cmd.setText("");
                 if (!cmd.isEmpty()) {
                     // 发送消息
@@ -222,6 +237,9 @@ public class MainActivity extends AppCompatActivity {
                         savePrefs();
                     }
                 }
+
+
+                hideKeyboard(MainActivity.this);
             }
         });
 
@@ -258,6 +276,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Activity：使用生命周期感知的 observe 自动注销
         DataManager.getInstance().getLiveDataMessage().observe(this, new Observer<Pair<String, String>>() {
+            @SuppressLint("DefaultLocale")
             @Override
             public void onChanged(Pair<String, String> pair) {
                 if (pair != null) {
@@ -265,14 +284,15 @@ public class MainActivity extends AppCompatActivity {
                     String content = pair.second;
 
                     if ("Service".equals(from)) {
-                        if (content.startsWith("data_image")) {
+                        if (content.startsWith("data_image://")) {
                             scrollView.setVisibility(View.GONE);
+                            btn_action.setVisibility(View.GONE);
                             Layout_image.setVisibility(View.VISIBLE);
 
                             Bitmap bitmap = BitmapFactory.decodeByteArray(myapp.imageData, 0, myapp.imageData.length);
                             imageView.setImageBitmap(bitmap);
 
-                            String[] parts = content.split("/");
+                            String[] parts = content.split("//");
                             int size = 0;
                             if (parts.length > 1) {
                                 size = Integer.parseInt(parts[1]);
@@ -281,7 +301,32 @@ public class MainActivity extends AppCompatActivity {
                                 textView_imgsize.setText(String.format("%.1f KB", size2));
                             }
 
+                        }else if(content.startsWith("data_xxxxxx://")){
+                            //textView.setText("gps");
                         }else{
+
+                            btn_action.setVisibility(View.GONE);
+
+                            if(content.startsWith("data_gps://")){
+                                Pattern pattern = Pattern.compile(
+                            "\"latitude\":\\s*([\\d.]+).*?" +
+                                    "\"longitude\":\\s*([\\d.]+).*?" +
+                                    "\"accuracy\":\\s*([\\d.]+)",
+                                 Pattern.DOTALL
+                                );
+                                Matcher matcher = pattern.matcher(content);
+                                if (matcher.find()) {
+                                    latitude = matcher.group(1);
+                                    longitude = matcher.group(2);
+                                    accuracy = matcher.group(3);
+
+                                    btn_action.setVisibility(View.VISIBLE);
+                                    btn_action.setText("Open Map");
+                                    action = "map";
+
+                                }
+                            }
+
                             scrollView.setVisibility(View.VISIBLE);
                             Layout_image.setVisibility(View.GONE);
                             textView.setText(content);
@@ -403,7 +448,14 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-
+        btn_action.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if("map".equals(action)){
+                    openInMap(latitude,longitude);
+                }
+            }
+        });
 
 
 
@@ -457,20 +509,45 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    // 修改后的保存方法，不再需要参数，直接同步整张表
     private void savePrefs() {
         SharedPreferences prefs = getSharedPreferences("mqtt_history", MODE_PRIVATE);
-        // 注意：StringSet 是无序的，如果对历史记录的“先后顺序”要求很高，
-        // 后期建议换成 JSON 字符串存储，但目前这样够用了。
-        Set<String> set = new HashSet<>(myapp.historyList);
-        prefs.edit().putStringSet("history", set).apply();
+        JSONArray jsonArray = new JSONArray();
+        for (String item : myapp.historyList) {
+            jsonArray.put(item);
+            // 空格开头的命令不要写入历史记录
+            if (item != null && item.startsWith(" ")) {
+                return;
+            }
+        }
+        String jsonString = jsonArray.toString();
+        prefs.edit().putString("history_json", jsonString).apply();
     }
 
-    // 读取本地
     private void loadPrefs() {
         SharedPreferences prefs = getSharedPreferences("mqtt_history", MODE_PRIVATE);
-        Set<String> set = prefs.getStringSet("history", new HashSet<>());
-        myapp.historyList.addAll(set);
+        String jsonString = prefs.getString("history_json", "");
+
+        if (!jsonString.isEmpty()) {
+            try {
+                JSONArray jsonArray = null;
+                try {
+                    jsonArray = new JSONArray(jsonString);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+                ArrayList<String> savedList = new ArrayList<>();
+
+                for (int i = 0; i < jsonArray.length(); i++) {
+                    savedList.add(jsonArray.getString(i));
+                }
+                myapp.historyList.clear();
+                myapp.historyList.addAll(savedList);
+
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+
         myapp.adapter.notifyDataSetChanged();
     }
 
@@ -536,8 +613,33 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void openInMap(String latitude, String longitude) {
+        String uri = "geo:" + latitude + "," + longitude + "?q=" + latitude + "," + longitude + "(MyMarker)";
 
+// 高德不一样
+//        try {
+//            getPackageManager().getPackageInfo("com.autonavi.minimap", 0);
+//            String url = "androidamap://viewMap?sourceApplication=appname&poiname=目标位置&lat="
+//                    + latitude + "&lon=" + longitude + "&dev=1";
+//            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+//        }
+//        catch (Exception e) {
+//        //
+//        }
 
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(uri));
+        if (intent.resolveActivity(getPackageManager()) != null) {
+            startActivity(intent);
+        }
+    }
+
+    public static void hideKeyboard(Activity activity) {
+        InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+        View currentFocus = activity.getCurrentFocus();
+        if (currentFocus != null) {
+            imm.hideSoftInputFromWindow(currentFocus.getWindowToken(), 0);
+        }
+    }
 
 
 }

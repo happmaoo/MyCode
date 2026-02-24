@@ -343,7 +343,7 @@ public class MyService extends Service {
                         // 获取图片数据（直接是二进制数据）
                         myapp.imageData = message.getPayload();
                         int picSize = message.getPayload().length;
-                        DataManager.getInstance().sendMessage("Service", "data_image/"+picSize);
+                        DataManager.getInstance().sendMessage("Service", "data_image://"+picSize);
 
 
 
@@ -368,6 +368,7 @@ public class MyService extends Service {
                         // 其他topic的普通文本消息
                         String payload = new String(message.getPayload());
                         Log.d(TAG, "收到消息 [" + topic + "]: " + payload);
+
                         DataManager.getInstance().sendMessage("Service", payload);
                         myapp.log(server.name+":"+payload+"\n\n\n\n");
                     }
