@@ -5,7 +5,9 @@
 #   su -c './MyBleClientCli.sh --server Rolex --psk pwd --strip-rc --cmd "dumpsys deviceidle"'
 #   su -c './MyBleClientCli.sh --server Cannon --psk pwd --strip-rc --cmd "id"'                     # 按名字扫
 #   su -c './MyBleClientCli.sh --server 04:D1:3A:56:0E:5F --psk pwd --strip-rc --cmd "id; uname -r"' # MAC 直连
-#
+
+# 连接蓝牙pan：/data/data/com.termux/files/home/MyBleClientCli.sh --server Cannon --no-mtu --cmd "su -c /data/data/com.termux/files/home/apps/panbg on" --psk pwd --pan
+
 # 扫描注意：Android 的 native ScanManager 在息屏时会挂起「不带 filter 的扫描」
 #   （logcat 里那行 Cannot start unfiltered scan in screen-off），应用侧表现就是一个广播都收不到。
 #   本工具默认在扫描前发一次 KEYCODE_WAKEUP 点亮屏幕；不想动屏幕加 --no-wake，
@@ -22,14 +24,16 @@
 #   adb -s <rolex> shell su -c /data/local/tmp/clitest.sh
 #
 # PAN（连对端蓝牙共享，本机当 PANU 客户端）：
-#   su -c '/data/data/com.termux/files/home/MyBleClientCli.sh --server Cannon --pan'
+#   su -c '/data/data/com.termux/files/home/MyBleClientCli.sh --server Cannon --psk pwd --strip-rc --cmd "date" --pan'
 #   su -c '/data/data/com.termux/files/home/MyBleClientCli.sh --server Cannon --pan-disconnect'
-# stdout 给「网卡名 地址」，例如 `bt-pan 192.168.44.210/24`；DHCP/DNS/路由由安卓自己做好。
-# --pan 已经连着时再跑一次算成功（幂等，方便看门狗）；--pan 与 --cmd 同时给 = 先连 PAN 再发命令。
+# --pan 是「命令成功之后的后置动作」：先跑 --cmd，拿到结果后再连 PAN，不能单独使用；
+# stdout 始终是命令结果，网卡信息（如 bt-pan 192.168.44.210/24）只进 stderr 日志；
+# PAN 已经连着时再跑算成功（幂等，方便看门狗）；PAN 失败但命令 OK 时退出码 4。
+# DHCP/DNS/路由由安卓自己做好；只断开用 --pan-disconnect（可以不带 --cmd）。
 # 前提：装好 PanCli.apk（工程 ~/MyCode/MyBle/PanApk/，bash build.sh && adb install -r PanCli.apk）、
 # 两边已配对、对端「蓝牙网络共享」开着。注意安卓会把 PAN 抬成默认网络，网关上行的蜂窝会切到对端。
 #
-# 退出码: 0=成功 1=超时/参数错 2=服务端错误帧 3=连接失败/断开
+# 退出码: 0=成功 1=超时/参数错 2=服务端错误帧 3=连接失败/断开 4=命令OK但PAN失败
 
 DIR=$(dirname "$0")
 export CLASSPATH=$DIR/MyBleClientCli.jar

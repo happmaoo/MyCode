@@ -19,8 +19,8 @@ import android.os.Looper;
  * 用法:
  *   MyBleClientCli --server <名字|MAC> --psk <密钥> --cmd <命令> [--timeout 秒] [--no-wake] [--strip-rc] [--no-mtu]
  *   MyBleClientCli --server <名字|MAC> --pan [--pan-ip CIDR --pan-gw 网关]   # 连对端蓝牙共享（需装 PanCli.apk）
- *   --pan 可以和 --cmd 同时给：先铺好 PAN（已连着时算幂等成功），再走原来的命令流程；
- *   这种情况下 stdout 只放命令结果，网卡信息进 stderr 日志。
+ *   --pan 必须和 --cmd 一起给，语义是「命令执行成功后，再把 PAN 连起来」；
+ *   stdout 始终是命令结果，PAN 的网卡信息只进 stderr 日志；PAN 失败退出码 4。
  *   MyBleClientCli --server <名字|MAC> --pan-disconnect                      # 断开 PAN
  *
  * --pan 的实际 connect() 由同机的 PanCli.apk 执行：裸 app_process 没有 AMS 进程记录，
@@ -39,7 +39,7 @@ import android.os.Looper;
  *
  * 输出约定: 结果走 stdout（供脚本 $() 取用），日志走 stderr。
  * 正文首行是服务端加的 #rc=N（对端命令退出码），脚本里想要纯输出就加 --strip-rc。
- * 退出码: 0=成功  1=超时/参数错  2=服务端错误帧  3=连接失败/断开
+ * 退出码: 0=成功  1=超时/参数错  2=服务端错误帧  3=连接失败/断开  4=命令 OK 但 PAN 失败
  */
 public class MyBleClientCli {
 
@@ -59,6 +59,10 @@ public class MyBleClientCli {
     static boolean panMode = false, panDisc = false;
     static String panIp = null, panGw = null;
     static long panDeadline = 0;
+    static boolean pendingPan = false;   // --pan：等命令跑完后再连
+    static boolean cmdDone = false;      // 命令结果已经打出，之后的通知/日志都不再算结果
+    static boolean panActive = false;    // 已进入 PAN 阶段（done 已置位，但还要允许 die）
+    static long deadlineMs = 0;          // 总超时，进入 PAN 阶段时会往后延
 
     static Context ctx;
     static Handler h;
@@ -79,7 +83,7 @@ public class MyBleClientCli {
     static void log(String m) { System.err.println("[mbcli] " + m); }
 
     static void die(int code, String m) {
-        if (done) return;
+        if (done && !panActive) return;    // PAN 阶段虽然 done 已置位，仍要允许收尾报错
         done = true;
         log(m);
         cleanup();
@@ -164,15 +168,19 @@ public class MyBleClientCli {
             else if ("--pan-ip".equals(a) && i + 1 < args.length) panIp = args[++i];
             else if ("--pan-gw".equals(a) && i + 1 < args.length) panGw = args[++i];
         }
-        boolean panFlow = panMode || panDisc;
         if (serverArg == null || serverArg.trim().isEmpty()) {
             System.err.println("用法: MyBleClientCli --server <名字|MAC> --cmd <命令> [--psk 密钥] [--timeout 秒] [--no-wake] [--strip-rc] [--no-mtu]");
-            System.err.println("      MyBleClientCli --server <名字|MAC> --pan [--pan-ip 192.168.44.2/24 --pan-gw 192.168.44.1]   # 连对端蓝牙共享（需装 PanCli.apk，见 ~/MyCode/MyBle/PanApk/）");
-            System.err.println("      MyBleClientCli --server <名字|MAC> --pan-disconnect                                        # 断开");
+            System.err.println("      ... --cmd <命令> --pan [--pan-ip CIDR --pan-gw 网关]   # 先执行命令，成功后再连对端蓝牙共享（需装 PanCli.apk）");
+            System.err.println("      MyBleClientCli --server <名字|MAC> --pan-disconnect    # 只有断开可以单独跑");
             System.exit(1);
         }
-        if (!panFlow && (cmd == null || cmd.trim().isEmpty())) {
-            System.err.println("用法: 非 --pan 模式必须给 --cmd <命令>");
+        if (panMode && (cmd == null || cmd.trim().isEmpty())) {
+            System.err.println("用法: --pan 不能单独跑，必须和 --cmd 一起（先执行命令，成功后才连 PAN）；"
+                    + "只断开用 --pan-disconnect");
+            System.exit(1);
+        }
+        if (!panDisc && (cmd == null || cmd.trim().isEmpty())) {
+            System.err.println("用法: 必须给 --cmd <命令>");
             System.exit(1);
         }
         serverArg = serverArg.trim();
@@ -194,14 +202,23 @@ public class MyBleClientCli {
         if (ad == null || !ad.isEnabled()) die(1, "蓝牙不可用或未开启");
         adRef = ad;                          // PAN 连完还要接着跑命令流程，这里先存住
 
-        // 总超时看门狗
+        // 总超时看门狗：按 deadlineMs 判定，进入 PAN 阶段会把 deadline 往后推，
+        // 免得「命令已经跑完、正在连 PAN」被总超时误杀
+        deadlineMs = System.currentTimeMillis() + timeoutSec * 1000L;
         h.postDelayed(new Runnable() {
-            @Override public void run() { die(1, "超时（" + timeoutSec + "s）未完成"); }
-        }, timeoutSec * 1000L);
+            @Override public void run() {
+                if (done) return;
+                long left = deadlineMs - System.currentTimeMillis();
+                if (left <= 0) { die(1, "超时（" + timeoutSec + "s）未完成"); return; }
+                h.postDelayed(this, Math.min(left, 2000));
+            }
+        }, 2000);
 
         h.post(new Runnable() {
             @Override public void run() {
-                if (panFlow) startPan(); else start(ad);
+                if (panDisc) { startPan(); return; }        // 只断开，不跑命令
+                pendingPan = panMode;                       // --pan = 命令成功后再连
+                start(ad);
             }
         });
         Looper.loop();   // 阻塞在此派发所有框架回调；退出由 die() / 成功路径的 System.exit 完成
@@ -507,6 +524,7 @@ public class MyBleClientCli {
      *  一条消息算不算结果，看 rxState，不看写回调时间戳。 */
     static void handleChunk(byte[] v) {
         if (v == null || v.length == 0) return;
+        if (cmdDone) return;          // 命令结果已经取到，之后的任何通知都不再当结果（PAN 阶段照旧跑）
         char mark = (char) (v[0] & 0xFF);
 
         if (mark == '+') {
@@ -548,13 +566,21 @@ public class MyBleClientCli {
                     + "：" + whole.length() + " 字符");
             return;
         }
-        done = true;
+        done = true;          // 静音后续 GATT 回调：cleanup() 主动断开也会回调，别让它误判成失败
+        cmdDone = true;       // 结果已取到，之后任何通知都不再当结果
         if (stripRc) whole = stripRcLine(whole);
         System.out.print(whole);
         System.out.flush();
         log("接收完成 " + whole.length() + " 字符");
-        cleanup();
-        System.exit(0);
+        cleanup();                                     // 关掉 GATT/扫描，把蓝牙让给 PAN
+        if (!pendingPan) { System.exit(0); }
+        // --pan = 命令成功之后才连。done 保持置位（GATT 回调与残余通知全部静音），
+        // 靠 panActive 让 die() 在 PAN 阶段仍能收尾退出。
+        deadlineMs = System.currentTimeMillis() + Math.max(20, timeoutSec) * 1000L;
+        log("命令完成，接着连接 PAN…");
+        h.post(new Runnable() {
+            @Override public void run() { startPan(); }
+        });
     }
 
     /** AUTH 的写回调与鉴权应答谁先到不定，两者都到齐才发命令 */
@@ -590,9 +616,13 @@ public class MyBleClientCli {
     static final String PAN_STATUS = "/data/data/" + PAN_PKG + "/files/pan.status";
     static final String PAN_LOG = "/data/data/" + PAN_PKG + "/files/pan.log";
 
+    /** PAN 阶段失败的退出码：命令结果已经拿到就用 4（传输 OK、PAN 没成），否则 1 */
+    static void panFail(String m) { die(cmdDone ? 4 : 1, m); }
+
     static void startPan() {
+        panActive = true;
         if (trim(sh("pm path " + PAN_PKG)).isEmpty()) {
-            die(1, "没装 " + PAN_PKG + "（PanCli.apk）——先 bash PanApk/build.sh 再 adb install -r PanCli.apk");
+            panFail("没装 " + PAN_PKG + "（PanCli.apk）——先 bash PanApk/build.sh 再 adb install -r PanCli.apk");
         }
         sh("rm -f " + PAN_STATUS);                       // 别读到上一轮的旧结果
         String args = "--es dev \"" + serverArg + "\"" + (panDisc ? " --es act disconnect" : "");
@@ -608,20 +638,18 @@ public class MyBleClientCli {
 
     static final Runnable panPoll = new Runnable() {
         @Override public void run() {
-            if (done) return;
             String st = trim(sh("cat " + PAN_STATUS + " 2>/dev/null"));
             log("APK 状态: " + (st.isEmpty() ? "（还没写状态文件）" : st));
 
             if (st.startsWith("CONNECTED")) { panUp(); return; }
             if (st.startsWith("DISCONNECTED")) {
-                System.out.println("disconnected");
-                System.out.flush();
+                if (!cmdDone) { System.out.println("disconnected"); System.out.flush(); }
                 System.exit(0);
             }
-            if (st.startsWith("FAILED")) die(1, "APK 侧失败：" + st);
+            if (st.startsWith("FAILED")) panFail("APK 侧失败：" + st);
 
             if (System.currentTimeMillis() > panDeadline) {
-                die(1, "等 PAN 结果超时（" + timeoutSec + "s）。排查：①对端「蓝牙网络共享」是否开着"
+                panFail("等 PAN 结果超时（" + timeoutSec + "s）。排查：①对端「蓝牙网络共享」是否开着"
                         + "②两边是否仍配对（bondState）③APK 有没有被拉起来，看 " + PAN_LOG);
             }
             h.postDelayed(this, 1000);
@@ -631,7 +659,7 @@ public class MyBleClientCli {
     /** 连上了：确认网卡和地址。安卓自己会跑 DHCP+DNS，通常不需要 --pan-ip */
     static void panUp() {
         String iface = trim(sh("ls /sys/class/net 2>/dev/null | grep -iE 'bnep|bt-pan' | head -1"));
-        if (iface.isEmpty()) die(1, "状态 CONNECTED 但没看到 bnep/bt-pan 网卡");
+        if (iface.isEmpty()) { panFail("状态 CONNECTED 但没看到 bnep/bt-pan 网卡"); }
         // BNEP 通了之后 DHCP 还要一两秒才落地址，轮询到为止（否则刚 CONNECTED 就查会报「没有 IPv4」）
         String addr = "";
         for (int i = 0; i < 20 && addr.isEmpty(); i++) {
@@ -650,16 +678,9 @@ public class MyBleClientCli {
             addr = trim(sh("ip -o -4 addr show dev " + iface + " 2>/dev/null | awk '{print $4}'"));
             log("手工配置后地址 " + addr);
         }
-        if (cmd == null || cmd.trim().isEmpty()) {          // 只要了 --pan：网卡信息就是结果
-            System.out.println(iface + (addr.isEmpty() ? "" : " " + addr));
-            System.out.flush();
-            System.exit(0);
-        }
-        // 同时给了 --cmd：PAN 只负责先把网络铺好，stdout 留给命令结果，网卡信息只进日志
-        log("PAN 就绪（" + iface + (addr.isEmpty() ? "" : " " + addr) + "），继续执行 --cmd 命令…");
-        h.postDelayed(new Runnable() {
-            @Override public void run() { start(adRef); }
-        }, 500);
+        // --pan 一定跟在 --cmd 之后，stdout 早就是命令结果了，网卡信息只进日志
+        log("PAN 就绪：" + iface + (addr.isEmpty() ? "（无 IPv4）" : " " + addr));
+        System.exit(0);
     }
 
     static String trim(String s) { return s == null ? "" : s.trim(); }
