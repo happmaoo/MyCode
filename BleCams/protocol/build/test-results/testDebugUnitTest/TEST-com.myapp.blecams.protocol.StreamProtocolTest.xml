@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.myapp.blecams.protocol.StreamProtocolTest" tests="16" skipped="0" failures="0" errors="0" timestamp="2026-10-30T04:34:35" hostname="jdbookpro" time="0.026">
+  <properties/>
+  <testcase name="detectsSeqGapAndWrap" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.003"/>
+  <testcase name="missingFirstDiscardsFrame" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.001"/>
+  <testcase name="jpegRoundTrip" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.006"/>
+  <testcase name="mtuToChunkPayload" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.001"/>
+  <testcase name="singlePacketFrameRoundTrip" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.0"/>
+  <testcase name="parsePpsEntropyMode" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.002"/>
+  <testcase name="headerIsTwoBytes" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.001"/>
+  <testcase name="bitsPerPixelBudget" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.0"/>
+  <testcase name="statusTextRoundTrip" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.001"/>
+  <testcase name="profileBandwidthBudget" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.0"/>
+  <testcase name="jpegWithoutEoiIsCorrupt" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.001"/>
+  <testcase name="truncatedFrameThenNewFrameStartsClean" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.002"/>
+  <testcase name="parseSpsResolution" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.0"/>
+  <testcase name="crcDetectsLostMiddlePacket" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.001"/>
+  <testcase name="roundTripAllMtus" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.002"/>
+  <testcase name="annexBDetection" classname="com.myapp.blecams.protocol.StreamProtocolTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

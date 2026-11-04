@@ -1,0 +1,64 @@
+package com.myapp.blecams.util;
+
+import android.Manifest;
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.os.Build;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * 运行时权限：Android 12（API 31）把蓝牙拆成了新的运行时权限，11 及以下仍需要定位权限。
+ * minSdk=25，所以两端都要兼容这两套权限模型。
+ */
+public final class Perms {
+
+    private Perms() {
+    }
+
+    /** 服务端（广播 + 连接 + 摄像头）需要的权限。 */
+    public static String[] serverPermissions() {
+        List<String> list = new ArrayList<>();
+        list.add(Manifest.permission.CAMERA);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            list.add(Manifest.permission.BLUETOOTH_ADVERTISE);
+            list.add(Manifest.permission.BLUETOOTH_CONNECT);
+        } else {
+            list.add(Manifest.permission.ACCESS_FINE_LOCATION);
+        }
+        return list.toArray(new String[0]);
+    }
+
+    /** 接收端（扫描 + 连接）需要的权限。 */
+    public static String[] clientPermissions() {
+        List<String> list = new ArrayList<>();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            list.add(Manifest.permission.BLUETOOTH_SCAN);
+            list.add(Manifest.permission.BLUETOOTH_CONNECT);
+            // BLUETOOTH_SCAN 声明 neverForLocation 时不再需要定位权限
+        } else {
+            list.add(Manifest.permission.ACCESS_FINE_LOCATION);
+        }
+        return list.toArray(new String[0]);
+    }
+
+    public static boolean hasAll(Context context, String[] perms) {
+        for (String p : perms) {
+            if (context.checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static String[] missing(Context context, String[] perms) {
+        List<String> list = new ArrayList<>();
+        for (String p : perms) {
+            if (context.checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) {
+                list.add(p);
+            }
+        }
+        return list.toArray(new String[0]);
+    }
+}

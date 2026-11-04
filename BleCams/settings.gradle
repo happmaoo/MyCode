@@ -1,0 +1,4 @@
+rootProject.name = 'BleCams'
+include ':app'          // 服务端（BLE Peripheral / GATT Server）
+include ':receiver'     // 接收端 Demo（BLE Central / GATT Client）
+include ':protocol'     // 两端共用的分包协议库

@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">BleCams</string>
+
+    <string name="action_start">开始推流</string>
+    <string name="action_stop">停止</string>
+    <string name="need_permission">需要摄像头与蓝牙权限才能推流</string>
+
+    <string name="channel_id">blecam_stream</string>
+    <string name="channel_name">BLE 视频推流</string>
+    <string name="channel_desc">摄像头编码与蓝牙通知状态</string>
+
+    <string name="server_hint">第三方客户端接入方式：连接本机后订阅 STREAM 特征（写 CCCD），并通过 CONTROL 特征写入 08 + 2 字节大端 MTU 上报协商到的 MTU；不上报则按 MTU=23（每包 20 字节）工作，只能跑最低档。SERVICE=c8a2f101-1c3e-4f5a-9b7d-6e0a1b2c3d40，STREAM=c8a2f102-…，CONTROL=c8a2f103-…，STATUS=c8a2f104-…（可读，返回 key=value 状态）。</string>
+</resources>

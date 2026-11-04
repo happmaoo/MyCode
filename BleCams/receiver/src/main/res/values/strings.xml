@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">BleCam 接收端</string>
+    <string name="action_connect">连接</string>
+    <string name="action_disconnect">断开</string>
+    <string name="action_idr">请求关键帧</string>
+    <string name="action_read_status">读状态</string>
+</resources>

@@ -1,0 +1,67 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.myapp.blecams.receiver"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="25"
+8-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml
+9        android:targetSdkVersion="30" />
+9-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml
+10
+11    <uses-permission android:name="android.permission.BLUETOOTH" />
+11-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:5:5-68
+11-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:5:22-65
+12    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+12-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:6:5-74
+12-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:6:22-71
+13    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+13-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:7:5-79
+13-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:7:22-76
+14
+15    <uses-feature
+15-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:9:5-11:35
+16        android:name="android.hardware.bluetooth_le"
+16-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:10:9-53
+17        android:required="true" />
+17-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:11:9-32
+18
+19    <application
+19-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:13:5-30:19
+20        android:allowBackup="true"
+20-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:14:9-35
+21        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+21-->[androidx.core:core:1.5.0] /home/happmaoo/.gradle/caches/transforms-2/files-2.1/48cd7bd08e89712a0952f96bb9006374/core-1.5.0/AndroidManifest.xml:24:18-86
+22        android:debuggable="true"
+23        android:extractNativeLibs="false"
+24        android:label="@string/app_name"
+24-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:15:9-41
+25        android:supportsRtl="true"
+25-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:16:9-35
+26        android:theme="@style/AppTheme" >
+26-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:17:9-40
+27        <activity
+27-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:19:9-29:20
+28            android:name="com.myapp.blecams.receiver.ReceiverActivity"
+28-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:20:13-45
+29            android:exported="true"
+29-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:21:13-36
+30            android:label="@string/app_name"
+30-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:22:13-45
+31            android:screenOrientation="portrait" >
+31-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:23:13-49
+32            <intent-filter>
+32-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:24:13-28:29
+33                <action android:name="android.intent.action.MAIN" />
+33-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:25:17-69
+33-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:25:25-66
+34
+35                <category android:name="android.intent.category.LAUNCHER" />
+35-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:27:17-77
+35-->/home/happmaoo/AndroidStudioProjects/BleCams/receiver/src/main/AndroidManifest.xml:27:27-74
+36            </intent-filter>
+37        </activity>
+38    </application>
+39
+40</manifest>

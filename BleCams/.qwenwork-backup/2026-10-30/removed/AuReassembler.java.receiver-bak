@@ -1,0 +1,146 @@
+package com.myapp.blecams.receiver.video;
+
+import android.util.Log;
+
+import com.myapp.blecams.protocol.StreamProtocol;
+
+import java.io.ByteArrayOutputStream;
+
+/**
+ * 把 BLE 分包重新组装成完整的 H.264 访问单元（AU）。
+ *
+ * <p>只依赖包头里的 {@code FIRST/LAST + frameSeq + chunkIndex}：
+ * <ul>
+ *   <li>收到 FIRST：开始新的 AU（旧的不完整 AU 直接丢弃）；</li>
+ *   <li>chunkIndex 不连续：本帧作废，等下一个关键帧；</li>
+ *   <li>seq 相比上一完整帧跳号：说明有帧被服务端丢弃或链路丢包，通知上层 flush 解码器。</li>
+ * </ul>
+ */
+public class AuReassembler {
+
+    private static final String TAG = "AuReassembler";
+
+    public interface Sink {
+        /** 一个完整的 AU（Annex-B 字节流）。 */
+        void onAccessUnit(byte[] au, boolean keyFrame, boolean hasConfig, int seq);
+
+        /** 检测到帧缺失（丢帧或链路丢包），需要请求 IDR 并 flush 解码器。 */
+        void onStreamGap(int lastSeq, int currentSeq);
+    }
+
+    private final Sink sink;
+    private final ByteArrayOutputStream buffer = new ByteArrayOutputStream(64 * 1024);
+
+    private int curSeq = -1;
+    private int expectedIndex;
+    private boolean curKey;
+    private boolean curConfig;
+
+    private int lastCompleteSeq = -1;
+    private long totalAus;
+    private long totalBytes;
+    private long dropped;
+
+    public AuReassembler(Sink sink) {
+        this.sink = sink;
+    }
+
+    /** GATT 回调线程调用。 */
+    public void feed(byte[] packet) {
+        StreamProtocol.Header h = StreamProtocol.Header.parse(packet);
+        if (h == null) {
+            dropped++;
+            return;
+        }
+        int payloadLen = packet.length - StreamProtocol.HEADER_LEN;
+        if (payloadLen < 0) {
+            dropped++;
+            return;
+        }
+
+        if (h.isFirst()) {
+            if (curSeq >= 0) {
+                // 上一帧没发完（服务端拥塞丢帧）
+                dropped++;
+            }
+            startFrame(h);
+        }
+
+        if (curSeq < 0) {
+            // 没有 FIRST 就来了中间包：说明这一帧的开头丢了
+            dropped++;
+            return;
+        }
+        if (h.frameSeq != curSeq) {
+            dropped++;
+            startFrame(h);
+            if (!h.isFirst()) {
+                // seq 变了又不是首包：整帧作废
+                curSeq = -1;
+                return;
+            }
+        }
+        if (h.chunkIndex != expectedIndex) {
+            dropped++;
+            curSeq = -1;
+            return;
+        }
+
+        buffer.write(packet, StreamProtocol.HEADER_LEN, payloadLen);
+        expectedIndex++;
+        totalBytes += payloadLen;
+
+        if (h.isLast()) {
+            byte[] au = buffer.toByteArray();
+            buffer.reset();
+            int seq = curSeq;
+            boolean key = curKey;
+            boolean config = curConfig;
+            curSeq = -1;
+
+            if (lastCompleteSeq >= 0
+                    && StreamProtocol.seqDelta(seq, lastCompleteSeq) != 1) {
+                sink.onStreamGap(lastCompleteSeq, seq);
+            }
+            lastCompleteSeq = seq;
+            totalAus++;
+            sink.onAccessUnit(au, key, config, seq);
+        }
+    }
+
+    private void startFrame(StreamProtocol.Header h) {
+        buffer.reset();
+        curSeq = h.frameSeq;
+        expectedIndex = 0;
+        curKey = h.isKey();
+        curConfig = h.isConfig();
+    }
+
+    public void reset() {
+        buffer.reset();
+        curSeq = -1;
+        expectedIndex = 0;
+        lastCompleteSeq = -1;
+    }
+
+    public long getTotalAus() {
+        return totalAus;
+    }
+
+    public long getTotalBytes() {
+        return totalBytes;
+    }
+
+    public long getDropped() {
+        return dropped;
+    }
+
+    /** 丢弃半截帧（解码器 flush 后调用）。 */
+    public void discardPartial() {
+        if (curSeq >= 0) {
+            Log.d(TAG, "discard partial au seq=" + curSeq);
+            buffer.reset();
+            curSeq = -1;
+        }
+    }
+}

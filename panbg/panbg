@@ -1,0 +1,8 @@
+#!/system/bin/sh
+# 蓝牙 PAN 后台开关(无UI) 红米note9 安卓12 通过。用法: panbg on|off|status
+JAR=./panbg.jar
+case "$1" in
+  on|off) CLASSPATH=$JAR /system/bin/app_process / PanBg $1 ;;
+  status) dumpsys bluetooth_manager | grep mTetherOn ;;
+  *) echo "用法: panbg on|off|status" ;;
+esac
