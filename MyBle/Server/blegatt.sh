@@ -17,7 +17,8 @@ done
 
 PSK="pwd"
 
-export CLASSPATH=./blegatt.jar
+DIR="$(cd "$(dirname "$0")" && pwd)"
+export CLASSPATH="$DIR/blegatt.jar"
 exec app_process /system/bin BLEGattd \
   --name Rolex \
   --adv-svc 180f \
