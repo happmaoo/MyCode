@@ -18,6 +18,15 @@ import android.os.Looper;
  *
  * 用法:
  *   MyBleClientCli --server <名字|MAC> --psk <密钥> --cmd <命令> [--timeout 秒] [--no-wake] [--strip-rc] [--no-mtu]
+ *   MyBleClientCli --server <名字|MAC> --pan [--pan-ip CIDR --pan-gw 网关]   # 连对端蓝牙共享（需装 PanCli.apk）
+ *   --pan 可以和 --cmd 同时给：先铺好 PAN（已连着时算幂等成功），再走原来的命令流程；
+ *   这种情况下 stdout 只放命令结果，网卡信息进 stderr 日志。
+ *   MyBleClientCli --server <名字|MAC> --pan-disconnect                      # 断开 PAN
+ *
+ * --pan 的实际 connect() 由同机的 PanCli.apk 执行：裸 app_process 没有 AMS 进程记录，
+ * 自己 bindService、或让 system_server 代绑（bindBluetoothProfileService，实测 GATT/A2DP/PAN
+ * 全部返回 false）都拿不到 PanService binder，只有 Zygote 起的正常 app 进程能拿到。
+ * APK 工程在 ~/MyCode/MyBle/PanApk/。连上后安卓会把 PAN 抬成默认网络，网关上行会切到对端。
  *
  * 按名字扫描时默认先发一次 KEYCODE_WAKEUP 点亮屏幕：Android 的 native ScanManager
  * 在息屏状态下会挂起「不带 filter 的扫描」，日志只有一行
@@ -45,6 +54,11 @@ public class MyBleClientCli {
     static boolean wake = true;      // 扫描前自动点亮屏幕（见 start() 里的说明）
     static boolean stripRc = false;  // 剥离服务端加在首行的 #rc=N，让 stdout 只有纯输出
     static boolean noMtu = false;    // 跳过 MTU 协商，按默认 23 走（对端栈不应答 MTU 时用它续命）
+
+    // PAN（蓝牙网络共享）：由 PanCli.apk 执行真正的 connect()，这里负责触发与观察
+    static boolean panMode = false, panDisc = false;
+    static String panIp = null, panGw = null;
+    static long panDeadline = 0;
 
     static Context ctx;
     static Handler h;
@@ -145,13 +159,24 @@ public class MyBleClientCli {
             else if ("--no-wake".equals(a)) wake = false;
             else if ("--strip-rc".equals(a)) stripRc = true;
             else if ("--no-mtu".equals(a)) noMtu = true;
+            else if ("--pan".equals(a)) panMode = true;
+            else if ("--pan-disconnect".equals(a)) panDisc = true;
+            else if ("--pan-ip".equals(a) && i + 1 < args.length) panIp = args[++i];
+            else if ("--pan-gw".equals(a) && i + 1 < args.length) panGw = args[++i];
         }
-        if (serverArg == null || serverArg.trim().isEmpty() || cmd == null || cmd.trim().isEmpty()) {
+        boolean panFlow = panMode || panDisc;
+        if (serverArg == null || serverArg.trim().isEmpty()) {
             System.err.println("用法: MyBleClientCli --server <名字|MAC> --cmd <命令> [--psk 密钥] [--timeout 秒] [--no-wake] [--strip-rc] [--no-mtu]");
+            System.err.println("      MyBleClientCli --server <名字|MAC> --pan [--pan-ip 192.168.44.2/24 --pan-gw 192.168.44.1]   # 连对端蓝牙共享（需装 PanCli.apk，见 ~/MyCode/MyBle/PanApk/）");
+            System.err.println("      MyBleClientCli --server <名字|MAC> --pan-disconnect                                        # 断开");
+            System.exit(1);
+        }
+        if (!panFlow && (cmd == null || cmd.trim().isEmpty())) {
+            System.err.println("用法: 非 --pan 模式必须给 --cmd <命令>");
             System.exit(1);
         }
         serverArg = serverArg.trim();
-        if (cmd.length() > 4096) die(1, "命令超长（>4096 字节）");
+        if (cmd != null && cmd.length() > 4096) die(1, "命令超长（>4096 字节）");
 
         // systemMain/框架初始化需要 Looper（与服务端一致），否则 Android 7.x 上
         // ActivityThread.systemMain() 会抛 InvocationTargetException
@@ -167,6 +192,7 @@ public class MyBleClientCli {
         BluetoothManager bm = (BluetoothManager) ctx.getSystemService(Context.BLUETOOTH_SERVICE);
         final BluetoothAdapter ad = bm == null ? null : bm.getAdapter();
         if (ad == null || !ad.isEnabled()) die(1, "蓝牙不可用或未开启");
+        adRef = ad;                          // PAN 连完还要接着跑命令流程，这里先存住
 
         // 总超时看门狗
         h.postDelayed(new Runnable() {
@@ -174,7 +200,9 @@ public class MyBleClientCli {
         }, timeoutSec * 1000L);
 
         h.post(new Runnable() {
-            @Override public void run() { start(ad); }
+            @Override public void run() {
+                if (panFlow) startPan(); else start(ad);
+            }
         });
         Looper.loop();   // 阻塞在此派发所有框架回调；退出由 die() / 成功路径的 System.exit 完成
         die(1, "Looper 意外返回");
@@ -548,6 +576,108 @@ public class MyBleClientCli {
         return nl < 0 ? "" : whole.substring(nl + 1);
     }
 
+    // ==================== PAN：连对端的蓝牙共享（NAP），本机当 PANU 客户端 ====================
+    //
+    // 裸 app_process 拿不到 PanService 的 binder：自己 bindService 会被 AMS 拒
+    // （Unable to find app for caller），uid 换成 1000 也一样；让 system_server 代绑
+    // （IBluetoothManager.bindBluetoothProfileService，GATT/A2DP/PAN 一律返回 false）也失败，
+    // 因为 ActiveServices 是按 Binder.getCallingPid() 找 ProcessRecord 的，我们没有那条记录。
+    // 所以真正的 connect() 放在同机的 PanCli.apk 里执行（Zygote 起的正常 app 进程），
+    // 本 CLI 只做三件事：触发它 → 轮询它落盘的状态 → 观察网卡并在需要时手工配 IP。
+    //   APK 工程：~/MyCode/MyBle/PanApk/  （构建：bash PanApk/build.sh && adb install -r PanApk/PanCli.apk）
+
+    static final String PAN_PKG = "com.qw.pancli";
+    static final String PAN_STATUS = "/data/data/" + PAN_PKG + "/files/pan.status";
+    static final String PAN_LOG = "/data/data/" + PAN_PKG + "/files/pan.log";
+
+    static void startPan() {
+        if (trim(sh("pm path " + PAN_PKG)).isEmpty()) {
+            die(1, "没装 " + PAN_PKG + "（PanCli.apk）——先 bash PanApk/build.sh 再 adb install -r PanCli.apk");
+        }
+        sh("rm -f " + PAN_STATUS);                       // 别读到上一轮的旧结果
+        String args = "--es dev \"" + serverArg + "\"" + (panDisc ? " --es act disconnect" : "");
+        // 用显式广播触发：am start + startService 那条路会被 Android 8+ 的后台限制拦
+        String r = sh("am broadcast -n " + PAN_PKG + "/.PanRcv " + args);
+        log("am 返回：" + trim(r));
+        if (r != null && r.toLowerCase().contains("error")) {
+            log("am 报错了：检查包名/组件名，或 app 是否被 force-stop（广播投不到）");
+        }
+        panDeadline = System.currentTimeMillis() + Math.max(20, timeoutSec) * 1000L;
+        h.postDelayed(panPoll, 1000);
+    }
+
+    static final Runnable panPoll = new Runnable() {
+        @Override public void run() {
+            if (done) return;
+            String st = trim(sh("cat " + PAN_STATUS + " 2>/dev/null"));
+            log("APK 状态: " + (st.isEmpty() ? "（还没写状态文件）" : st));
+
+            if (st.startsWith("CONNECTED")) { panUp(); return; }
+            if (st.startsWith("DISCONNECTED")) {
+                System.out.println("disconnected");
+                System.out.flush();
+                System.exit(0);
+            }
+            if (st.startsWith("FAILED")) die(1, "APK 侧失败：" + st);
+
+            if (System.currentTimeMillis() > panDeadline) {
+                die(1, "等 PAN 结果超时（" + timeoutSec + "s）。排查：①对端「蓝牙网络共享」是否开着"
+                        + "②两边是否仍配对（bondState）③APK 有没有被拉起来，看 " + PAN_LOG);
+            }
+            h.postDelayed(this, 1000);
+        }
+    };
+
+    /** 连上了：确认网卡和地址。安卓自己会跑 DHCP+DNS，通常不需要 --pan-ip */
+    static void panUp() {
+        String iface = trim(sh("ls /sys/class/net 2>/dev/null | grep -iE 'bnep|bt-pan' | head -1"));
+        if (iface.isEmpty()) die(1, "状态 CONNECTED 但没看到 bnep/bt-pan 网卡");
+        // BNEP 通了之后 DHCP 还要一两秒才落地址，轮询到为止（否则刚 CONNECTED 就查会报「没有 IPv4」）
+        String addr = "";
+        for (int i = 0; i < 20 && addr.isEmpty(); i++) {
+            addr = trim(sh("ip -o -4 addr show dev " + iface + " scope global 2>/dev/null | awk '{print $4}'"));
+            if (addr.isEmpty()) sleep(500);
+        }
+        log("网卡 " + iface + " 地址 " + (addr.isEmpty() ? "（10s 内没拿到 IPv4）" : addr));
+        log("默认路由: " + trim(sh("ip -o route show table all 2>/dev/null | grep 'default.*" + iface + "'")));
+        log("提醒：安卓会把这条 PAN 抬成默认网络，网关上行可能从蜂窝切到对端；"
+                + "不想要就用 --pan-disconnect 断掉");
+
+        if (addr.isEmpty() && panIp != null) {              // 只有 DHCP 没起来时才手工配
+            sh("ip link set " + iface + " up");
+            sh("ip addr add " + panIp + " dev " + iface);
+            if (panGw != null) sh("ip route add default via " + panGw + " dev " + iface);
+            addr = trim(sh("ip -o -4 addr show dev " + iface + " 2>/dev/null | awk '{print $4}'"));
+            log("手工配置后地址 " + addr);
+        }
+        if (cmd == null || cmd.trim().isEmpty()) {          // 只要了 --pan：网卡信息就是结果
+            System.out.println(iface + (addr.isEmpty() ? "" : " " + addr));
+            System.out.flush();
+            System.exit(0);
+        }
+        // 同时给了 --cmd：PAN 只负责先把网络铺好，stdout 留给命令结果，网卡信息只进日志
+        log("PAN 就绪（" + iface + (addr.isEmpty() ? "" : " " + addr) + "），继续执行 --cmd 命令…");
+        h.postDelayed(new Runnable() {
+            @Override public void run() { start(adRef); }
+        }, 500);
+    }
+
+    static String trim(String s) { return s == null ? "" : s.trim(); }
+
+    static void sleep(long ms) { try { Thread.sleep(ms); } catch (InterruptedException ignored) { } }
+
+    static String sh(String cmdline) {
+        try {
+            Process p = new ProcessBuilder("/system/bin/sh", "-c", cmdline)
+                    .redirectErrorStream(true).start();
+            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            while ((n = p.getInputStream().read(buf)) > 0) bo.write(buf, 0, n);
+            p.waitFor();
+            return new String(bo.toByteArray(), "UTF-8");
+        } catch (Throwable t) { return ""; }
+    }
     static Context systemContext() {
         try {
             Class<?> at = Class.forName("android.app.ActivityThread");

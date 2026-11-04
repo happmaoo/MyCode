@@ -21,6 +21,14 @@
 # 结果变成「客户端只收到 id，后面半截在本机跑了」。写成设备端脚本再调它：
 #   adb -s <rolex> shell su -c /data/local/tmp/clitest.sh
 #
+# PAN（连对端蓝牙共享，本机当 PANU 客户端）：
+#   su -c '/data/data/com.termux/files/home/MyBleClientCli.sh --server Cannon --pan'
+#   su -c '/data/data/com.termux/files/home/MyBleClientCli.sh --server Cannon --pan-disconnect'
+# stdout 给「网卡名 地址」，例如 `bt-pan 192.168.44.210/24`；DHCP/DNS/路由由安卓自己做好。
+# --pan 已经连着时再跑一次算成功（幂等，方便看门狗）；--pan 与 --cmd 同时给 = 先连 PAN 再发命令。
+# 前提：装好 PanCli.apk（工程 ~/MyCode/MyBle/PanApk/，bash build.sh && adb install -r PanCli.apk）、
+# 两边已配对、对端「蓝牙网络共享」开着。注意安卓会把 PAN 抬成默认网络，网关上行的蜂窝会切到对端。
+#
 # 退出码: 0=成功 1=超时/参数错 2=服务端错误帧 3=连接失败/断开
 
 DIR=$(dirname "$0")

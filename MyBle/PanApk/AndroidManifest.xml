@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.qw.pancli"
+    android:versionCode="1"
+    android:versionName="1">
+
+    <!-- Android 10 + targetSdk 28：蓝牙权限是安装期权限，不需要运行时申请；
+         PAN 的 connect 方法是隐藏 API，靠进程内 setHiddenApiExemptions 解封 -->
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="28"/>
+
+    <uses-permission android:name="android.permission.BLUETOOTH"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
+
+    <application
+        android:label="PanCli"
+        android:allowBackup="false">
+        <!-- 透明触发器：am start 不受后台服务限制，由它把 PanSvc 拉起来 -->
+        <activity
+            android:name=".Main"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Material.Light">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <!-- 主触发口：显式广播，不受后台 startService 限制；活儿在 PanRcv 里干 -->
+        <receiver
+            android:name=".PanRcv"
+            android:exported="true"/>
+    </application>
+</manifest>
