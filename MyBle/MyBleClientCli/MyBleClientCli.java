@@ -11,6 +11,7 @@ import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.content.Context;
 import android.os.Handler;
+import android.bluetooth.le.ScanSettings;
 import android.os.Looper;
 
 /**
@@ -33,9 +34,13 @@ import android.os.Looper;
  * 「Cannot start unfiltered scan in screen-off」，回调里则表现为 0 条广播。
  * 已知对端 MAC 时用 --server <MAC> 直连，完全不依赖屏幕状态，适合无人值守网关。
  *
- * 流程: 连接 → 请求 MTU → 发现服务 → 订阅 RES 通知 → 静默 1s（丢弃 --on-connect
- * 输出）→ 写 AUTH 密钥 → 等到 -auth:ok 应答再写 CMD（长命令自动 '>'/'<' 分片）→
- * 收 RES 分片拼装 → 末片一次性 UTF-8 解码打印到 stdout，退出。
+ * 流程: 连接 → 请求 MTU → 发现服务 → 订阅 RES（indication+notification 都开）→
+ * 静默 1s → 写 AUTH 明文密钥 → 等 auth:ok 再写 CMD（长命令 '>'/'<' 分片）→ 收结果 → 退出。
+ * 结果通道双协议：
+ *   v2（服务端 2.0.dev）：T 帧 'T'+tid(2)+seq(2)+total(2)+payload+CRC16(2)，
+ *     D 帧 'D'+tid(2)+SHA-256(32)+CRC16(2)；缺号/坏CRC 往 CMD 写 "#retrans <tid> <fromSeq>"
+ *     断点重传，SHA 不符 fromSeq=0 全量重传；同一传输最多 NACK 5 次。#rc=N 单独一帧=命令结束。
+ *   v1（旧服务端）：'+' 续片 / '-' 末片，--strip-rc 只对 v1 有意义。
  *
  * 输出约定: 结果走 stdout（供脚本 $() 取用），日志走 stderr。
  * 正文首行是服务端加的 #rc=N（对端命令退出码），脚本里想要纯输出就加 --strip-rc。
@@ -204,12 +209,14 @@ public class MyBleClientCli {
 
         // 总超时看门狗：按 deadlineMs 判定，进入 PAN 阶段会把 deadline 往后推，
         // 免得「命令已经跑完、正在连 PAN」被总超时误杀
-        deadlineMs = System.currentTimeMillis() + timeoutSec * 1000L;
+        // 全局只是兜底：要比各阶段超时（扫描12s / MTU5s / ATT12s / 结果timeoutSec）之和更晚，
+        // 否则会抢先把「命令已发但没收到结果」这类有意义的提示盖掉
+        deadlineMs = System.currentTimeMillis() + (timeoutSec + 45) * 1000L;
         h.postDelayed(new Runnable() {
             @Override public void run() {
                 if (done) return;
                 long left = deadlineMs - System.currentTimeMillis();
-                if (left <= 0) { die(1, "超时（" + timeoutSec + "s）未完成"); return; }
+                if (left <= 0) { die(1, "总超时兜底（" + (timeoutSec + 45) + "s）到点，流程没走完"); return; }
                 h.postDelayed(this, Math.min(left, 2000));
             }
         }, 2000);
@@ -238,7 +245,11 @@ public class MyBleClientCli {
         else log("--no-wake：注意息屏时控制器会挂起「无过滤扫描」，多半一条广播都收不到");
         try {
             scanner = ad.getBluetoothLeScanner();
-            scanner.startScan(scanCb);
+            ScanSettings ss = new ScanSettings.Builder()
+       		 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+       		 .build();
+			scanner.startScan(null, ss, scanCb);   // filters=null：仍是全量广播，匹配逻辑不变
+
             h.postDelayed(new Runnable() {
                 @Override public void run() {
                     if (gatt == null && !done) {
@@ -325,21 +336,53 @@ public class MyBleClientCli {
         });
     }
 
+    static BluetoothDevice lastDev;     // MTU 卡死时原地重连要用
+    static int connGen = 0;             // 连接代数：重连后旧看门狗闭嘴
+    static boolean mtuRetried = false;
+
     static void connect(BluetoothDevice d) {
+        connGen++;
+        lastDev = d;
         try {
             gatt = d.connectGatt(ctx, false, gcb);
         } catch (Throwable t) { die(3, "connectGatt 失败: " + t); }
         if (gatt == null) die(3, "connectGatt 返回 null");
+        final int gen = connGen;
         // ATT 层看门狗：链路能连上但 MTU/服务发现一个回调都没有，通常是对端的 GATT 服务
         // 进程被冻结（MIUI 后台查杀 / 设备睡了）或两边配对密钥不一致。早点报出来，别干等总超时。
         h.postDelayed(new Runnable() {
             @Override public void run() {
-                if (done || servicesDone) return;
+                if (gen != connGen || done || servicesDone) return;
                 die(3, "BLE 链路已连上，但 12s 内 ATT 层毫无响应（MTU/服务发现都没回调）。"
                         + "常见原因：①对端设备睡了/服务进程被冻结 ②对端 GATT 服务已崩 "
-                        + "③配对密钥两边不一致（让对端忘记本机后重新配对，或用 --no-mtu 试探）");
+                        + "③配对密钥两边不一致（双向取消配对后重新配对）");
             }
         }, 12000);
+    }
+
+    /** onConnectionStateChange 的 status 是 HCI 错误码，不是 GATT 码，这里翻译成人话 */
+    static String hintFor(int st) {
+        switch (st) {
+            case 133: return "（133=GATT_ERROR，链路或配对状态有问题）";
+            case 19:  return "（19=0x13 对端主动断链 Remote User Terminated Connection："
+                    + "对端蓝牙栈不接受这次交互直接踢链路，服务端代码里并没有主动断开，属对端状态问题）";
+            case 22:  return "（22=0x16 本地主机终止连接：多半是我们自己超时/cleanup）";
+            case 5:   return "（5=认证失败：配对密钥不对或加密没起来，双向取消配对重来）";
+            case 15:  return "（15=需要加密链路：对端特征声明了加密权限）";
+            case 8:   return "（8=连接超时：对端掉线或在睡觉）";
+            case 6:   return "（6=命令被拒：参数或状态不对）";
+            default:  return "";
+        }
+    }
+
+    /** 一次连接的接收侧状态清零（MTU 卡死后关链路重连要用） */
+    static void resetConn() {
+        rxState = ST_BACKLOG;
+        authAcked = false; authWritten = false; resultTimerArmed = false;
+        servicesRequested = false; servicesDone = false;
+        mtu = 23;
+        pending.clear();
+        rx.reset();
     }
 
     static boolean servicesRequested = false, servicesDone = false;
@@ -357,7 +400,9 @@ public class MyBleClientCli {
             final int st = status, ns = newState;
             h.post(new Runnable() {
                 @Override public void run() {
-                    if (done) return;
+                    // 只认当前这条链路：MTU 卡死后我们 close() 重连，旧链路也会回调一次 DISCONNECTED，
+                    // 不挡掉就会「刚重连上就被自己判死」（status=22 本地主机终止）
+                    if (done || g != gatt) return;
                     if (ns == BluetoothProfile.STATE_CONNECTED) {
                         log("已连接，" + (noMtu ? "按 --no-mtu 跳过 MTU 协商" : "请求 MTU 517…"));
                         if (noMtu) { afterMtu(g, 23); return; }
@@ -366,13 +411,32 @@ public class MyBleClientCli {
                         h.postDelayed(new Runnable() {
                             @Override public void run() {
                                 if (done || servicesRequested) return;
-                                log("5s 没收到 MTU 回调，按默认 MTU 23 继续（片小，但链路能走通）");
+                                if (!mtuRetried && lastDev != null) {
+                                    // 没答的 MTU 请求是「在飞行中」状态，会把后面的 CCCD 写堵在
+                                    // ATT 队列里（实测就是卡在“订阅结果通道”）。唯一干净的办法是
+                                    // 关掉这条链路，跳过 MTU 重连一次。
+                                    mtuRetried = true;
+                                    noMtu = true;
+                                    log("5s 没收到 MTU 回调：未完成的 MTU 请求会堵死 CCCD 写，"
+                                            + "关链路重连并跳过 MTU…");
+                                    try { gatt.close(); } catch (Throwable ignored) { }
+                                    gatt = null;
+                                    resetConn();
+                                    // 必须等栈把旧链路拆干净再连：紧接着 connectGatt 会让旧 client 的
+                                    // 拆除流程把新链路一起 terminate（实测 status=22 本地主机终止）
+                                    h.postDelayed(new Runnable() {
+                                        @Override public void run() {
+                                            if (!done) connect(lastDev);
+                                        }
+                                    }, 1500);
+                                    return;
+                                }
+                                log("MTU 仍无回音，按默认 MTU 23 继续（片小，但链路能走通）");
                                 afterMtu(gg, 23);
                             }
                         }, 5000);
                     } else if (ns == BluetoothProfile.STATE_DISCONNECTED) {
-                        die(3, "连接断开/失败 status=" + st
-                                + (st == 133 ? "（133=GATT_ERROR，链路或配对状态有问题）" : ""));
+                        die(3, "连接断开/失败 status=" + st + hintFor(st));
                     }
                 }
             });
@@ -403,7 +467,10 @@ public class MyBleClientCli {
                     g.setCharacteristicNotification(cRes, true);
                     BluetoothGattDescriptor d = cRes.getDescriptor(CCCD);
                     if (d == null) die(3, "RES 没有 CCCD");
-                    d.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                    // v2 服务端按「值 == ENABLE_INDICATION_VALUE」判定订阅（confirm=true 可靠流控，
+                    // 一次只一片在途）。写 0x0003 会被它的 isSubscribed 当成未订阅然后踢链路，
+                    // 所以必须与它的客户端完全一致：只开 INDICATION。
+                    d.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
                     if (!g.writeDescriptor(d)) die(3, "订阅提交失败");
                 }
             });
@@ -413,7 +480,7 @@ public class MyBleClientCli {
                                                 final BluetoothGattDescriptor d, int status) {
             h.post(new Runnable() {
                 @Override public void run() {
-                    if (done) return;
+                    if (done || g != gatt) return;      // 旧链路的残留回调要忽略
                     log("已订阅 RES。静默 1s（丢弃 --on-connect 输出）…");
                     h.postDelayed(new Runnable() {
                         @Override public void run() {
@@ -527,6 +594,8 @@ public class MyBleClientCli {
         if (cmdDone) return;          // 命令结果已经取到，之后的任何通知都不再当结果（PAN 阶段照旧跑）
         char mark = (char) (v[0] & 0xFF);
 
+        if (mark == 'T') { v2T(v); return; }   // v2 可靠传输：数据帧
+        if (mark == 'D') { v2D(v); return; }   // v2 可靠传输：整包 SHA-256 校验帧
         if (mark == '+') {
             if (rxState != ST_RESULT) return;                 // 结果窗口外的续片（连接期回显）直接丢
             try { rx.write(v, 1, v.length - 1); } catch (Throwable ignored) { }
@@ -699,6 +768,157 @@ public class MyBleClientCli {
             return new String(bo.toByteArray(), "UTF-8");
         } catch (Throwable t) { return ""; }
     }
+    // ==================== v2 可靠传输（与服务端 2.0.dev 对齐）====================
+    // 接收侧三重校验：逐帧 CRC16-CCITT(poly 0x1021, init 0xFFFF)、序号连续、整包 SHA-256。
+    // 校验不过绝不输出。实现照抄 Note9 客户端 BleService.handleChunk（未改其源码）。
+
+    static int rvTid = -1, rvTotal = 0, rvNext = 0, rvNacks = 0;
+    static boolean rvDigestGot = false;
+    static byte[] rvDigest = null;
+
+    static final Runnable chunkTimeout = new Runnable() {
+        @Override public void run() {
+            if (done || rvTid < 0) return;
+            if (rvTotal > 1 && rvNext >= rvTotal && !rvDigestGot) {
+                v2Nack(rvTid, rvTotal, "digest frame missing");
+                return;
+            }
+            if (rx.size() == 0) return;
+            v2Nack(rvTid, rvNext, "no chunk within 4s");
+        }
+    };
+
+    static int crc16(byte[] b, int off, int len) {
+        int crc = 0xFFFF;
+        for (int i = off; i < off + len; i++) {
+            crc ^= (b[i] & 0xFF) << 8;
+            for (int j = 0; j < 8; j++) {
+                crc = ((crc & 0x8000) != 0) ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+            }
+        }
+        return crc;
+    }
+
+    static void v2T(byte[] v) {
+        if (v.length < 9) return;
+        int crc = ((v[v.length - 2] & 0xFF) << 8) | (v[v.length - 1] & 0xFF);
+        int tid = ((v[1] & 0xFF) << 8) | (v[2] & 0xFF);
+        int seq = ((v[3] & 0xFF) << 8) | (v[4] & 0xFF);
+        int total = ((v[5] & 0xFF) << 8) | (v[6] & 0xFF);
+        if (crc16(v, 0, v.length - 2) != crc) {
+            if (tid == rvTid) v2Nack(tid, seq, "CRC16 check failed");
+            return;
+        }
+        if (tid != rvTid) {                       // 新传输：重置接收状态
+            rx.reset();
+            rvTid = tid; rvTotal = total; rvNext = 0; rvNacks = 0;
+            rvDigest = null; rvDigestGot = false;
+        }
+        if (seq < rvNext) return;                 // 重传窗口里的重复片
+        if (seq > rvNext) { v2Nack(tid, rvNext, "missing seq " + rvNext + "(got " + seq + ")"); return; }
+        try { rx.write(v, 7, v.length - 9); } catch (Throwable ignored) { }
+        rvNext++;
+        if (rvTotal > 1) { h.removeCallbacks(chunkTimeout); h.postDelayed(chunkTimeout, 4000); }
+        if (rvTotal == 1) v2Complete();           // 单片：CRC 已保证完整
+    }
+
+    static void v2D(byte[] v) {
+        if (v.length < 37) return;
+        int crc = ((v[v.length - 2] & 0xFF) << 8) | (v[v.length - 1] & 0xFF);
+        if (crc16(v, 0, v.length - 2) != crc) return;
+        int tid = ((v[1] & 0xFF) << 8) | (v[2] & 0xFF);
+        if (tid == rvTid && rvNext >= rvTotal && !rvDigestGot && rvTotal > 1) {
+            rvDigest = new byte[32];
+            System.arraycopy(v, 3, rvDigest, 0, 32);
+            rvDigestGot = true;
+            v2Verify();
+        }
+    }
+
+    static void v2Verify() {
+        try {
+            byte[] actual = java.security.MessageDigest.getInstance("SHA-256").digest(rx.toByteArray());
+            if (java.util.Arrays.equals(actual, rvDigest)) { v2Complete(); return; }
+        } catch (Throwable ignored) { }
+        log("SHA-256 不符：丢弃 " + rx.size() + " 字节，请求全量重传");
+        rx.reset(); rvNext = 0; rvDigestGot = false; rvDigest = null;
+        v2Nack(rvTid, 0, "SHA-256 mismatch, full retransmit");
+    }
+
+    /** 一段传输完成：按内容分流（版本帧/鉴权帧/#rc 结束帧/正文） */
+    static void v2Complete() {
+        h.removeCallbacks(chunkTimeout);
+        byte[] data = rx.toByteArray();
+        v2Abort();
+        String whole;
+        try { whole = new String(data, "UTF-8"); } catch (Throwable t) { whole = new String(data); }
+        String t2 = whole.trim();
+        if ("auth:ok".equals(t2)) { authAcked = true; log("鉴权通过（v2）"); maybeSendCmd(); return; }
+        if (t2.startsWith("blegatt-ver:")) { log("服务端版本: " + t2.substring(11).trim()); return; }
+        if ("wakeup-ok".equals(t2)) { return; }
+        if (t2.startsWith("!")) {
+            if (rxState == ST_RESULT && !cmdDone) die(2, "服务端错误: " + t2.substring(1));
+            log("连接期错误（忽略）: " + t2);
+            return;
+        }
+        if (t2.startsWith("#rc=")) {
+            // --on-connect 回显也有自己的 #rc=0 收尾帧，它在本命令发出之前到达；
+            // 只有 CMD 已发出（ST_RESULT）之后的 #rc 才是本命令的结束帧
+            if (rxState != ST_RESULT) {
+                log("忽略连接期 #rc 帧（" + t2 + "，属于 --on-connect 回显）");
+                return;
+            }
+            finishAndMaybePan("对端命令退出码: " + t2.substring(4).trim() + "（CRC/SHA 已校验）");
+            return;
+        }
+        if (rxState != ST_RESULT) {               // on-connect 回显等：进日志不进 stdout
+            log("丢弃连接期输出（v2）：'" + t2 + "'");
+            return;
+        }
+        System.out.print(whole);
+        System.out.flush();
+    }
+
+    static void v2Nack(int tid, int fromSeq, String why) {
+        h.removeCallbacks(chunkTimeout);
+        if (rvNacks >= 5) {
+            v2Abort();
+            panFail("重传请求已达 5 次仍未收全（tid=" + tid + "），放弃本轮");
+            return;
+        }
+        rvNacks++;
+        log("请求重传: #retrans " + tid + " " + fromSeq + "（" + why + "）");
+        if (gatt != null && cCmd != null) {
+            cCmd.setValue(("#retrans " + tid + " " + fromSeq).getBytes());
+            cCmd.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+            if (!gatt.writeCharacteristic(cCmd)) log("NACK 提交失败（对端写队列忙）");
+        }
+        h.postDelayed(chunkTimeout, 4000);
+    }
+
+    static void v2Abort() {
+        h.removeCallbacks(chunkTimeout);
+        rx.reset();
+        rvTid = -1; rvTotal = 0; rvNext = 0; rvNacks = 0;
+        rvDigest = null; rvDigestGot = false;
+    }
+
+    /** 命令收尾：打退出码、收尾 GATT，按需进入 PAN 阶段（v1/v2 共用） */
+    static void finishAndMaybePan(String rcLine) {
+        done = true;          // 静音后续 GATT 回调：cleanup() 主动断开也会回调，别让它误判成失败
+        cmdDone = true;       // 结果已取到，之后任何通知都不再当结果
+        log(rcLine);
+        cleanup();                                     // 关掉 GATT/扫描，把蓝牙让给 PAN
+        if (!pendingPan) { System.exit(0); }
+        // --pan = 命令成功之后才连。done 保持置位（GATT 回调与残余通知全部静音），
+        // 靠 panActive 让 die() 在 PAN 阶段仍能收尾退出。
+        deadlineMs = System.currentTimeMillis() + Math.max(20, timeoutSec) * 1000L;
+        log("命令完成，接着连接 PAN…");
+        h.post(new Runnable() {
+            @Override public void run() { startPan(); }
+        });
+    }
+
     static Context systemContext() {
         try {
             Class<?> at = Class.forName("android.app.ActivityThread");
