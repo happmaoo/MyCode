@@ -37,6 +37,7 @@ MyMQTT 物联网卡小服务器,可用ipv6连接服务器控制设备
 
 ## MyBle 蓝牙ble工具
 内含多个程序和APP 用于蓝牙ble和蓝牙pan 蓝牙共享网络连接
+不得不说有了ai就是厉害，代码都不用写了。
 https://github.com/happmaoo/MyCode/tree/main/MyBle
 
 # 测试用的项目:
