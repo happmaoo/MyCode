@@ -6,6 +6,7 @@
 ## MyFileman 安卓强大文件管理器
 可以自定义很多命令，bash命令等等，建议配合root 和 termux 使用.
 配合termux和root后可以直接查看压缩包内容，复制压缩包文件，速度一流。
+自定义脚本，自定义文件打开方式，6套主题图标更换，自定义界面字体
 适合喜欢折腾手机一族。
 https://github.com/happmaoo/MyCode/tree/main/MyFileman/
 
