@@ -1,0 +1,3 @@
+Icon set: Windows 98 style icons from alexh/vintage-icons
+https://github.com/alexh/vintage-icons  (MIT License)
+Selected 32/48px PNGs, converted to RGBA. Files named by file-type id.

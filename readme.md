@@ -2,7 +2,12 @@
 
 [![last commit](https://img.shields.io/github/last-commit/happmaoo/MyCode.svg)](https://github.com/happmaoo/MyCode/commits/main)
 ![repo size](https://img.shields.io/github/repo-size/happmaoo/MyCode.svg)
-
+ 
+## MyFileman 安卓强大文件管理器
+可以自定义很多命令，bash命令等等，建议配合root 和 termux 使用.
+配合termux和root后可以直接查看压缩包内容，复制压缩包文件，速度一流。
+适合喜欢折腾手机一族。
+/home/happmaoo/MyCode/MyFileman/
 
 ## autobrightness 亮度调节
 MIUI的亮度调节不好用，于是就自己写一个，目前很不错。  

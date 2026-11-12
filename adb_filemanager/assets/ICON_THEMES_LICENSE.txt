@@ -1,0 +1,37 @@
+图标主题来源与许可（MyFileman）
+================================================
+本 APK 内置下列 5 套图标主题，均为第三方开源项目，图标版权归各自作者所有。
+如要对外分发本 APK，请自行核对并遵守各主题的许可条款。
+
+1) elementary  assets/elementary/  （应用默认主题）
+   来源: 用户上传的 icon-elementary.zip（mimes/128，文件类型图标）
+        与 places.zip（places/128，文件夹/返回上级图标）
+   许可: elementary 图标主题通常为 GPL-3.0；上传包内未附 LICENSE，请自行确认
+
+2) Windows 98 原版  assets/v9/
+   来源: https://github.com/alexh/vintage-icons
+   许可: MIT（见 v9_LICENSE.txt）
+
+3) KDE Oxygen  assets/oxygen/
+   来源: https://github.com/KDE/oxygen-icons
+   许可: LGPL（KDE 体系）
+
+4) KDE Breeze  assets/breeze/
+   来源: https://github.com/KDE/breeze-icons
+   许可: LGPL-2.1
+
+5) Adwaita (GNOME)  assets/adwaita/
+   来源: https://github.com/GNOME/adwaita-icon-theme
+   许可: LGPL-3 或 CC-BY-SA 3.0
+
+说明: 每套主题按文件类型编号 0~11 各存放一张 128x128 透明 PNG。
+     仅截取所需图标用于界面展示，未改动图标本身；SVG 已渲染为位图。
+     扁平单色（纯代码绘制）、Papirus、Qogir 三套主题及其资源已移除。
+
+6) 工具栏图标  assets/ui/  （23 张 96x96 透明 PNG）
+   来源: 用户上传的 icon-elementary-xfce.zip（elementary-xfce 图标主题）
+   许可: elementary 系列图标主题通常为 GPL-3.0；上传包内仅含 README.md 与
+        index.theme，未附 LICENSE 文件，请自行确认许可后再对外分发。
+   用途: 主界面顶部栏、地址栏、工具栏、底部操作栏、命令行按钮；统一按 22dp 显示。
+   说明: 图标经 SVG 渲染为位图，未改动图形本身；界面按钮文字改为图标，长按显示名称提示。
+        「自定义命令」按钮保留命令名文字，仅在文字前加一枚图标。
