@@ -11,7 +11,7 @@
 https://github.com/happmaoo/MyCode/tree/main/MyFileman/
 
 ## WifiDirectShare wifi快速文件互传
-利用 Wifi Direct 发送文件，打开app自动连接指定的设备，支持发送文件夹，正常文件管理器里分享到发送到对方设备。
+利用 Wifi Direct 发送文件，打开app自动连接指定的设备，支持发送文件夹，支持文件管理器里分享到发送到对方设备。
 https://github.com/happmaoo/MyCode/tree/main/WifiDirectShare/
 
 ## autobrightness 亮度调节
