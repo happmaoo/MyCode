@@ -3,12 +3,15 @@ package com.myapp.myfilemanager;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.content.Intent;
+import android.net.Uri;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
+import android.view.DragEvent;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -22,6 +25,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -30,7 +34,7 @@ import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** 设置页（MD 扁平风格）：每行列数、字体大小、列表名称字号/字型、图标主题（5 套可选，默认 elementary）、
+/** 设置页（MD 扁平风格）：每行列数、字体大小、列表名称字号/字型、图标主题（2 套可选，默认 elementary）、
  *  隐藏文件、Root、自定义命令、扩展名打开方式规则。 */
 public class SettingsActivity extends Activity {
 
@@ -45,16 +49,18 @@ public class SettingsActivity extends Activity {
     private int textLv = 1;
     private int theme = IconFactory.THEME_DEFAULT;
     private String listFont = "";
-    private boolean rootOn, hiddenOn, syncing = false;
+    private boolean rootOn, hiddenOn, syncing = false, swipeTabs = true;
+    private boolean scriptRootOn = false;
     private String scriptDir = "";
     private final ArrayList<Prefs.Cmd> cmds = new ArrayList<Prefs.Cmd>();
     private final ArrayList<Prefs.OpenRule> rules = new ArrayList<Prefs.OpenRule>();
 
     private TextView colNum, rootState, themeHint;
-    private CheckBox rootCb, hiddenCb, debugCb;
+    private CheckBox rootCb, hiddenCb, debugCb, swipeCb, logCb, scriptRootCb;
+    private TextView logInfo;
     private ImageView themeFolderPreview, themeFilePreview;
     private LinearLayout cmdList, ruleList, rxBox;
-    private final Button[] textBtns = new Button[3];
+    private int dragFrom = -1;   // 自定义命令拖拽排序：当前被拖动的原始索引
     private Button fontPickBtn;
     private TextView fontPreview;
     private Button themePickBtn;
@@ -62,10 +68,16 @@ public class SettingsActivity extends Activity {
     private View accentBlock;
     private String accentHex = "";
 
+    // 滑动切换标签页灵敏度（最小距离 dp / 最小速度 px/s）的两个滑块与其数值文本
+    private SeekBar swipeDistSb, swipeVelSb;
+    private TextView swipeDistVal, swipeVelVal;
+
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        Dbg.log("ACTIVITY", "SettingsActivity.onCreate");
         Prefs.ensureDefaults(this);
+        Ui.loadFontScale(this);   // 构建界面文字前先加载全局字体缩放
         IconFactory.attach(this);   // 预览彩色位图主题前先注入 AssetManager
         load();
         setContentView(buildUi());
@@ -83,7 +95,9 @@ public class SettingsActivity extends Activity {
         listFont = Prefs.listFont(this);
         hiddenOn = Prefs.showHidden(this);
         rootOn = Prefs.rootEnabled(this);
+        swipeTabs = Prefs.swipeTabs(this);
         scriptDir = Prefs.scriptDir(this);
+        scriptRootOn = Prefs.scriptRootEnabled(this);
         accentHex = Prefs.accent(this);
         cmds.clear();
         cmds.addAll(Prefs.commands(this));
@@ -99,10 +113,16 @@ public class SettingsActivity extends Activity {
         Prefs.setListFont(this, listFont);
         Prefs.setShowHidden(this, hiddenOn);
         Prefs.setRootEnabled(this, rootOn);
+        Prefs.setSwipeTabs(this, swipeTabs);
         Prefs.setScriptDir(this, scriptDir);
+        Prefs.setScriptRootEnabled(this, scriptRootOn);
         Prefs.setAccent(this, accentHex);
         Prefs.setCommands(this, cmds);
         Prefs.setOpenRules(this, rules);
+        Dbg.log("SETTINGS", "保存设置 cols=" + cols + " textLv=" + textLv
+                + " theme=" + theme + " hidden=" + hiddenOn + " root=" + rootOn
+                + " swipeTabs=" + swipeTabs + " 命令数=" + cmds.size()
+                + " 规则数=" + rules.size());
     }
 
     /** 实时预览：解析输入框十六进制，更新色块与全局着重色（Ui.PRIMARY）。 */
@@ -163,8 +183,8 @@ public class SettingsActivity extends Activity {
         root.addView(scroll, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        // ----- 显示 -----
-        content.addView(section("显示"));
+        // ----- 全局 -----
+        content.addView(section("全局"));
 
         LinearLayout colRow = new LinearLayout(this);
         colRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -198,19 +218,27 @@ public class SettingsActivity extends Activity {
         textRow.setGravity(Gravity.CENTER_VERTICAL);
         textRow.addView(text("字体大小", 12, 13, 15, Ui.TEXT),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        String[] tl = {"小", "中", "大"};
-        for (int i = 0; i < 3; i++) {
-            final int idx = i;
-            Button b = Ui.flat(this, tl[i], textLv);
-            b.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View v) {
-                    Prefs.setTextLevel(SettingsActivity.this, idx);
-                    recreate();   // 按新档位重建，设置页文字同步变化
-                }
-            });
-            textRow.addView(b);
-            textBtns[i] = b;
-        }
+        // 调节框（同「列表名称字号」）：− / 当前值 sp / +。界面字体大小（sp，默认 14），
+        // 所有界面文字按 输入值/14 缩放；小/中/大的相对层次保持不变。步进 ±1，10~28。
+        final TextView fontNum = new TextView(this);
+        fontNum.setText(curFontSp() + " sp");
+        fontNum.setTextSize(Ui.sp(textLv, 14, 16, 18));
+        fontNum.setTextColor(Ui.PRIMARY);
+        fontNum.setGravity(Gravity.CENTER);
+        fontNum.setMinWidth(Util.dp(this, 56));
+        textRow.addView(fontNum);
+        Button fMinus = Ui.flat(this, "−", textLv);
+        fMinus.setTextSize(Ui.sp(textLv, 14, 16, 18));
+        fMinus.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { changeFontSp(-1, fontNum); }
+        });
+        textRow.addView(fMinus);
+        Button fPlus = Ui.flat(this, "+", textLv);
+        fPlus.setTextSize(Ui.sp(textLv, 14, 16, 18));
+        fPlus.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { changeFontSp(1, fontNum); }
+        });
+        textRow.addView(fPlus);
         content.addView(textRow, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         content.addView(line());
@@ -247,7 +275,6 @@ public class SettingsActivity extends Activity {
         refreshFontLabel();
 
         // 着重色：左侧色块显示当前颜色，右侧输入框可输入十六进制（如 FD5555），实时预览
-        content.addView(section("着重色"));
         LinearLayout accentRow = new LinearLayout(this);
         accentRow.setOrientation(LinearLayout.HORIZONTAL);
         accentRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -290,6 +317,59 @@ public class SettingsActivity extends Activity {
             public void afterTextChanged(android.text.Editable e) {}
         });
 
+        hiddenCb = new CheckBox(this);
+        hiddenCb.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.PRIMARY));
+        hiddenCb.setText("显示隐藏文件（以 . 开头）");
+        hiddenCb.setTextSize(Ui.sp(textLv, 12, 13, 15));
+        hiddenCb.setTextColor(Ui.TEXT);
+        content.addView(hiddenCb);
+        hiddenCb.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            public void onCheckedChanged(CompoundButton b, boolean on) {
+                if (syncing) return;
+                hiddenOn = on;
+                Prefs.setShowHidden(SettingsActivity.this, on);
+            }
+        });
+        content.addView(line());
+
+        // 左右滑动切换标签页
+        swipeCb = new CheckBox(this);
+        swipeCb.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.PRIMARY));
+        swipeCb.setText("在文件列表上左右滑动切换标签页");
+        swipeCb.setTextSize(Ui.sp(textLv, 12, 13, 15));
+        swipeCb.setTextColor(Ui.TEXT);
+        content.addView(swipeCb);
+        swipeCb.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            public void onCheckedChanged(CompoundButton b, boolean on) {
+                if (syncing) return;
+                swipeTabs = on;   // 必须同步成员变量：saveAll() 会再写一次 swipeTabs，
+                                   // 若不同步，点「保存」会用旧值把这次勾选覆盖回去（表现为无法保存）
+                Prefs.setSwipeTabs(SettingsActivity.this, on);
+                // 联动：关闭滑动切换后，灵敏度滑块无意义，一并灰掉
+                setSwipeSensEnabled(on);
+                toast(on ? "已开启：在文件列表上左右滑动可切换标签页"
+                         : "已关闭左右滑动切换标签页");
+            }
+        });
+        // 滑动切换灵敏度：最小距离 / 最小速度（仅在开启滑动切换时可用）
+        swipeDistVal = new TextView(this);
+        swipeVelVal = new TextView(this);
+        content.addView(seekRow("滑动切换最小距离", 20, 200, 5, Prefs.swipeDist(this),
+                swipeDistVal, " dp", new OnSeekChanged() {
+            public void onChanged(int v, boolean fromUser) {
+                if (fromUser) Prefs.setSwipeDist(SettingsActivity.this, v);
+            }
+        }));
+        swipeDistSb = (SeekBar) content.getChildAt(content.getChildCount() - 1).getTag();
+        content.addView(seekRow("滑动切换最小速度", 100, 1500, 50, Prefs.swipeVel(this),
+                swipeVelVal, " px/s", new OnSeekChanged() {
+            public void onChanged(int v, boolean fromUser) {
+                if (fromUser) Prefs.setSwipeVel(SettingsActivity.this, v);
+            }
+        }));
+        swipeVelSb = (SeekBar) content.getChildAt(content.getChildCount() - 1).getTag();
+        content.addView(line());
+
         // ----- 调试 -----
         content.addView(section("调试"));
         debugCb = new CheckBox(this);
@@ -308,19 +388,72 @@ public class SettingsActivity extends Activity {
         });
         content.addView(line());
 
-        hiddenCb = new CheckBox(this);
-        hiddenCb.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.PRIMARY));
-        hiddenCb.setText("显示隐藏文件（以 . 开头）");
-        hiddenCb.setTextSize(Ui.sp(textLv, 12, 13, 15));
-        hiddenCb.setTextColor(Ui.TEXT);
-        content.addView(hiddenCb);
-        hiddenCb.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+        // 全局调试日志：开关写入文件而非 SP，主进程与 7z 插件进程同时生效、即时开关。
+        logCb = new CheckBox(this);
+        logCb.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.PRIMARY));
+        logCb.setText("输出全局调试日志到 sd 卡");
+        logCb.setTextSize(Ui.sp(textLv, 12, 13, 15));
+        logCb.setTextColor(Ui.TEXT);
+        content.addView(logCb);
+        content.addView(note("记录应用启动、界面操作、文件操作、命令执行、插件调用、7z 解压链路与崩溃堆栈。\n"
+                + "日志：" + Dbg.LOG + "\n"
+                + "开关用文件实现，主进程与各插件进程共享；复现问题后可直接查看或分享。"));
+        logCb.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton b, boolean on) {
                 if (syncing) return;
-                hiddenOn = on;
-                Prefs.setShowHidden(SettingsActivity.this, on);
+                boolean ok = Dbg.setEnabled(on);
+                toast(ok ? (on ? "调试日志已开启：" + Dbg.LOG : "调试日志已关闭（已停止记录）")
+                         : "无法写入 sd 卡：" + Dbg.LOG + "（请确认已授予所有文件访问权限）");
+                if (!ok && on) { syncing = true; b.setChecked(false); syncing = false; }
+                refreshLogInfo();
             }
         });
+        logInfo = text("", 10, 11, 13, Ui.SUB);
+        content.addView(logInfo);
+
+        LinearLayout logBtns = new LinearLayout(SettingsActivity.this);
+        logBtns.setOrientation(LinearLayout.HORIZONTAL);
+        logBtns.setGravity(Gravity.CENTER_VERTICAL);
+        Button viewLog = Ui.solid(SettingsActivity.this, "查看日志", 1);
+        viewLog.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                // 复用结果窗口（自带「复制」）；转义统一前缀 [mycmd:，避免日志正文里任何控制行被误解析（按钮/日志/标题/结束）。
+                String s = Dbg.tail(500).replace("[mycmd:", "[ mycmd:");
+                Intent it = new Intent(SettingsActivity.this, CmdOutputActivity.class);
+                it.putExtra(CmdOutputActivity.EXTRA_TITLE, "调试日志（末尾 500 行）");
+                it.putExtra(CmdOutputActivity.EXTRA_TEXT, s);
+                startActivity(it);
+            }
+        });
+        logBtns.addView(viewLog);
+        Button clearLog = Ui.solid(SettingsActivity.this, "清空", 1);
+        clearLog.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                toast(Dbg.clear() ? "日志已清空" : "清空失败（无法写入 sd 卡）");
+                refreshLogInfo();
+            }
+        });
+        logBtns.addView(clearLog);
+        Button shareLog = Ui.solid(SettingsActivity.this, "分享", 1);
+        shareLog.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                try {
+                    if (!new File(Dbg.LOG).exists()) { toast("暂无日志文件"); return; }
+                    Uri uri = Uri.parse("content://" + FileProvider.AUTH + "/"
+                            + Dbg.LOG.substring(1));
+                    Intent it = new Intent(Intent.ACTION_SEND);
+                    it.setType("text/plain");
+                    it.putExtra(Intent.EXTRA_STREAM, uri);
+                    it.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(Intent.createChooser(it, "分享调试日志"));
+                } catch (Throwable e) {
+                    Dbg.log("SETTINGS", "分享日志失败", e);
+                    toast("分享失败：" + e.getMessage());
+                }
+            }
+        });
+        logBtns.addView(shareLog);
+        content.addView(logBtns);
         content.addView(line());
 
         // ----- 图标主题 -----
@@ -377,6 +510,7 @@ public class SettingsActivity extends Activity {
 
         // ----- 自定义命令 -----
         content.addView(section("自定义命令"));
+        content.addView(note("提示：按住每行左侧「≡」拖动，可调整命令顺序"));
 
         cmdList = new LinearLayout(this);
         cmdList.setOrientation(LinearLayout.VERTICAL);
@@ -413,7 +547,7 @@ public class SettingsActivity extends Activity {
 
         // ----- 扩展名打开方式 -----
         content.addView(section("扩展名打开方式"));
-        content.addView(note("按扩展名指定 MIME 或直接用某个应用打开；底部「打开」按钮始终弹系统选择框。"));
+        content.addView(note("按扩展名（可多个，逗号分隔）指定 MIME、或直接用某应用/某 Activity 打开；底部「打开」按钮始终弹系统选择框。"));
 
         ruleList = new LinearLayout(this);
         ruleList.setOrientation(LinearLayout.VERTICAL);
@@ -429,13 +563,13 @@ public class SettingsActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         arLp.setMargins(0, Util.dp(this, 6), 0, Util.dp(this, 6));
         content.addView(addRule, arLp);
-        content.addView(note("扩展名不带点；留空＝系统自动处理，后添加的同名规则优先。"));
+        content.addView(note("扩展名不带点，可用逗号分隔多个（如 sh,txt,log）；留空＝系统自动处理，后添加的同名规则优先。"));
         content.addView(line());
 
         // ----- 自定义脚本（侧栏 Bash 分类） -----
         content.addView(section("自定义脚本"));
         content.addView(note("在此填写一个目录，APP 启动后自动加载其中所有 .sh 脚本；\n"
-                + "若脚本前 5 行含「#myfileman_script:标题」，则把冒号后的文字作为侧栏标题。"));
+                + "侧栏标题直接取脚本文件名（去掉 .sh），无需在脚本内写标记。"));
         LinearLayout scriptRow = new LinearLayout(this);
         scriptRow.setOrientation(LinearLayout.HORIZONTAL);
         scriptRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -456,6 +590,19 @@ public class SettingsActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         content.addView(scriptRow, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        // 以 Root 运行脚本：勾选后侧栏脚本统一以 Root 会话执行（脚本可访问系统目录等）
+        scriptRootCb = new CheckBox(this);
+        scriptRootCb.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.PRIMARY));
+        scriptRootCb.setText("以 Root 运行脚本");
+        scriptRootCb.setTextSize(Ui.sp(textLv, 12, 13, 15));
+        scriptRootCb.setTextColor(Ui.TEXT);
+        content.addView(scriptRootCb);
+        scriptRootCb.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            public void onCheckedChanged(CompoundButton b, boolean on) {
+                if (syncing) return;
+                scriptRootOn = on;
+            }
+        });
         content.addView(line());
 
         return root;
@@ -496,6 +643,60 @@ public class SettingsActivity extends Activity {
                 Util.dp(this, 12), Util.dp(this, 8));
         box.addView(t);
         return box;
+    }
+
+    /** 构建「标签 + 实时数值 + 滑块」一行；滑块取值 = min + progress*step，范围 [min, max]。 */
+    private LinearLayout seekRow(String label, int min, int max, int step, int val,
+                                 final TextView valView, final String unit,
+                                 final OnSeekChanged cb) {
+        final int maxProg = (max - min) / step;
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(0, Util.dp(this, 4), 0, 0);
+
+        TextView lab = new TextView(this);
+        lab.setText(label);
+        lab.setTextSize(Ui.sp(textLv, 12, 13, 15));
+        lab.setTextColor(Ui.TEXT);
+        valView.setTextSize(Ui.sp(textLv, 14, 16, 18));
+        valView.setTextColor(Ui.PRIMARY);
+        valView.setGravity(Gravity.END);
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(lab, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        head.addView(valView);
+        row.addView(head);
+
+        final SeekBar sb = new SeekBar(this);
+        sb.setMax(maxProg);
+        sb.setProgress(Math.round((float) (val - min) / step));
+        sb.setProgressTintList(android.content.res.ColorStateList.valueOf(Ui.PRIMARY));
+        sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(SeekBar s, int p, boolean fromUser) {
+                int v = min + p * step;
+                valView.setText(v + unit);
+                cb.onChanged(v, fromUser);
+            }
+            public void onStartTrackingTouch(SeekBar s) {}
+            public void onStopTrackingTouch(SeekBar s) {}
+        });
+        row.addView(sb);
+        row.setTag(sb);   // 供 syncUi / 开关联动时取滑块引用做启用/禁用
+        return row;
+    }
+
+    /** 滑块值变化回调：value 为实际阈值，fromUser 区分用户拖动与程序赋值。 */
+    private interface OnSeekChanged {
+        void onChanged(int value, boolean fromUser);
+    }
+
+    /** 联动：开关「左右滑动切换标签页」时，启用/灰化两个灵敏度滑块及其数值文本。 */
+    private void setSwipeSensEnabled(boolean on) {
+        if (swipeDistSb != null) swipeDistSb.setEnabled(on);
+        if (swipeVelSb != null) swipeVelSb.setEnabled(on);
+        if (swipeDistVal != null) swipeDistVal.setTextColor(on ? Ui.PRIMARY : Ui.HINT);
+        if (swipeVelVal != null) swipeVelVal.setTextColor(on ? Ui.PRIMARY : Ui.HINT);
     }
 
     /** 一行「标签 − 数值 +」，直接读写列表名称字号，即时保存。 */
@@ -736,7 +937,7 @@ public class SettingsActivity extends Activity {
             LinearLayout head = new LinearLayout(this);
             head.setOrientation(LinearLayout.HORIZONTAL);
             head.setGravity(Gravity.CENTER_VERTICAL);
-            TextView ext = text("." + r.ext, 12, 13, 15, Ui.TEXT);
+            TextView ext = text(extsLabel(r.ext), 12, 13, 15, Ui.TEXT);
             ext.setTypeface(null, android.graphics.Typeface.BOLD);
             head.addView(ext, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             Button edit = Ui.flat(this, "编辑", textLv);
@@ -767,13 +968,25 @@ public class SettingsActivity extends Activity {
     private String describeRule(Prefs.OpenRule r) {
         String mime = (r.mime == null || r.mime.length() == 0) ? "系统推断 MIME" : r.mime;
         String pkg = (r.pkg == null || r.pkg.length() == 0) ? "系统选择框" : "直接打开 " + r.pkg;
-        return mime + "   ·   " + pkg;
+        String cls = (r.cls == null || r.cls.length() == 0) ? "" : "  /  " + r.cls;
+        return mime + "   ·   " + pkg + cls;
+    }
+
+    /** 把规则里的扩展名串（可能逗号分隔）渲染成 ".sh, .txt, .log" 这样的展示文字。 */
+    private String extsLabel(String raw) {
+        StringBuilder b = new StringBuilder();
+        int i = 0;
+        for (String s : Prefs.extList(raw)) {
+            if (i++ > 0) b.append(", ");
+            b.append('.').append(s);
+        }
+        return b.length() > 0 ? b.toString() : ".";
     }
 
     private void confirmDeleteRule(final int idx) {
         new AlertDialog.Builder(this)
                 .setTitle("删除规则")
-                .setMessage("确定删除 ." + rules.get(idx).ext + " 的打开方式规则？")
+                .setMessage("确定删除 " + extsLabel(rules.get(idx).ext) + " 的打开方式规则？")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("删除", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
@@ -795,7 +1008,7 @@ public class SettingsActivity extends Activity {
         box.setPadding(p, Util.dp(this, 8), p, 0);
 
         final EditText extEt = new EditText(this);
-        extEt.setHint("扩展名，如 txt / apk（不带点）");
+        extEt.setHint("扩展名，可逗号分隔多个，如 txt 或 sh,txt,log（不带点）");
         extEt.setSingleLine(true);
         extEt.setTextSize(Ui.sp(textLv, 12, 13, 15));
         if (old != null) extEt.setText(old.ext);
@@ -818,18 +1031,26 @@ public class SettingsActivity extends Activity {
         box.addView(pkgEt, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
+        final EditText clsEt = new EditText(this);
+        clsEt.setHint("Activity 类名（可选），如 com.example.editor.MainActivity");
+        clsEt.setSingleLine(true);
+        clsEt.setTextSize(Ui.sp(textLv, 12, 13, 15));
+        if (old != null) clsEt.setText(old.cls);
+        box.addView(clsEt, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
         new AlertDialog.Builder(this)
                 .setTitle(isNew ? "添加打开方式规则" : "编辑规则")
                 .setView(box)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
-                        String e = extEt.getText().toString().trim();
-                        while (e.startsWith(".")) e = e.substring(1);
-                        if (e.isEmpty()) { toast("请填写扩展名"); return; }
+                        String e = Prefs.normalizeExts(extEt.getText().toString());
+                        if (e.isEmpty()) { toast("请填写至少一个扩展名"); return; }
                         String m = mimeEt.getText().toString().trim();
                         String pk = pkgEt.getText().toString().trim();
-                        Prefs.OpenRule r = new Prefs.OpenRule(e, m, pk);
+                        String cls = clsEt.getText().toString().trim();
+                        Prefs.OpenRule r = new Prefs.OpenRule(e, m, pk, cls);
                         if (isNew) rules.add(r); else rules.set(idx, r);
                         Prefs.setOpenRules(SettingsActivity.this, rules);
                         renderRules();
@@ -838,18 +1059,31 @@ public class SettingsActivity extends Activity {
                 }).show();
     }
 
+    /** 调试日志状态行：记录中/已停止 + 当前大小。 */
+    private void refreshLogInfo() {
+        if (logInfo == null) return;
+        long n = Dbg.size();
+        logInfo.setText("当前日志：" + (Dbg.enabled() ? "记录中" : "已停止") + "，大小 "
+                + (n < 1024 ? n + " B" : (n / 1024) + " KB")
+                + "（上限 2MB，超出自动轮转为 .old.log）");
+    }
+
     // ==================== 状态同步 ====================
 
     private void syncUi() {
         paintCols();
-        paintTextBtns();
         refreshFontLabel();
         paintTheme();
         syncing = true;
         hiddenCb.setChecked(hiddenOn);
         rootCb.setChecked(rootOn);
         debugCb.setChecked(Prefs.debugRx(this));
+        swipeCb.setChecked(swipeTabs);
+        setSwipeSensEnabled(swipeTabs);
+        logCb.setChecked(Dbg.enabled());
+        scriptRootCb.setChecked(scriptRootOn);
         syncing = false;
+        refreshLogInfo();
         rootState.setText(!rootOn ? ROOT_OFF
                 : (Fs.rootSessionAlive() ? ROOT_ON : ROOT_LOST));
     }
@@ -864,12 +1098,19 @@ public class SettingsActivity extends Activity {
         colNum.setText(String.valueOf(cols));
     }
 
-    private void paintTextBtns() {
-        for (int i = 0; i < 3; i++) {
-            textBtns[i].setTextColor(i == textLv ? Ui.PRIMARY : Ui.SUB);
-            textBtns[i].setTypeface(null, i == textLv
-                    ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
-        }
+    /** 当前界面字体大小（sp）：未设置（0）显示为基准值 14。 */
+    private int curFontSp() {
+        int v = Prefs.uiFontSp(this);
+        return v > 0 ? v : (int) Ui.FONT_BASE_SP;
+    }
+
+    /** 调节界面字体大小（同「列表名称字号」的 ± 步进，10~28 sp）。
+     *  保存后立即更新全局缩放（Ui.FONT_SCALE），设置页文字与主界面在下次构建/恢复时生效。 */
+    private void changeFontSp(int delta, TextView num) {
+        int v = Math.max(10, Math.min(28, curFontSp() + delta));
+        Prefs.setUiFontSp(this, v == (int) Ui.FONT_BASE_SP ? 0 : v);   // 基准 14 存为未缩放
+        Ui.loadFontScale(this);
+        num.setText(v + " sp");
     }
 
     /** 更新当前主题按钮文字、实时预览图标与说明。 */
@@ -948,23 +1189,30 @@ public class SettingsActivity extends Activity {
         for (int i = 0; i < cmds.size(); i++) {
             final int idx = i;
             final Prefs.Cmd c = cmds.get(i);
-            LinearLayout item = new LinearLayout(this);
+            final LinearLayout item = new LinearLayout(this);
             item.setOrientation(LinearLayout.VERTICAL);
             item.setPadding(0, Util.dp(this, 8), 0, Util.dp(this, 8));
 
             LinearLayout head = new LinearLayout(this);
             head.setOrientation(LinearLayout.HORIZONTAL);
             head.setGravity(Gravity.CENTER_VERTICAL);
+
+            // 拖拽排序手柄：长按「≡」开始拖动，拖到目标行松开即换位
+            TextView grip = text("≡", 14, 16, 18, Ui.SUB);
+            grip.setPadding(Util.dp(this, 2), 0, Util.dp(this, 10), 0);
+            grip.setOnLongClickListener(new View.OnLongClickListener() {
+                public boolean onLongClick(View v) {
+                    dragFrom = idx;
+                    return v.startDrag(null, new View.DragShadowBuilder(item), null, 0);
+                }
+            });
+            head.addView(grip);
+
             TextView name = text(c.name, 12, 13, 15, Ui.TEXT);
             name.setTypeface(null, android.graphics.Typeface.BOLD);
             head.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             if (c.optRoot()) {
                 TextView tag = text("ROOT", 9, 10, 11, Ui.PRIMARY);
-                tag.setTypeface(null, android.graphics.Typeface.BOLD);
-                head.addView(tag);
-            }
-            if (c.optAutoClose()) {
-                TextView tag = text("自动关闭", 9, 10, 11, Ui.PRIMARY);
                 tag.setTypeface(null, android.graphics.Typeface.BOLD);
                 head.addView(tag);
             }
@@ -998,6 +1246,38 @@ public class SettingsActivity extends Activity {
             });
             ops.addView(del);
             item.addView(ops);
+
+            // 接收拖拽：落到本行时把源项移动到 idx 位置，保存并重绘
+            item.setOnDragListener(new View.OnDragListener() {
+                public boolean onDrag(View v, DragEvent ev) {
+                    switch (ev.getAction()) {
+                        case DragEvent.ACTION_DRAG_STARTED:
+                            return dragFrom >= 0;   // 只响应本列表内部的拖拽
+                        case DragEvent.ACTION_DRAG_ENTERED:
+                            v.setBackgroundColor(Ui.PRIMARY_SOFT);
+                            return true;
+                        case DragEvent.ACTION_DRAG_EXITED:
+                        case DragEvent.ACTION_DRAG_ENDED:
+                            v.setBackgroundColor(Color.TRANSPARENT);
+                            return true;
+                        case DragEvent.ACTION_DROP:
+                            v.setBackgroundColor(Color.TRANSPARENT);
+                            if (dragFrom >= 0 && dragFrom != idx) {
+                                Prefs.Cmd moving = cmds.remove(dragFrom);
+                                cmds.add(idx, moving);
+                                dragFrom = -1;
+                                Prefs.setCommands(SettingsActivity.this, cmds);
+                                renderCmds();
+                                toast("已调整命令顺序");
+                            } else {
+                                dragFrom = -1;
+                            }
+                            return true;
+                        default:
+                            return true;
+                    }
+                }
+            });
 
             item.addView(line());
             cmdList.addView(item);
@@ -1049,20 +1329,27 @@ public class SettingsActivity extends Activity {
             if (old.hasOptions()) tmplEt.setText(old.tmpl);
             else tmplEt.setText("#options://root:" + (old.root ? 1 : 0)
                     + "/printown:" + (old.showOrig ? 1 : 0)
-                    + "/autoclose:" + (old.autoClose ? 1 : 0) + "/ena:2/\n" + old.tmpl);
+                    + "/ena:2/\n" + old.tmpl);
         } else {
-            tmplEt.setText("#options://root:0/printown:1/autoclose:0/ena:2/\n");
+            tmplEt.setText("#options://root:0/printown:1/ena:2/\n");
         }
         box.addView(tmplEt, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         box.addView(note("%n 文件名   %f 文件路径   %d 目录路径   %F 全部文件路径\n"
                 + "plugin:%pid:插件id  例：%pid:archive7z %F 用压缩包插件打开选中文件；%pid:imageviewer %F 用图片查看器打开\n"
-                + "选项写在前 5 行内，格式：#options://root:0/printown:1/autoclose:0/ena:1/\n"
-                + "  root:1 以 Root 方式执行（强制 mount-master）；printown:1 在结果中输出原命令；autoclose:1 成功后自动关闭窗口\n"
+                + "选项写在前 5 行内，格式：#options://root:0/printown:1/ena:1/\n"
+                + "  root:1 以 Root 方式执行（强制 mount-master）；printown:1 在结果中输出原命令\n"
                 + "  ena:1 工具栏常启用 / 2 仅选中 1 个文件时启用 / 3 选中 1 个以上文件或文件夹（可混合）时启用\n"
+                + "  控制行（统一前缀 [mycmd:；输出到命令 stdout，或写进 [mycmd:log] 轮询的日志文件里，都会逐行识别）：\n"
+                + "  [mycmd:btn:按钮名称]命令 → 在窗口底部生成按钮，点击即用 shell 执行该命令\n"
+                + "  [mycmd:btn:按钮名称:0] → 删除同名按钮（:0 为删除标记，] 后面必须为空、不跟命令）\n"
+                + "  [mycmd:log]公共目录文件路径 → 启动该文件增量日志轮询（此行须输出到 stdout；路径须为 APP 可直接读的公共目录如 /sdcard/Download/，不走 Root、不弹授权）\n"
+                + "  [mycmd:title:标题文本]  → 动态改变输出窗口顶栏标题（末尾可带 ]，也可省略）\n"
+                + "  [mycmd:exit]         → 标记命令已结束：窗口不自动关闭，此后点「关闭」直接关、不再确认（结束前手动关闭会先确认）\n"
+                + "    长任务后台跑：把命令输出与 [mycmd:exit] 一起重定向到日志文件，任务完成后日志里出现该行即自动标记结束\n"
                 + "  size:宽x高 用固定尺寸弹窗替代全屏输出窗口（右上角 X 与下方居中「确定」按钮关闭），如 size:500x500\n"
-                + "  缺省选项取默认值（root:0 / printown:1 / autoclose:0 / ena:2）；命令里不要再写 su，直接写原生命令即可。"));
+                + "  缺省选项取默认值（root:0 / printown:1 / ena:2）；命令里不要再写 su，直接写原生命令即可。"));
 
         new AlertDialog.Builder(this)
                 .setTitle(isNew ? "添加自定义命令" : "编辑命令")
@@ -1098,14 +1385,12 @@ public class SettingsActivity extends Activity {
         tmpl.setPadding(0, Util.dp(this, 3), 0, Util.dp(this, 2));
         rxBox.addView(tmpl);
         if (c.showOrig) rxBox.addView(note("结果中显示原命令"));
-        if (c.autoClose) rxBox.addView(note("执行成功后自动关闭结果窗口"));
     }
 
     private void editRxCmd() {
         Prefs.Cmd old = Prefs.rxCommand(this);
         String oldTmpl = (old != null && old.tmpl != null) ? old.tmpl : "";
         boolean oldShow = old != null && old.showOrig;
-        boolean oldAuto = old != null && old.autoClose;
 
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -1135,14 +1420,6 @@ public class SettingsActivity extends Activity {
         showCmdBox.setChecked(oldShow);
         box.addView(showCmdBox);
         box.addView(note("取消勾选后，结果窗口不再显示执行前的原命令（$ 行）。"));
-
-        final CheckBox autoCloseBox = new CheckBox(this);
-        autoCloseBox.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.PRIMARY));
-        autoCloseBox.setText("执行成功后自动关闭结果窗口");
-        autoCloseBox.setTextSize(Ui.sp(textLv, 12, 13, 15));
-        autoCloseBox.setChecked(oldAuto);
-        box.addView(autoCloseBox);
-        box.addView(note("成功后约 3 秒自动关闭；失败时保留窗口。"));
 
         // 结果窗口字体大小：小 / 中 / 大（仅作用于命令执行结果窗口，不影响界面其它文字）
         box.addView(note("结果窗口字体大小"));
@@ -1176,7 +1453,7 @@ public class SettingsActivity extends Activity {
                         // 已移除命令级 Root 复选框：Root 改为在模板里写 su --mount-master -c；
                         // 接收命令统一以普通 shell 执行（root=false）。
                         Prefs.setRxCommand(SettingsActivity.this,
-                                new Prefs.Cmd("接收命令", t, false, autoCloseBox.isChecked(), showCmdBox.isChecked()));
+                                new Prefs.Cmd("接收命令", t, false, showCmdBox.isChecked()));
                         Prefs.setCmdTextLevel(SettingsActivity.this, cmdLv[0]);
                         renderRx();
                         toast(t.isEmpty() ? "已清空接收命令" : "已保存");

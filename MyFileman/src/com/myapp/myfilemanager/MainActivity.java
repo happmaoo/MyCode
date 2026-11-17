@@ -12,6 +12,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.BroadcastReceiver;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -27,9 +29,11 @@ import android.provider.MediaStore;
 import android.provider.Settings;
 import android.text.InputType;
 import android.text.TextWatcher;
+import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.animation.DecelerateInterpolator;
 import android.view.ViewGroup;
 import android.widget.PopupMenu;
 import android.widget.ArrayAdapter;
@@ -47,6 +51,9 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.GridView;
+import android.widget.ListView;
+import android.widget.BaseAdapter;
+import android.widget.ImageView;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
@@ -55,6 +62,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.ItemTouchHelper;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import java.io.BufferedReader;
 import java.io.File;
@@ -65,6 +74,7 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.Collections;
@@ -196,11 +206,27 @@ public class MainActivity extends Activity {
     private View bottomBar;
     private RecyclerView grid;
     private GridLayoutManager gridLm;
+    private boolean swipeTabs = true;            // 文件列表左右滑动切换标签页（设置项）
+    private int swipeMinDist = 60;               // 滑动切换最小横向位移阈值（dp，设置项）
+    private int swipeMinVel = 300;               // 滑动切换最小甩动速度阈值（px/s，设置项）
+    private boolean gridAnimating = false;       // 滑动切换动画进行中（吞掉触摸，防止冲突）
+    private GestureDetector swipeDetector;       // 检测列表区域横向甩动（onFling，原判定逻辑）
+    private float swipeDownX;                    // 本次触摸起点 X（用于排除左边缘抽屉手势）
     private RvFileAdapter adapter;
     private EditText pathEdit;
     private TextView status, empty, titleTv, rootTag;
     private AlertDialog dlg;   // 当前属性对话框实例，供内部按钮关闭它
     private final ArrayList<Button> toolBtns = new ArrayList<Button>();
+    private Button viewModeBtn;   // 工具栏「视图」按钮（网格 ⇄ 列表）
+    private Button sortBtn;       // 工具栏「排序」按钮（图标 + 右侧小三角）
+    private LinearLayout sortDropdown;   // 排序下拉菜单的内容 View（字母 / 时间）
+    private android.widget.PopupWindow sortPopup;   // 锚在排序按钮下方的窄下拉浮层，不占文件列表区域
+    private Button addBtn;        // 工具栏「新建」按钮（收起原新建文件夹 / 新建文件）
+    private LinearLayout addDropdown;    // 新建下拉菜单的内容 View（文件夹 / 文件）
+    private android.widget.PopupWindow addPopup;    // 锚在新建按钮下方的窄下拉浮层
+    private Button favBtn;        // 工具栏「收藏」按钮
+    private LinearLayout favDropdown;    // 收藏下拉菜单的内容 View（ScrollView 内，收藏条目列表）
+    private android.widget.PopupWindow favPopup;    // 锚在收藏按钮下方的窄下拉浮层
     /** 当前激活标签是否为 archive:// 视图：决定工具栏用「压缩包版」（去掉新建/收藏、加解压）。 */
     private boolean toolbarArchiveMode = false;
     private final ArrayList<Button> addrBtns = new ArrayList<Button>();
@@ -226,15 +252,22 @@ public class MainActivity extends Activity {
     private boolean loading = false;
     private boolean rootWarmStarted = false;
     private int refreshSeq = 0;   // 只让最后一次刷新请求的结果生效，避免过期结果覆盖
+    /** 当前「打开中...」提示框（archive:// 列目录期间），仅用于生命周期清理。 */
+    private volatile OpenArchiveDlg archiveOpenDlg = null;
+    /** 压缩包内文件提取进行中（底部状态栏显示「打开中…」）：供返回键拦截为「取消打开」。 */
+    private volatile boolean archiveOpening = false;
+    /** 提取取消请求：由返回键置位，io 任务在读取循环中检测以中止并删除半成品临时文件。 */
+    private volatile boolean archiveOpenCancel = false;
     private int lastListFp = -1;  // 上次 onResume 时影响列表内容的设置指纹
     private int archiveExitScroll = 0;  // 进入压缩包前，真实目录列表的滚动位置；退出压缩包时恢复该位置
+    // 命令执行期间，压缩包内虚拟路径 → 解压到 archive_tmp 后的真实临时文件路径；一次性缓存避免重复解压
+    private final HashMap<String, String> cmdArchiveCache = new HashMap<String, String>();
     // 「返回记住位置」：按路径持久化的滚动记忆（见 ScrollMemory）。
     private ScrollMemory scrollMem;
     private int restoreTop = 0;          // 恢复滚动时首项的像素偏移，与 t.scroll 配套
     private boolean initialRestore = false;  // 重启后首次 onResume 是否恢复记忆位置
     private static final int REQ_PERM = 1001;
     private static final int REQ_CMD = 1002;   // 启动结果窗口（CmdOutputActivity）的请求码
-    private static final long AUTO_CLOSE_DELAY_MS = 3000L;   // 「自动关闭结果窗口」延时
 
     // ---------- 搜索 ----------
     private boolean searchActive = false;
@@ -252,9 +285,26 @@ public class MainActivity extends Activity {
     private CheckBox searchCaseCb;
     private static final int SEARCH_MAX = 3000;   // 结果上限，防止极端情况下 OOM
 
+    /** 供日志头使用的版本/设备信息（读不到时降级，绝不影响启动）。 */
+    private String appVersionInfo() {
+        String ver = "?";
+        try {
+            ver = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Throwable ignored) {}
+        return "MyFileman " + ver + " | " + Build.MANUFACTURER + " " + Build.MODEL
+                + " | Android " + Build.VERSION.RELEASE + " (SDK " + Build.VERSION.SDK_INT + ")";
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // 全局调试：安装未捕获异常处理器（覆盖所有线程/所有界面），并注入版本信息
+        Dbg.install();
+        Dbg.setAppInfo(appVersionInfo());
+        Dbg.log("APP", "MainActivity.onCreate | action="
+                + (getIntent() == null ? "null" : getIntent().getAction())
+                + " | data=" + (getIntent() == null ? "" : String.valueOf(getIntent().getData()))
+                + " | rootMode=" + Prefs.rootEnabled(this));
         Prefs.ensureDefaults(this);
         scrollMem = ScrollMemory.load(this);   // 按路径的滚动记忆，重启后仍可恢复
         Ui.loadAccent(this);        // 先加载用户自定义的着重色，后续界面统一取 Ui.PRIMARY
@@ -299,6 +349,31 @@ public class MainActivity extends Activity {
             }
         }
         // 刷新与 Root 授权统一交给 onResume（onCreate 之后必被调用），避免授权会话被建立两次
+
+        // 启动清理：删除上次运行残留在 cache/archive_tmp 的解压文件（打开压缩包内文件、
+        // 或对压缩包内条目跑自定义命令都会往这里写）。不主动清会只增不减、慢慢占满内部存储。
+        // 放在 io 线程执行，避免挂载大压缩包残留时阻塞启动。
+        io.execute(new Runnable() {
+            public void run() { deleteArchiveTmp(); }
+        });
+    }
+
+    /** 递归删除 getCacheDir()/archive_tmp 下的全部内容（启动时调用，清理压缩包解压残留）。
+     *  用本地递归删除而非 Fs.delete，避免一启动就触发 Root 会话。 */
+    private void deleteArchiveTmp() {
+        try {
+            File dir = new File(getCacheDir(), "archive_tmp");
+            if (!dir.exists()) return;
+            delRecNoRoot(dir);
+        } catch (Exception ignored) {}
+    }
+
+    private static void delRecNoRoot(File f) {
+        if (f.isDirectory()) {
+            File[] c = f.listFiles();
+            if (c != null) for (File x : c) delRecNoRoot(x);
+        }
+        f.delete();
     }
 
     private String homePath() {
@@ -309,11 +384,34 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        Dbg.log("LIFE", "MainActivity.onResume path="
+                + (tabs.isEmpty() ? "-" : cur().path) + " tabs=" + tabs.size());
         rebuildCmdButtons();     // 从设置页返回后，命令可能已被增删改
         applySettings();
         syncRootMode();
         updateBottomBar();
         if (tabs.isEmpty()) return;
+        // 若结果窗口仍「被钉住」（命令尚未结束、未收到 [mycmd:exit] 且未手动关闭），回到前台时切回该窗口，
+        // 而不是停留在主界面——满足「命令未结束就切后台、再次打开 APP 时自动回到窗口」的需求。
+        // 命令已结束（收到 [mycmd:exit]）后窗口不再被钉住，切后台再打开不再自动切回。
+        //  · 实例还在（切到别的 APP 未销毁 activity）：REORDER_TO_FRONT 直接带到前台；
+        //  · 实例已被 singleTask clear-top 销毁（从桌面图标重进）：用内存快照重建窗口
+        //    （标题/正文/按钮/执行中/日志续读/滚动位置全部还原，不重跑命令）。
+        if (CmdOutputActivity.hasPinnedWindow()) {
+            Intent intent = new Intent(this, CmdOutputActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivityForResult(intent, CmdOutputActivity.REQ_STREAM);
+        } else {
+            CmdOutputActivity.RestoreState rs = CmdOutputActivity.takeRestore();
+            if (rs != null) {
+                // 结构化快照走同进程静态对象直传（含按钮 / 日志偏移 / 执行中 / 滚动位置），Intent 只带布尔标记。
+                CmdOutputActivity.setPendingRestore(rs);
+                Intent intent = new Intent(this, CmdOutputActivity.class);
+                intent.putExtra(CmdOutputActivity.EXTRA_RESTORE, true);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                startActivityForResult(intent, CmdOutputActivity.REQ_STREAM);
+            }
+        }
         // 影响列表内容的设置指纹（隐藏文件 / Root 开关）；变化才需要真正重列
         int fp = (Prefs.showHidden(this) ? 1 : 0) | (Prefs.rootEnabled(this) ? 2 : 0);
         boolean fpChanged = fp != lastListFp;
@@ -425,7 +523,7 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         addLine(root);
 
-        // Tab 栏：文字 + 下划线选中态
+        // Tab 栏：选中标签底部显示着重色条（8dp），文字左上角、× 在右上角，标签左右 1dp 细边框（同上方横线色）
         LinearLayout tabRow = new LinearLayout(this);
         tabRow.setOrientation(LinearLayout.HORIZONTAL);
         tabRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -439,6 +537,10 @@ public class MainActivity extends Activity {
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         Button addTab = Ui.flat(this, "＋", textLv);
         iconBtn(addTab, "新建标签页", "addTab");
+        // 标签栏压窄时同步减小 ＋ 按钮的垂直 padding，否则它会反过来顶住整条栏的高度。
+        // 只改上下；左右沿用 Ui.flat 的 10dp，保证「左右不变」。
+        addTab.setPadding(addTab.getPaddingLeft(), Util.dp(this, 4),
+                addTab.getPaddingRight(), Util.dp(this, 4));
         tabRow.addView(addTab);
         addTab.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
@@ -454,16 +556,21 @@ public class MainActivity extends Activity {
         LinearLayout addr = new LinearLayout(this);
         addr.setOrientation(LinearLayout.HORIZONTAL);
         addr.setGravity(Gravity.CENTER_VERTICAL);
-        addr.setPadding(Util.dp(this, 8), Util.dp(this, 2), Util.dp(this, 4), Util.dp(this, 2));
+        addr.setPadding(Util.dp(this, 8), Util.dp(this, 1), Util.dp(this, 4), Util.dp(this, 1));
         pathEdit = new EditText(this);
         pathEdit.setSingleLine(true);
         pathEdit.setTextSize(Ui.sp(textLv, 12, 13, 15));
+        // 压扁：去掉主题默认的上下内边距与最小高度（Material 主题下 EditText 约 48dp 高，
+        // 是地址栏偏高的主因）；字号、左右结构不动。
+        pathEdit.setPadding(0, Util.dp(this, 2), 0, Util.dp(this, 2));
+        pathEdit.setMinHeight(0);
+        pathEdit.setMinimumHeight(0);
         pathEdit.setTextColor(Ui.TEXT);
         pathEdit.setHintTextColor(Ui.HINT);
         pathEdit.setInputType(InputType.TYPE_CLASS_TEXT);
         pathEdit.setHint("输入路径，如 /sdcard 或 /system");
         // 默认不抢焦点：点击文件列表时地址栏不会获得焦点（避免光标跳动）；
-        // 直接点地址栏时才临时开启焦点，让键盘弹出可输入。锁定标签会再被 applyTabLockUi 禁用。
+        // 直接点地址栏时才临时开启焦点，让键盘弹出可输入。锁定标签下地址栏禁用（isEnabled=false 时不会抢焦点）。
         pathEdit.setFocusable(false);
         pathEdit.setFocusableInTouchMode(false);
         // 去掉系统自带（跟随主题 accent 的蓝色）下划线，改为自绘灰色 1px 线，颜色不受强调色影响
@@ -503,6 +610,8 @@ public class MainActivity extends Activity {
             Button b = Ui.flat(this, addrNames[i], textLv);
             b.setTextColor(Ui.SUB);
             iconBtn(b, addrNames[i], addrIcons[i]);
+            // 压扁：仅减上下 padding，左右间距不动（「＋」按钮同理，Ui.flat 默认上下 6dp）
+            b.setPadding(b.getPaddingLeft(), Util.dp(this, 2), b.getPaddingRight(), Util.dp(this, 2));
             addr.addView(b);
             addrBtns.add(b);
         }
@@ -599,10 +708,78 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         addLine(root);
 
-        // 网格 + 空视图
-        android.widget.FrameLayout body = new android.widget.FrameLayout(this);
+        // 排序下拉菜单：锚在「排序」按钮正下方的窄浮层，覆盖在文件列表上方，
+        // 不占用布局空间（不会把列表往下推），宽度只跟按钮 / 内容对齐。
+        sortDropdown = new LinearLayout(this);
+        sortDropdown.setOrientation(LinearLayout.VERTICAL);
+        android.graphics.drawable.GradientDrawable sdbg = new android.graphics.drawable.GradientDrawable();
+        sdbg.setColor(0xFFFFFFFF);
+        sdbg.setCornerRadius(Util.dp(this, 6));
+        sdbg.setStroke(1, Ui.LINE);
+        sortDropdown.setBackgroundDrawable(sdbg);
+        sortDropdown.setPadding(0, Util.dp(this, 4), 0, Util.dp(this, 4));
+
+        sortPopup = new android.widget.PopupWindow(sortDropdown,
+                Util.dp(this, 148), ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        sortPopup.setOutsideTouchable(true);   // 点菜单外部：收起并吞掉这次点击，不误触下面的文件
+        sortPopup.setFocusable(true);          // 返回键先收起菜单
+        // outsideTouchable 需要非 null 的 background 才生效
+        sortPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        if (android.os.Build.VERSION.SDK_INT >= 21) sortPopup.setElevation(Util.dp(this, 6));
+        sortPopup.setOnDismissListener(new android.widget.PopupWindow.OnDismissListener() {
+            public void onDismiss() { updateSortBtn(); }   // 收起后恢复按钮底色
+        });
+
+        // 新建下拉菜单：与排序同形态，锚在「新建」按钮正下方的窄浮层，
+        // 装原工具栏的「新建文件夹」「新建文件」两项，同样不占文件列表区域。
+        addDropdown = new LinearLayout(this);
+        addDropdown.setOrientation(LinearLayout.VERTICAL);
+        android.graphics.drawable.GradientDrawable adbg = new android.graphics.drawable.GradientDrawable();
+        adbg.setColor(0xFFFFFFFF);
+        adbg.setCornerRadius(Util.dp(this, 6));
+        adbg.setStroke(1, Ui.LINE);
+        addDropdown.setBackgroundDrawable(adbg);
+        addDropdown.setPadding(0, Util.dp(this, 4), 0, Util.dp(this, 4));
+
+        addPopup = new android.widget.PopupWindow(addDropdown,
+                Util.dp(this, 168), ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        addPopup.setOutsideTouchable(true);
+        addPopup.setFocusable(true);
+        addPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        if (android.os.Build.VERSION.SDK_INT >= 21) addPopup.setElevation(Util.dp(this, 6));
+        addPopup.setOnDismissListener(new android.widget.PopupWindow.OnDismissListener() {
+            public void onDismiss() { updateAddBtn(); }   // 收起后恢复按钮底色
+        });
+
+        // 收藏下拉菜单：列出收藏夹条目。收藏项可能较多，用 ScrollView 承载，
+        // 展开时按内容测量高度并封顶到半屏，超出部分在菜单内滚动。
+        android.widget.ScrollView favScroll = new android.widget.ScrollView(this);
+        favScroll.setVerticalScrollBarEnabled(false);
+        favDropdown = new LinearLayout(this);
+        favDropdown.setOrientation(LinearLayout.VERTICAL);
+        favDropdown.setPadding(0, Util.dp(this, 4), 0, Util.dp(this, 4));
+        android.graphics.drawable.GradientDrawable fdbg = new android.graphics.drawable.GradientDrawable();
+        fdbg.setColor(0xFFFFFFFF);
+        fdbg.setCornerRadius(Util.dp(this, 6));
+        fdbg.setStroke(1, Ui.LINE);
+        favScroll.setBackgroundDrawable(fdbg);
+        favScroll.addView(favDropdown, new android.widget.ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        favPopup = new android.widget.PopupWindow(favScroll,
+                Util.dp(this, 220), ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        favPopup.setOutsideTouchable(true);
+        favPopup.setFocusable(true);
+        favPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        if (android.os.Build.VERSION.SDK_INT >= 21) favPopup.setElevation(Util.dp(this, 6));
+        favPopup.setOnDismissListener(new android.widget.PopupWindow.OnDismissListener() {
+            public void onDismiss() { updateFavBtn(); }   // 收起后恢复按钮底色
+        });
+
+        // 网格 + 空视图（SwipeHost：在 dispatchTouchEvent 旁听完整触摸序列，供左右滑动切换标签页）
+        android.widget.FrameLayout body = new SwipeHost(this);
         grid = new RecyclerView(this);
-        gridLm = new GridLayoutManager(this, Prefs.columns(this));
+        gridLm = new GridLayoutManager(this, Prefs.viewMode(this) == Prefs.VIEW_LIST ? 1 : Prefs.columns(this));
         grid.setLayoutManager(gridLm);
         grid.setPadding(Util.dp(this, 4), Util.dp(this, 3), Util.dp(this, 4), Util.dp(this, 3));
         // 关闭边缘回弹：部分机型上拉/下拉过头时会出现整片空白
@@ -615,11 +792,21 @@ public class MainActivity extends Activity {
                 outRect.set(sp2, sp2, sp2, sp2);
             }
         });
-        // 点文件列表区域时，让地址栏放弃焦点（关闭光标跳动 / 收起键盘）；返回 false 不影响列表项点击。
-        grid.setOnTouchListener(new View.OnTouchListener() {
-            public boolean onTouch(View v, MotionEvent e) {
-                if (e.getAction() == MotionEvent.ACTION_DOWN) dropAddrFocus();
-                return false;
+        // 左右滑动切换标签页：判定逻辑沿用原来的 onFling（60dp / 300px/s），
+        // 触发时切换到相邻标签并播放无缝滑入/滑出动画。检测器由 SwipeHost.dispatchTouchEvent 喂事件。
+        swipeDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
+                if (!swipeTabs || tabs.size() <= 1) return false;
+                if (gridAnimating) return false;                     // 动画进行中，不重复触发
+                if (swipeDownX <= drawerEdge) return false;          // 左边缘留给抽屉右滑手势
+                if (Math.abs(vx) <= Math.abs(vy)) return false;       // 纵向滚动手势不触发
+                if (Math.abs(vx) < swipeMinVel) return false;
+                float dx = (e2 != null && e1 != null) ? e2.getX() - e1.getX() : 0;
+                if (Math.abs(dx) < Util.dp(MainActivity.this, swipeMinDist)) return false;
+                int target = vx < 0 ? active + 1 : active - 1;     // 左滑→下一页，右滑→上一页
+                if (target < 0 || target >= tabs.size()) return false;
+                animateSwipeToTab(target, vx < 0 ? 1 : -1);
+                return true;
             }
         });
         adapter = new RvFileAdapter(this, Util.dp(this, 40));
@@ -674,8 +861,8 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         bottomWrap.addView(bottomScroll, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        String[] bNames = {"打开", "复制", "剪切", "粘贴", "重命名", "删除", "收藏", "属性"};
-        String[] bActs = {"openWith", "copy", "cut", "paste", "rename", "delete", "favorite", "info"};
+        String[] bNames = {"打开", "复制", "剪切", "粘贴", "重命名", "删除", "分享", "属性"};
+        String[] bActs = {"openWith", "copy", "cut", "paste", "rename", "delete", "share", "info"};
         for (int i = 0; i < bNames.length; i++) {
             if (i > 0) addVLine(bottomBox);
             final String a = bActs[i];
@@ -799,8 +986,10 @@ public class MainActivity extends Activity {
         // 「上级」是明确去父文件夹的入口；列表第一项与「后退」则走浏览历史。
         addrBtns.get(1).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                gotoPath(isArchivePath(cur().path) ? archiveParent(cur().path) : Util.parent(cur().path));
                 dropAddrFocus();
+                // 搜索态：结果是跨目录的，跳父目录会冲掉结果 —— 静默拦截，不弹提示。
+                if (searchActive) return;
+                gotoPath(isArchivePath(cur().path) ? archiveParent(cur().path) : Util.parent(cur().path));
             }
         });
         addrBtns.get(2).setOnClickListener(new View.OnClickListener() {
@@ -847,6 +1036,7 @@ public class MainActivity extends Activity {
     private void handleItemClick(FileItem it) {
         if (it == null) return;
         if (it.parent) {
+            if (searchActive) return;   // 搜索态：静默拦截跳上级，保持搜索结果
             // 列表里的「返回 / ..」语义是「上一级目录」，直接跳父目录（与安卓返回键一致），
             // 不走历史栈 goBack()，否则会出现 A↔B 打转、点返回却不去父目录的「失效」。
             if (isArchivePath(cur().path)) gotoPath(archiveParent(cur().path));
@@ -864,55 +1054,65 @@ public class MainActivity extends Activity {
         openFile(it);
     }
 
-    /** 压缩包扩展名集合（与插件插件能力保持一致）。 */
-    private static final HashSet<String> ARCH_EXT = new HashSet<String>(Arrays.asList(
-            "7z", "zip", "rar", "tar", "gz", "bz2", "xz", "tgz", "tar.gz",
-            "zst", "lz4", "cab", "iso", "jar", "apk", "deb", "tzst"));
-
+    /** 是否按压缩包打开：严格以「插件关联格式」为准（用户设置优先，否则插件默认关联）。
+     *  不再用写死的扩展名白名单，避免 apk 等被无条件当成压缩包、与系统安装器冲突。 */
     private boolean isArchiveExt(String name) {
         if (name == null) return false;
-        String lower = name.toLowerCase();
-        if (lower.endsWith(".tar.gz")) return true;
-        int i = lower.lastIndexOf('.');
-        if (i < 0) return false;
-        String ext = lower.substring(i + 1);
-        // 写死集合 或 该后缀被「已启用」的压缩包插件关联（支持用户自定义格式，如 apkm）
-        return ARCH_EXT.contains(ext) || pluginMgr.isAssociated(name, ext, PluginManager.CAP_ARCHIVE);
+        String ext = Util.ext(name);
+        // assocOk 支持复合后缀（如 tar.gz）与用户自定义格式（如 apkm）。
+        // 关联集合为空（用户清空并保存）→ 不接管任何格式，交给系统打开。
+        return pluginMgr.isAssociated(name, ext, PluginManager.CAP_ARCHIVE);
     }
 
-    /** 点击压缩包文件：后台确认有插件可用后，进入其虚拟根目录（archive://...#）。 */
+    /** 点击压缩包文件：立即显示「打开中...」（可取消），后台探测插件后进入其虚拟根目录。 */
     private void enterArchive(final FileItem it) {
         final String fp = it.path;
+        final OpenArchiveDlg dlg = new OpenArchiveDlg(it.name);
+        archiveOpenDlg = dlg;
+        Dbg.log("ARCHIVE", "打开压缩包开始 file=" + fp);
         io.execute(new Runnable() {
             public void run() {
                 final PluginManager.ArchiveHandle h = pluginMgr.getArchiveProvider(fp, null);
-            ui.post(new Runnable() {
-                public void run() {
-                    if (h != null) {
-                        // 进入压缩包前记下真实目录列表的当前滚动位置，退出压缩包时恢复
-                        archiveExitScroll = firstVisible();
-                        gotoPath(ARCHIVE_SCHEME + h.pluginId + encSeg(fp) + "#");
-                    } else openFile(it);
-                }
-            });
+                ui.post(new Runnable() {
+                    public void run() {
+                        if (dlg.cancelled || dlg.finished) return;   // 探测期间已被取消
+                        if (h != null) {
+                            // 进入压缩包前记下真实目录列表的当前滚动位置，退出压缩包时恢复
+                            archiveExitScroll = firstVisible();
+                            gotoPath(ARCHIVE_SCHEME + h.pluginId + encSeg(fp) + "#");
+                            // refresh 若走了早退分支（同路径已加载 / 搜索态）不会接管提示框，这里兜底关掉
+                            if (dlg.seq < 0 && !dlg.finished) dlg.finish();
+                        } else {
+                            dlg.finish();      // 没有可用插件：关框后按普通文件打开
+                            openFile(it);
+                        }
+                    }
+                });
             }
         });
     }
 
-    /** 打开压缩包内的虚拟文件：经插件读出字节 → 落缓存 → 用现有 openFile 交给系统查看器。 */
+    /** 打开压缩包内的虚拟文件：经插件读出字节 → 落缓存 → 用现有 openFile 交给系统查看器。
+     *  提取期间底部状态栏显示「打开中…」，并返回键可「取消打开」（不退出压缩包视图）。 */
     private void openArchiveFile(final FileItem it) {
         final String[] a = parseArchive(it.path);
+        archiveOpening = true;
+        archiveOpenCancel = false;
+        status.setText("打开中… " + it.name);
+        loading = true;
         io.execute(new Runnable() {
             public void run() {
                 PluginManager.ArchiveHandle h = pluginMgr.getArchiveProvider(a[1], null);
                 if (h == null) {
-                    ui.post(new Runnable() { public void run() { toast("没有可用的压缩包插件"); } });
+                    ui.post(new Runnable() { public void run() { finishArchiveOpen("没有可用的压缩包插件"); } });
                     return;
                 }
                 try {
                     ParcelFileDescriptor pfd = h.provider.open(a[1], a[2], "");
                     if (pfd == null) {
-                        ui.post(new Runnable() { public void run() { toast("无法读取该文件（可能已加密或不存在）"); } });
+                        ui.post(new Runnable() { public void run() {
+                            finishArchiveOpen("无法读取该文件（可能已加密或不存在）");
+                        } });
                         return;
                     }
                     File dir = new File(getCacheDir(), "archive_tmp");
@@ -922,20 +1122,45 @@ public class MainActivity extends Activity {
                     FileOutputStream out = new FileOutputStream(cache);
                     byte[] buf = new byte[16384];
                     int n;
-                    while ((n = in.read(buf)) >= 0) out.write(buf, 0, n);
+                    boolean cancelled = false;
+                    while ((n = in.read(buf)) >= 0) {
+                        if (archiveOpenCancel) { cancelled = true; break; }
+                        out.write(buf, 0, n);
+                    }
                     in.close();
                     out.close();
                     pfd.close();
+                    if (cancelled) {
+                        cache.delete();   // 删除半成品临时文件
+                        ui.post(new Runnable() { public void run() { finishArchiveOpen("已取消打开"); } });
+                        return;
+                    }
                     final FileItem ci = new FileItem(it.name, cache.getAbsolutePath(),
                             false, cache.length(), cache.lastModified());
-                    ui.post(new Runnable() { public void run() { openFile(ci); } });
+                    ui.post(new Runnable() { public void run() {
+                        loading = false; archiveOpening = false; archiveOpenCancel = false;
+                        updateStatus(); openFile(ci);
+                    } });
                 } catch (Exception ex) {
                     ui.post(new Runnable() {
-                        public void run() { toast("读取压缩包内文件失败：" + ex.getMessage()); }
+                        public void run() {
+                            loading = false; archiveOpening = false; archiveOpenCancel = false;
+                            updateStatus();
+                            toast("读取压缩包内文件失败：" + ex.getMessage());
+                        }
                     });
                 }
             }
         });
+    }
+
+    /** 压缩包内文件提取结束 / 取消后的状态复位。msg 非空则弹 toast 提示。 */
+    private void finishArchiveOpen(String msg) {
+        loading = false;
+        archiveOpening = false;
+        archiveOpenCancel = false;
+        if (msg != null) toast(msg);
+        updateStatus();
     }
 
     /**
@@ -964,22 +1189,25 @@ public class MainActivity extends Activity {
         final String containingDir = Util.parent(archivePath);   // 压缩包所在文件夹
         final String archiveName = Util.base(archivePath);
 
-        // 第 1 步：后台读取根层条目，决定解压目标与是否冲突
-        final Dialog analyze = showProgressDialog("读取压缩包", "正在读取压缩包内容…");
+        // 解压全程共用一个对话框：先「读取压缩包」，随后直接进入「解压中」显示进度条
+        final ExtractProgress prog = showExtractProgress("解压中", "正在读取压缩包内容…");
         loading = true;
         io.execute(new Runnable() {
             public void run() {
                 final ArchiveListing lst = pluginMgr.listArchiveRoot(archivePath);
                 ui.post(new Runnable() {
                     public void run() {
-                        analyze.dismiss();
-                        loading = false;
+                        if (prog.cancelled) { loading = false; return; }  // 读取阶段已取消：静默
                         if (lst == null) {
+                            prog.finish(false);
+                            loading = false;
                             toast("无法读取压缩包（需 root + Termux 的 7z）");
                             return;
                         }
                         final int count = (lst.entries == null) ? 0 : lst.entries.size();
-                        if (count == 0) { toast("压缩包为空"); return; }
+                        if (count == 0) {
+                            prog.finish(false); loading = false; toast("压缩包为空"); return;
+                        }
                         final boolean single = (count == 1);
                         // 单条目 → 直接解压到压缩包所在文件夹（落盘为条目原名，不再套一层文件夹）；
                         // 多条目 → 解压到「文件名(去后缀)」新建子文件夹，避免散落一堆文件。
@@ -993,9 +1221,9 @@ public class MainActivity extends Activity {
                                 ? Util.join(containingDir, lst.entries.get(0).name)
                                 : target;
                         if (new File(conflictPath).exists()) {
-                            showOverwriteConfirm(archivePath, target, conflictPath);
+                            showOverwriteConfirm(archivePath, target, conflictPath, prog);
                         } else {
-                            runExtract(archivePath, target);
+                            runExtract(archivePath, target, prog);
                         }
                     }
                 });
@@ -1004,29 +1232,43 @@ public class MainActivity extends Activity {
     }
 
     /** 同名冲突时弹「覆盖/取消」；非冲突情况不再打扰用户。 */
-    private void showOverwriteConfirm(final String archivePath, final String target, final String conflictPath) {
+    private void showOverwriteConfirm(final String archivePath, final String target,
+                                      final String conflictPath, final ExtractProgress prog) {
         new AlertDialog.Builder(this)
                 .setTitle("同名文件已存在")
                 .setMessage("目标位置已存在：\n" + conflictPath + "\n是否覆盖？")
-                .setNegativeButton("取消", null)
+                .setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) { prog.finish(false); loading = false; }
+                })
                 .setPositiveButton("覆盖", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
-                        runExtract(archivePath, target);
+                        runExtract(archivePath, target, prog);
                     }
                 }).show();
     }
 
-    /** 执行解压：弹进度条，后台调用插件的 extractAll，完成后退出压缩包视图。 */
-    private void runExtract(final String archivePath, final String target) {
-        final Dialog prog = showProgressDialog("解压中", "正在解压… " + target);
+    /** 执行解压：复用传入的对话框，解压前用 7z l 取总大小并启动 2 秒进度轮询，完成后退出压缩包视图。 */
+    private void runExtract(final String archivePath, final String target, final ExtractProgress prog) {
+        prog.setMessage("正在解压… " + target);
         loading = true;
         io.execute(new Runnable() {
             public void run() {
+                if (prog.cancelled) { loading = false; return; }   // 排队期间已取消：不启动 7z
+                // 解压前估算「解压后实际大小」作分母；输出目录当前大小作基线（单条目时可能与压缩包同目录）
+                final long total = pluginMgr.contentSize(archivePath, new ArrayList<String>());
+                if (prog.cancelled) { loading = false; return; }   // 估算阶段已取消：不启动解压
+                final File out = new File(target);
+                final long baseline = dirSize(out);
+                prog.configure(total, baseline, out);
                 final int code = pluginMgr.extractAll(archivePath, target);
+                Dbg.log("EXTRACT", "extractAll code=" + code
+                        + " archive=" + archivePath + " target=" + target
+                        + " 目标存在=" + out.exists());
                 ui.post(new Runnable() {
                     public void run() {
-                        prog.dismiss();
                         loading = false;
+                        if (prog.cancelled) return;   // 已取消：静默，不提示、不跳转、不重复 dismiss
+                        prog.finish(code == 0);
                         if (code == 0) {
                             toast("解压完成：" + target);
                             // 退出压缩包视图：>1 进入新建子文件夹看结果，==1 回到压缩包所在文件夹
@@ -1041,40 +1283,475 @@ public class MainActivity extends Activity {
         });
     }
 
-    /** 一个不可取消的「带进度条」对话框（indeterminate 横向进度条 + 文字），用于解压等耗时操作。 */
-    private Dialog showProgressDialog(String title, String msg) {
-        Dialog d = new Dialog(this);
-        d.setCancelable(false);
-        d.setCanceledOnTouchOutside(false);
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(Util.dp(this, 24), Util.dp(this, 20), Util.dp(this, 24), Util.dp(this, 20));
-        TextView tv = new TextView(this);
-        tv.setText(title);
-        tv.setTextSize(Ui.sp(textLv, 15, 16, 18));
-        tv.setTextColor(Ui.TEXT);
-        tv.setTypeface(null, android.graphics.Typeface.BOLD);
-        root.addView(tv);
-        ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        bar.setIndeterminate(true);
-        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        blp.topMargin = Util.dp(this, 14);
-        root.addView(bar, blp);
-        TextView mv = new TextView(this);
-        mv.setText(msg);
-        mv.setTextSize(Ui.sp(textLv, 12, 13, 14));
-        mv.setTextColor(Ui.SUB);
-        LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        mlp.topMargin = Util.dp(this, 10);
-        root.addView(mv, mlp);
-        d.setContentView(root);
-        d.show();
-        return d;
+    /** 递归统计目录内已落盘文件的总大小（Byte）；读不到返回 0，容错不抛异常。 */
+    private static long dirSize(File f) {
+        if (f == null || !f.exists()) return 0;
+        if (f.isFile()) {
+            // 超长解压脚本会临时落盘在被监视的输出目录里（fmsz_*.sh，可达数百 KB），
+            // 它不是解压产物，必须排除：否则「已解压大小」会超过分母，且 maxDone 单调递增不回退。
+            String n = f.getName();
+            if (n.startsWith("fmsz_") && n.endsWith(".sh")) return 0;
+            return f.length();
+        }
+        File[] ch = f.listFiles();
+        if (ch == null) return 0;
+        long s = 0;
+        for (File c : ch) s += dirSize(c);
+        return s;
     }
 
-    /** 去掉压缩包文件名后缀（含 .tar.gz 等复合后缀），用于「解压到新建子文件夹」的命名。 */
+    /**
+     * 「解压」与「从压缩包复制」共用的进度对话框。
+     *  - 初始为不确定进度条（读取 / 准备阶段），configure() 后切换为确定性 0..100；
+     *  - 用独立轮询线程每 2 秒统计输出目录增量算「已解压大小」，不占用会被 7z 阻塞的 io 线程池；
+     *  - 分母来自解压前 pluginMgr.contentSize()（7z l 汇总行 / 选中条目累加），取不到则降级只显示字节数；
+     *  - 进度取历史最大值，保证临时目录被清理时不倒退；finish() 置 100% 并关闭。
+     */
+    private final class ExtractProgress {
+        final Dialog dlg;
+        final ProgressBar bar;
+        final TextView msg;
+        volatile boolean running = true;
+        volatile boolean cancelled = false; // 用户点了「取消」（跨线程可见）
+        volatile long total = -1;         // 解压后总大小（分母）
+        volatile long baseline = 0;       // 解压前输出目录已有大小
+        volatile File[] watch = null;     // 需要统计的输出目录
+        volatile long maxDone = 0;        // 已解压大小（单调递增）
+        volatile boolean extractDone = false;  // 解压阶段已结束，进度冻结在 100%
+        volatile String verb = "已解压";        // 轮询文案动词：「已解压」（解压）/「已复制」（粘贴）等
+        Thread poller;
+
+        /** 修改轮询文案动词（须在 configure 前调用）。 */
+        void setVerb(String v) { verb = v; }
+
+        ExtractProgress(String title, String subtitle) {
+            dlg = new Dialog(MainActivity.this);
+            dlg.setCancelable(false);
+            dlg.setCanceledOnTouchOutside(false);
+            LinearLayout root = new LinearLayout(MainActivity.this);
+            root.setOrientation(LinearLayout.VERTICAL);
+            root.setPadding(Util.dp(MainActivity.this, 24), Util.dp(MainActivity.this, 20),
+                    Util.dp(MainActivity.this, 24), Util.dp(MainActivity.this, 20));
+            TextView tv = new TextView(MainActivity.this);
+            tv.setText(title);
+            tv.setTextSize(Ui.sp(textLv, 15, 16, 18));
+            tv.setTextColor(Ui.TEXT);
+            tv.setTypeface(null, android.graphics.Typeface.BOLD);
+            root.addView(tv);
+            bar = new ProgressBar(MainActivity.this, null, android.R.attr.progressBarStyleHorizontal);
+            bar.setIndeterminate(true);
+            LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            blp.topMargin = Util.dp(MainActivity.this, 14);
+            root.addView(bar, blp);
+            msg = new TextView(MainActivity.this);
+            msg.setText(subtitle);
+            msg.setTextSize(Ui.sp(textLv, 12, 13, 14));
+            msg.setTextColor(Ui.SUB);
+            LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            mlp.topMargin = Util.dp(MainActivity.this, 10);
+            root.addView(msg, mlp);
+            // 「取消」按钮：右对齐。点击后立即关框并跨进程中断正在执行的 7z/su
+            LinearLayout btnRow = new LinearLayout(MainActivity.this);
+            btnRow.setOrientation(LinearLayout.HORIZONTAL);
+            btnRow.setGravity(Gravity.END);
+            Button cancelBtn = Ui.flat(MainActivity.this, "取消", textLv);
+            cancelBtn.setTextColor(Ui.PRIMARY);
+            cancelBtn.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { cancel(); }
+            });
+            LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            clp.topMargin = Util.dp(MainActivity.this, 8);
+            btnRow.addView(cancelBtn, clp);
+            root.addView(btnRow, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            dlg.setContentView(root);
+            dlg.show();
+        }
+
+        /** 用户点「取消」：立即关框、停轮询、标记已取消；并在独立线程通知插件进程销毁当前 7z/su。
+         *  不用 io 线程池——它此刻正被阻塞的解压调用占满。AIDL cancel 为 oneway，调用立即返回。 */
+        void cancel() {
+            if (cancelled || !running) return;
+            cancelled = true;
+            loading = false;                     // 复位加载态（取消后不再有后续动作）
+            finish(false);                       // 关闭对话框、停止轮询
+            new Thread(new Runnable() {
+                public void run() {
+                    if (pluginMgr != null) pluginMgr.cancel();
+                }
+            }, "extract-cancel").start();
+            // 解压完成后还有「cp -r 到目标 / 清理临时目录」两阶段长命令，
+            // 它们在 APP 自己的 Root 会话里执行，插件 cancel 管不到，需一并中断。
+            Fs.cancelRootCommand();
+        }
+
+        void setMessage(final String s) {
+            ui.post(new Runnable() { public void run() { if (running) msg.setText(s); } });
+        }
+
+        /** 设置分母与输出目录并启动 2 秒轮询；可在任意线程调用。 */
+        void configure(final long totalBytes, final long base, final File... dirs) {
+            total = totalBytes;
+            baseline = base;
+            watch = dirs;
+            ui.post(new Runnable() {
+                public void run() {
+                    if (!running) return;
+                    if (total > 0) {          // 有分母才用确定性进度条
+                        bar.setIndeterminate(false);
+                        bar.setMax(100);
+                        bar.setProgress(0);
+                    }
+                    startPoller();
+                }
+            });
+        }
+
+        /** 解压阶段完成：冻结进度为 100%，后续「复制到目标目录」不再统计临时目录，
+         *  避免临时目录被清理/内容变动时文案跳动，也不会把复制阶段误算进「已解压大小」。 */
+        void markExtractDone() {
+            extractDone = true;
+            ui.post(new Runnable() {
+                public void run() {
+                    if (!running) return;
+                    if (total > 0) { bar.setIndeterminate(false); bar.setProgress(100); }
+                    msg.setText("解压完成，正在搬移到目标目录…");
+                }
+            });
+        }
+
+        private void startPoller() {
+            poller = new Thread(new Runnable() {
+                public void run() {
+                    while (running) {
+                        try { Thread.sleep(2000); } catch (InterruptedException e) { break; }
+                        if (!running) break;
+                        if (extractDone) continue;   // 进度已冻结，不再统计临时目录
+                        long done = 0;
+                        File[] ds = watch;
+                        if (ds != null) for (File d : ds) done += dirSize(d);
+                        done -= baseline;
+                        if (done < 0) done = 0;
+                        // 钳制到分母：分母来自 7z l 估算，落盘统计口径可能略有出入，
+                        // 绝不让「已解压大小」超过「总大小」（旧版会显示 32.6MB / 31.96MB）。
+                        if (total > 0 && done > total) done = total;
+                        if (done > maxDone) maxDone = done;      // 只增不减，临时目录清理时不回退
+                        if (total > 0 && maxDone > total) maxDone = total;
+                        final long d = maxDone, t = total;
+                        ui.post(new Runnable() {
+                            public void run() {
+                                if (!running) return;
+                                int pct = (t > 0) ? (int) Math.min(100, d * 100 / t) : 0;
+                                if (t > 0) bar.setProgress(pct);
+                                msg.setText(verb + " " + Util.size(d)
+                                        + (t > 0 ? " / " + Util.size(t) + "  (" + pct + "%)" : ""));
+                            }
+                        });
+                    }
+                }
+            }, "extract-progress");
+            poller.setDaemon(true);
+            poller.start();
+        }
+
+        void finish(final boolean ok) {
+            running = false;
+            if (poller != null) poller.interrupt();
+            ui.post(new Runnable() {
+                public void run() {
+                    if (ok && total > 0) { bar.setIndeterminate(false); bar.setProgress(100); }
+                    dlg.dismiss();
+                }
+            });
+        }
+    }
+
+    /**
+     * 「删除」专用进度对话框（进度条 + 取消），复用 ExtractProgress 的视觉风格。
+     *  - 本地删除：先递归统计总条目数作分母，删除时逐项 done+1，显示确定进度条；
+     *  - Root 删除：rm -rf 无法逐项计数，按「顶层条目数」作分母、每项完成 done+1（粗粒度）；
+     *  - 取消：本地置 cancelled 让 delTree 提前结束；Root 调 Fs.cancelRootCommand() 中断 su 的 rm -rf。
+     */
+    private final class DeleteProgress {
+        final Dialog dlg;
+        final ProgressBar bar;
+        final TextView msg;
+        volatile boolean running = true;
+        volatile boolean cancelled = false;
+        volatile long total = -1;          // 分母（总条目数）；<=0 保持不确定进度条
+        volatile long done = 0;            // 已删除条目数（单调递增）
+        volatile boolean isRoot = false;
+        Thread poller;
+
+        DeleteProgress(String title, String subtitle) {
+            dlg = new Dialog(MainActivity.this);
+            dlg.setCancelable(false);
+            dlg.setCanceledOnTouchOutside(false);
+            LinearLayout root = new LinearLayout(MainActivity.this);
+            root.setOrientation(LinearLayout.VERTICAL);
+            root.setPadding(Util.dp(MainActivity.this, 24), Util.dp(MainActivity.this, 20),
+                    Util.dp(MainActivity.this, 24), Util.dp(MainActivity.this, 20));
+            TextView tv = new TextView(MainActivity.this);
+            tv.setText(title);
+            tv.setTextSize(Ui.sp(textLv, 15, 16, 18));
+            tv.setTextColor(Ui.TEXT);
+            tv.setTypeface(null, android.graphics.Typeface.BOLD);
+            root.addView(tv);
+            bar = new ProgressBar(MainActivity.this, null, android.R.attr.progressBarStyleHorizontal);
+            bar.setIndeterminate(true);
+            LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            blp.topMargin = Util.dp(MainActivity.this, 14);
+            root.addView(bar, blp);
+            msg = new TextView(MainActivity.this);
+            msg.setText(subtitle);
+            msg.setTextSize(Ui.sp(textLv, 12, 13, 14));
+            msg.setTextColor(Ui.SUB);
+            LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            mlp.topMargin = Util.dp(MainActivity.this, 10);
+            root.addView(msg, mlp);
+            // 「取消」按钮：右对齐
+            LinearLayout btnRow = new LinearLayout(MainActivity.this);
+            btnRow.setOrientation(LinearLayout.HORIZONTAL);
+            btnRow.setGravity(Gravity.END);
+            Button cancelBtn = Ui.flat(MainActivity.this, "取消", textLv);
+            cancelBtn.setTextColor(Ui.PRIMARY);
+            cancelBtn.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { cancel(); }
+            });
+            LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            clp.topMargin = Util.dp(MainActivity.this, 8);
+            btnRow.addView(cancelBtn, clp);
+            root.addView(btnRow, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            dlg.setContentView(root);
+            dlg.show();
+        }
+
+        void cancel() {
+            if (cancelled || !running) return;
+            cancelled = true;
+            loading = false;                     // 复位加载态（取消后不再有后续动作）
+            finish(false);                       // 关闭对话框、停止轮询
+            if (isRoot) Fs.cancelRootCommand();  // 中断 su 的 rm -rf（0~250ms 内生效）
+        }
+
+        void setMessage(final String s) {
+            ui.post(new Runnable() { public void run() { if (running) msg.setText(s); } });
+        }
+
+        /** 设置分母并启动轮询（total<=0 时保持不确定进度条）。 */
+        void configure(final long totalItems) {
+            total = totalItems;
+            ui.post(new Runnable() {
+                public void run() {
+                    if (!running) return;
+                    if (total > 0) { bar.setIndeterminate(false); bar.setMax(100); bar.setProgress(0); }
+                    startPoller();
+                }
+            });
+        }
+
+        private void startPoller() {
+            poller = new Thread(new Runnable() {
+                public void run() {
+                    while (running) {
+                        try { Thread.sleep(300); } catch (InterruptedException e) { break; }
+                        if (!running) break;
+                        final long d = done, t = total;
+                        ui.post(new Runnable() {
+                            public void run() {
+                                if (!running) return;
+                                if (t > 0) {
+                                    int pct = (int) Math.min(100, d * 100 / t);
+                                    bar.setProgress(pct);
+                                    msg.setText("已删除 " + d + " / " + t + "  (" + pct + "%)");
+                                } else {
+                                    msg.setText("正在删除…（已删除 " + d + " 项）");
+                                }
+                            }
+                        });
+                    }
+                }
+            }, "delete-progress");
+            poller.setDaemon(true);
+            poller.start();
+        }
+
+        void finish(final boolean ok) {
+            running = false;
+            if (poller != null) poller.interrupt();
+            ui.post(new Runnable() {
+                public void run() {
+                    if (ok && total > 0) { bar.setIndeterminate(false); bar.setProgress(100); }
+                    dlg.dismiss();
+                }
+            });
+        }
+    }
+
+    /** 递归统计一个路径下的条目总数（文件 + 目录，含自身），用于本地删除的进度分母。 */
+    private long countItems(File f) {
+        long n = 1;
+        if (f.isDirectory()) {
+            File[] c = f.listFiles();
+            if (c != null) for (File x : c) n += countItems(x);
+        }
+        return n;
+    }
+
+    /** 递归删除（本地）：每删一个条目 done+1；cancelled 时提前中止。返回是否完整删除。 */
+    private boolean delTree(File f, DeleteProgress prog) {
+        if (prog.cancelled) return false;
+        if (f.isDirectory()) {
+            File[] c = f.listFiles();
+            if (c != null) for (File x : c) {
+                if (!delTree(x, prog)) return false;
+                if (prog.cancelled) return false;
+            }
+        }
+        boolean ok = f.delete();
+        if (ok) prog.done++;
+        return ok;
+    }
+
+    private ExtractProgress showExtractProgress(String title, String subtitle) {
+        return new ExtractProgress(title, subtitle);
+    }
+
+    // ==================== 打开压缩包提示 ====================
+
+    /** 「打开中...」副标题：压缩包名 + 当前内层目录。 */
+    private String archiveDlgLabel(String path) {
+        String[] a = parseArchive(path);
+        if (a[1] == null || a[1].isEmpty()) return path;
+        String label = Util.base(a[1]);
+        if (a[2] != null && !a[2].isEmpty()) label += "  /  " + a[2];
+        return label;
+    }
+
+    /**
+     * 打开压缩包（或进入压缩包内子目录）时的「打开中...」提示框，带取消按钮。
+     * archive:// 列目录需跨进程让插件跑 7z l，大包/加密包可能耗时数秒以上，故给出明确反馈并允许取消。
+     * 取消会：让本次列目录结果失效、中断插件进程里正在执行的 7z/su、把标签页路径退回打开前的位置。
+     */
+    private final class OpenArchiveDlg {
+        final Dialog dlg;
+        volatile String path;        // 目标 archive:// 路径（bind 后才有值）
+        volatile String fallback;    // 取消后回退路径（上一次已加载的目录）
+        volatile int seq = -1;       // 对应 refresh 序号；-1 = 尚在插件探测阶段
+        volatile boolean cancelled = false;
+        volatile boolean finished = false;
+
+        OpenArchiveDlg(String subtitle) {
+            dlg = new Dialog(MainActivity.this);
+            dlg.setCancelable(true);               // 返回键等同「取消」
+            dlg.setCanceledOnTouchOutside(false);  // 点框外不误关
+            LinearLayout root = new LinearLayout(MainActivity.this);
+            root.setOrientation(LinearLayout.VERTICAL);
+            root.setPadding(Util.dp(MainActivity.this, 24), Util.dp(MainActivity.this, 20),
+                    Util.dp(MainActivity.this, 24), Util.dp(MainActivity.this, 16));
+            TextView title = new TextView(MainActivity.this);
+            title.setText("打开中...");
+            title.setTextSize(Ui.sp(textLv, 15, 16, 18));
+            title.setTextColor(Ui.TEXT);
+            title.setTypeface(null, android.graphics.Typeface.BOLD);
+            root.addView(title);
+            TextView sub = new TextView(MainActivity.this);
+            sub.setText(subtitle);
+            sub.setTextSize(Ui.sp(textLv, 11, 12, 14));
+            sub.setTextColor(Ui.SUB);
+            LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            slp.topMargin = Util.dp(MainActivity.this, 6);
+            root.addView(sub, slp);
+            ProgressBar bar = new ProgressBar(MainActivity.this, null,
+                    android.R.attr.progressBarStyleHorizontal);
+            bar.setIndeterminate(true);
+            LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            blp.topMargin = Util.dp(MainActivity.this, 14);
+            root.addView(bar, blp);
+            LinearLayout btnRow = new LinearLayout(MainActivity.this);
+            btnRow.setOrientation(LinearLayout.HORIZONTAL);
+            btnRow.setGravity(Gravity.END);
+            Button cancelBtn = Ui.flat(MainActivity.this, "取消", textLv);
+            cancelBtn.setTextColor(Ui.PRIMARY);
+            cancelBtn.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { cancel(); }
+            });
+            LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            clp.topMargin = Util.dp(MainActivity.this, 8);
+            btnRow.addView(cancelBtn, clp);
+            root.addView(btnRow, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            dlg.setContentView(root);
+            dlg.setOnCancelListener(new android.content.DialogInterface.OnCancelListener() {
+                public void onCancel(android.content.DialogInterface d) { cancel(); }
+            });
+            dlg.show();
+        }
+
+        /** 进入列目录阶段：绑定目标路径 / 回退路径 / refresh 序号，取消时才能精确回滚。 */
+        void bind(String p, String fb, int s) {
+            path = p;
+            fallback = fb;
+            seq = s;
+        }
+
+        /** 用户点「取消」或按返回键：立即关框、丢弃列目录结果、中断插件 7z、路径退回打开前。 */
+        void cancel() {
+            if (cancelled || finished) return;
+            cancelled = true;
+            Dbg.log("ARCHIVE", "打开压缩包被取消 path=" + path);
+            if (seq >= 0 && seq == refreshSeq) {
+                refreshSeq++;       // 本次列目录返回后不再覆盖界面
+                loading = false;
+            }
+            finish();
+            // AIDL cancel 为 oneway，调用立即返回；不能用 io/listIo 线程池（此刻可能被阻塞调用占满）
+            new Thread(new Runnable() {
+                public void run() { if (pluginMgr != null) pluginMgr.cancel(); }
+            }, "archive-open-cancel").start();
+            // 仅当已真正进入列目录阶段才回退路径；探测阶段取消时界面还停在原目录，无需处理
+            if (path != null && !tabs.isEmpty() && path.equals(cur().path)) {
+                Tab t = cur();
+                if (t.pos >= 0 && t.pos < t.history.size()
+                        && path.equals(t.history.get(t.pos))) {
+                    t.history.remove(t.pos);
+                    t.pos--;
+                }
+                if (t.pos < 0) t.pos = 0;
+                String back = (fallback != null && !fallback.isEmpty()) ? fallback : homePath();
+                t.path = back;
+                if (pathEdit != null) pathEdit.setText(back);
+                updateStatus();
+            }
+            toast("已取消打开");
+        }
+
+        void finish() {
+            if (finished) return;
+            finished = true;
+            if (archiveOpenDlg == this) archiveOpenDlg = null;
+            ui.post(new Runnable() {
+                public void run() {
+                    try { if (dlg.isShowing()) dlg.dismiss(); } catch (Throwable ignored) {}
+                }
+            });
+        }
+    }
+
+    /** 去掉压缩包文件名后缀（含 .tar.gz 等复合后缀），用于「解压到新建子文件夹」的命名。
+     *  能走到这里的文件已被 isArchiveExt / 插件关联 / 自定义规则判定为压缩包，故白名单未命中时
+     *  一律兜底去掉最后一段扩展名：否则 apks / apkm / xapk 等后缀会原样返回，使输出目录撞上
+     *  压缩包文件本身，7z 的 mkdir 报「File exists」、解压返回 1（表现为「改成 .apk 才能解压」）。 */
     private static String stripArchiveExt(String name) {
         if (name == null || name.isEmpty()) return "archive";
         java.util.regex.Pattern pat = java.util.regex.Pattern.compile(
@@ -1083,6 +1760,13 @@ public class MainActivity extends Activity {
         if (m.find()) {
             String base = name.substring(0, m.start());
             return base.isEmpty() ? name : base;
+        }
+        // 白名单未命中（apks/apkm/xapk 或任意自定义关联后缀）：兜底去掉最后一段 .xxx，
+        // 避免输出目录等于压缩包文件本身。i>0 同时排除 .hidden 这类以点开头的隐藏文件名。
+        int i = name.lastIndexOf('.');
+        if (i > 0) {
+            String base = name.substring(0, i);
+            if (!base.isEmpty()) return base;
         }
         return name;
     }
@@ -1263,7 +1947,13 @@ public class MainActivity extends Activity {
     }
 
     private void onAction(String a) {
+        Dbg.log("ACTION", a + " | path=" + (tabs.isEmpty() ? "-" : cur().path)
+                + " | 选中=" + (tabs.isEmpty() ? 0 : cur().sel.size())
+                + " | 搜索=" + searchActive);
         if ("back".equals(a)) {
+            // 搜索态：goBack 会推进历史栈但 refresh 因搜索态提前返回，状态不一致；
+            // 兜底的跳上级也会冲掉结果 —— 一并静默拦截。
+            if (searchActive) return;
             if (!goBack()) gotoPath(Util.parent(cur().path));
         } else if ("fwd".equals(a)) {
             if (cur().forward()) { pathEdit.setText(cur().path); refresh(); }
@@ -1287,19 +1977,20 @@ public class MainActivity extends Activity {
                     });
                 }
             });
-        } else if ("favorites".equals(a)) {
-            showFavorites();
         } else if ("extract".equals(a)) {
             extractArchiveToParent();
         } else if ("openWith".equals(a)) {
             openWithChooser();
         } else if ("favorite".equals(a)) {
             favoriteSelection();
+        } else if ("share".equals(a)) {
+            shareSelection();
         } else if ("rename".equals(a)) {
             final List<String> s = selection();
             if (s.size() != 1) { toast("请先长按选中 1 个项目"); return; }
             final String old = s.get(0);
-            askName("重命名", Util.base(old), new NameCb() {
+            final boolean isDir = new java.io.File(old).isDirectory();
+            askName("重命名", Util.base(old), true, isDir, new NameCb() {
                 public void onName(String n) {
                     final String dst = Util.join(Util.parent(old), n);
                     runFs("正在重命名…", new FsTask() {
@@ -1316,15 +2007,46 @@ public class MainActivity extends Activity {
                     .setNegativeButton("取消", null)
                     .setPositiveButton("删除", new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface d, int w) {
+                            final DeleteProgress prog = new DeleteProgress("正在删除",
+                                    Fs.rootMode ? "正在删除（Root，可取消）…" : "正在统计大小…");
+                            prog.isRoot = Fs.rootMode;
                             runFs("正在删除…", new FsTask() {
                                 public String run() {
-                                    for (String p : s) {
-                                        String e = Fs.delete(p);
-                                        if (e != null) return e;
+                                    if (prog.cancelled) return null;   // 排队期间已取消
+                                    if (Fs.rootMode) {
+                                        // Root：rm -rf 无法逐项计数，按顶层条目数作分母；
+                                        // 取消经 Fs.cancelRootCommand 中断 su 的 rm -rf（0~250ms 内生效）。
+                                        prog.configure(s.size());
+                                        StringBuilder err = null;
+                                        for (String p : s) {
+                                            if (prog.cancelled) break;
+                                            String e = Fs.delete(p, Fs.BULK_TIMEOUT_MS);
+                                            if (e != null) {
+                                                if (err == null) err = new StringBuilder();
+                                                err.append(p).append("：").append(e).append("\n");
+                                                break;
+                                            }
+                                            prog.done++;
+                                        }
+                                        return err == null ? null : err.toString().trim();
                                     }
-                                    return null;
+                                    // 本地：先递归统计总条目数 → 确定性进度；再带计数器删除（可取消）
+                                    long total = 0;
+                                    for (String p : s) total += countItems(new File(p));
+                                    prog.configure(total);
+                                    if (prog.cancelled) return null;
+                                    StringBuilder err = null;
+                                    for (String p : s) {
+                                        if (prog.cancelled) break;
+                                        if (!delTree(new File(p), prog)) {
+                                            if (err == null) err = new StringBuilder();
+                                            err.append(p).append("：删除失败（权限不足或文件被占用）\n");
+                                            break;
+                                        }
+                                    }
+                                    return err == null ? null : err.toString().trim();
                                 }
-                            });
+                            }, prog);
                         }
                     }).show();
         } else if ("copy".equals(a) || "cut".equals(a)) {
@@ -1339,8 +2061,31 @@ public class MainActivity extends Activity {
             if (isArchivePath(cur().path)) { toast("压缩包内不支持粘贴，请先退到设备目录"); return; }
             final ArrayList<String> src = new ArrayList<String>(clipboard);
             final boolean cut = clipboardCut;
+            Dbg.log("PASTE", "开始 dst=" + cur().path + " cut=" + cut
+                    + " 条目数=" + src.size() + " src=" + Dbg.clip(src.toString(), 1200));
+            // 统一显示进度对话框（进度条 + 取消）：压缩包来源监视临时解压目录；纯本地粘贴
+            // 统计源项总大小为分母、监视目标目录增量。取消可中断 root 的 cp/mv 并停止剩余项。
+            boolean hasArc = false;
+            for (String s : src) { if (isArchivePath(s)) { hasArc = true; break; } }
+            final boolean fArc = hasArc;   // 匿名类内使用需 effectively final
+            final ExtractProgress prog = showExtractProgress("正在粘贴",
+                    fArc ? "正在从压缩包解压文件…" : "正在统计大小…");
+            if (!fArc) prog.setVerb("已复制");
             runFs("正在粘贴…", new FsTask() {
                 public String run() {
+                    if (prog != null && prog.cancelled) return null;   // 排队期间已取消：不启动
+                    // 纯本地粘贴：分母=源项总大小（文件夹递归累加），基线=目标目录当前大小，
+                    // 轮询目标目录增量即「已复制字节」。在 io 线程统计，统计完切确定性进度条。
+                    if (!fArc) {
+                        File dstDir = new File(cur().path);
+                        long total = 0;
+                        for (String p : src) {
+                            File f = new File(p);
+                            total += f.isDirectory() ? dirSize(f) : f.length();
+                        }
+                        prog.configure(total, dirSize(dstDir), dstDir);
+                        if (prog.cancelled) return null;   // 统计/配置期间已取消
+                    }
                     // 压缩包来源：按真实压缩包路径分组，每组一次 7z 批量解压到暂存目录
                     // （插件侧一次列表 + 一次 su 分批 x，文件夹展开成全部后代文件、空目录 mkdir）
                     // 暂存目录放在目标目录下：root 写 /sdcard 是「解压」按钮已验证的可靠路径，
@@ -1360,18 +2105,51 @@ public class MainActivity extends Activity {
                             }
                         }
                         for (Map.Entry<String, File> en : tmpByArchive.entrySet()) {
+                            File t = en.getValue();
+                            Dbg.log("PASTE", "分组 archive=" + en.getKey()
+                                    + " tmp=" + t.getAbsolutePath()
+                                    + " exists=" + t.exists() + " canWrite=" + t.canWrite());
+                        }
+                        // 进度分母：各压缩包「选中条目解压后大小」之和；监视所有临时解压目录
+                        if (prog != null) {
+                            long total = 0;
+                            for (String arc : tmpByArchive.keySet()) {
+                                ArrayList<String> sel = new ArrayList<String>();
+                                for (String p : src) {
+                                    if (!isArchivePath(p)) continue;
+                                    String[] ap = parseArchive(p);
+                                    if (ap[1].equals(arc)) sel.add(ap[2]);
+                                }
+                                long s = pluginMgr.contentSize(arc, sel);
+                                Dbg.log("PASTE", "contentSize(" + arc + ") 选中=" + sel.size() + " -> " + s);
+                                if (s > 0) total += s;
+                            }
+                            File[] dirs = tmpByArchive.values().toArray(new File[0]);
+                            prog.configure(total, 0, dirs);   // 临时目录是新建空目录，基线为 0
+                        }
+                        if (prog != null && prog.cancelled) return null;   // 估算阶段已取消：不启动解压
+                        for (Map.Entry<String, File> en : tmpByArchive.entrySet()) {
+                            if (prog != null && prog.cancelled) return null;   // 多包场景：取消后不继续下一个包
                             ArrayList<String> inners = new ArrayList<String>();
                             for (String p : src) {
                                 if (!isArchivePath(p)) continue;
                                 String[] ap = parseArchive(p);
                                 if (ap[1].equals(en.getKey())) inners.add(ap[2]);
                             }
+                            Dbg.log("PASTE", "调用 extractBatch archive=" + en.getKey()
+                                    + " outDir=" + en.getValue().getAbsolutePath()
+                                    + " inners(" + inners.size() + ")=" + Dbg.clip(inners.toString(), 1200));
                             String be = pluginMgr.extractBatch(en.getKey(), inners,
                                     en.getValue().getAbsolutePath());
+                            Dbg.log("PASTE", "extractBatch 返回 -> "
+                                    + (be == null ? "OK" : Dbg.clip(be, 800)));
                             if (be != null) return be;
                         }
+                        if (prog != null && fArc) prog.markExtractDone();   // 解压完成，冻结进度，进入「复制到目标」阶段（仅压缩包分支有解压阶段）
+                        if (prog != null && prog.cancelled) return null;   // 解压完成但已取消：不把半成品复制到目标
                         final AtomicBoolean alwaysOverwrite = new AtomicBoolean(false);
                         for (String p : src) {
+                            if (prog != null && prog.cancelled) return null;   // 复制途中取消：停止复制剩余项
                             // 目标名：压缩包项取内层路径的最后一段（Util.base 对 archive:// 虚拟路径
                             // 会把「压缩包名#顶层内路径」整体当名字，导致复制出 temp_x.7z#docs 这种名字）
                             String name = Util.base(p);
@@ -1384,48 +2162,69 @@ public class MainActivity extends Activity {
                             String dst = Util.join(cur().path, name);
                             boolean overwrite = false;
                             if (Fs.exists(dst)) {
-                                // 同名文件：询问是否覆盖（可勾选「始终覆盖」对后续同名项不再询问）
+                                // 同名冲突：覆盖 / 重命名 / 跳过（可勾选「始终覆盖」对后续同名项不再询问）
                                 if (alwaysOverwrite.get()) {
                                     overwrite = true;
                                 } else {
-                                    boolean ow = askOverwrite(name, alwaysOverwrite);
-                                    if (!ow) continue;   // 用户选择跳过
-                                    overwrite = true;
+                                    ConflictChoice cc = askPasteConflict(name, alwaysOverwrite);
+                                    if (cc.action == ConflictChoice.SKIP) continue;   // 用户选择跳过
+                                    if (cc.action == ConflictChoice.RENAME) {
+                                        name = cc.newName;
+                                        dst = Util.join(cur().path, name);
+                                        overwrite = false;   // 已重命名到空闲名，直接写入不覆盖
+                                    } else {
+                                        overwrite = true;   // 覆盖
+                                    }
                                 }
                             }
                             if (overwrite) {
-                                String de = Fs.delete(dst);   // 覆盖前先删除目标
+                                String de = Fs.delete(dst, Fs.BULK_TIMEOUT_MS);   // 覆盖前先删除目标
                                 if (de != null) return "无法覆盖 " + name + "：" + de;
                             }
                             String e;
                             if (isArchivePath(p)) {
-                                // 源来自压缩包：从暂存目录复制（文件 / 文件夹均支持，保留包内结构；
+                                // 源来自压缩包：从暂存目录搬移（文件 / 文件夹均支持，保留包内结构；
                                 // 压缩包只读，cut 退化为复制）
                                 String[] ap = parseArchive(p);
                                 File from = new File(tmpByArchive.get(ap[1]), ap[2]);
+                                File tmpRoot = tmpByArchive.get(ap[1]);
+                                File[] kids = tmpRoot == null ? null : tmpRoot.listFiles();
                                 if (!from.exists()) {
                                     // 兜底：部分 7z 对反斜杠路径可能仍解成字面名文件
                                     File lit = new File(tmpByArchive.get(ap[1]), ap[2].replace("/", "\\"));
                                     if (lit.isFile()) from = lit;
-                                    else return "解压结果缺失：" + name;
+                                    else {
+                                        Dbg.log("PASTE", "解压结果缺失 name=" + name
+                                                + " inner=" + ap[2] + " 字面名兜底也不存在"
+                                                + " tmpRoot子项=" + (kids == null ? "null"
+                                                    : java.util.Arrays.toString(kids)));
+                                        return "解压结果缺失：" + name;
+                                    }
                                 }
-                                e = Fs.copy(from.getAbsolutePath(), dst);
+                                // 暂存目录就建在目标目录下、与目标同一文件系统：用 mv 原子搬移
+                                // 代替 cp -r 全量复制（上万小文件 cp 在 FUSE 上要几十秒，正是
+                                // Root 会话超时与进度超出的根源），mv 是 O(1) 重命名、瞬时完成。
+                                // 跨分区等罕见情况 mv 会退化为复制，失败且源仍在时回退 cp。
+                                e = Fs.rename(from.getAbsolutePath(), dst, Fs.BULK_TIMEOUT_MS);
+                                if (e != null && from.exists())
+                                    e = Fs.copy(from.getAbsolutePath(), dst, Fs.BULK_TIMEOUT_MS);
                             } else if (cut) {
                                 e = Fs.rename(p, dst);
-                                if (e != null) e = Fs.copy(p, dst);
+                                if (e != null) e = Fs.copy(p, dst, Fs.BULK_TIMEOUT_MS);
                             } else {
-                                e = Fs.copy(p, dst);
+                                e = Fs.copy(p, dst, Fs.BULK_TIMEOUT_MS);
                             }
                             if (e != null) return e;
                         }
                         return null;
                     } finally {
                         // 无论成败都清理临时解压目录
-                        for (File t : tmpByArchive.values()) Fs.delete(t.getAbsolutePath());
+                        for (File t : tmpByArchive.values())
+                            Fs.delete(t.getAbsolutePath(), Fs.BULK_TIMEOUT_MS);
                     }
                 }
                 public void after() { clipboard.clear(); }
-            });
+            }, prog);
         } else if ("info".equals(a)) {
             showInfo();
         } else if ("home".equals(a)) {
@@ -1434,16 +2233,36 @@ public class MainActivity extends Activity {
             gotoPath("/");
         } else if ("search".equals(a)) {
             toggleSearch();
+        } else if ("viewMode".equals(a)) {
+            toggleViewMode();
+        } else if ("sort".equals(a)) {
+            toggleSortDropdown();
+        } else if ("newItem".equals(a)) {
+            toggleAddDropdown();
+        } else if ("fav".equals(a)) {
+            toggleFavDropdown();
         }
     }
 
+    /** 粘贴冲突的三选一结果：覆盖 / 跳过 / 重命名（RENAME 时 newName 有效）。 */
+    private static final class ConflictChoice {
+        static final int OVERWRITE = 0;
+        static final int SKIP = 1;
+        static final int RENAME = 2;
+        int action = SKIP;
+        String newName = null;
+    }
+
     /**
-     * 在工作线程里弹出「同名文件」询问并阻塞，直到用户选择；返回 true=覆盖、false=跳过。
-     * 若勾选「始终覆盖」，通过 alwaysOverwrite 让后续同名项不再询问直接覆盖。
+     * 在工作线程里弹出「粘贴冲突」询问并阻塞，直到用户选择，支持：
+     *   · 覆盖（可勾选「始终覆盖」对后续同名项不再询问）
+     *   · 重命名（弹出输入框，预填「文件名(不含后缀)_1.后缀」供确认/修改；名称仍冲突则不允许确认）
+     *   · 跳过
      */
-    private boolean askOverwrite(final String name, final AtomicBoolean alwaysOverwrite) {
-        final boolean[] res = {false};
+    private ConflictChoice askPasteConflict(final String name, final AtomicBoolean alwaysOverwrite) {
+        final ConflictChoice choice = new ConflictChoice();
         final CountDownLatch latch = new CountDownLatch(1);
+        final String dir = cur().path;
         ui.post(new Runnable() {
             public void run() {
                 ScrollView sv = new ScrollView(MainActivity.this);
@@ -1452,7 +2271,7 @@ public class MainActivity extends Activity {
                 int pad = Util.dp(MainActivity.this, 16);
                 box.setPadding(pad, pad, pad, pad);
                 TextView msg = new TextView(MainActivity.this);
-                msg.setText("已存在同名文件：\n" + name + "\n\n是否覆盖？");
+                msg.setText("已存在同名文件：\n" + name + "\n\n覆盖、重命名还是跳过？");
                 msg.setTextSize(15);
                 msg.setTextColor(Ui.TEXT);
                 box.addView(msg);
@@ -1469,28 +2288,66 @@ public class MainActivity extends Activity {
                         .setView(sv)
                         .setCancelable(false)
                         .setPositiveButton("覆盖", null)
+                        .setNeutralButton("重命名", null)
                         .setNegativeButton("跳过", null)
                         .show();
                 d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
                     public void onClick(View v) {
-                        res[0] = true;
+                        choice.action = ConflictChoice.OVERWRITE;
                         if (cb.isChecked()) alwaysOverwrite.set(true);
                         d.dismiss();
                     }
                 });
                 d.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(new View.OnClickListener() {
                     public void onClick(View v) {
-                        res[0] = false;
+                        choice.action = ConflictChoice.SKIP;
+                        d.dismiss();
+                    }
+                });
+                d.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(new View.OnClickListener() {
+                    public void onClick(View v) {
+                        // 直接自动重命名：文件名(不含后缀)_1，若仍冲突则递增 _2、_3…，不再弹输入框
+                        choice.action = ConflictChoice.RENAME;
+                        choice.newName = autoRenameSuggestion(name, dir);
                         d.dismiss();
                     }
                 });
                 d.setOnDismissListener(new DialogInterface.OnDismissListener() {
-                    public void onDismiss(DialogInterface di) { latch.countDown(); }
+                    public void onDismiss(DialogInterface di) {
+                        if (!d.isShowing()) latch.countDown();
+                    }
                 });
             }
         });
         try { latch.await(); } catch (InterruptedException e) { /* 被打断按跳过处理 */ }
-        return res[0];
+        return choice;
+    }
+
+    /**
+     * 自动生成不冲突的重命名名：文件名(不含后缀)_<i>，从 1 开始；
+     * 若该名仍已存在则递增 i（_1 → _2 → …），直到找到空闲名。
+     */
+    private static String autoRenameSuggestion(String name, String dir) {
+        int i = 1;
+        String cand;
+        do {
+            cand = renameSuggestion(name, i);
+            i++;
+        } while (Fs.exists(Util.join(dir, cand)) && i < 10000);
+        return cand;
+    }
+
+    /**
+     * 按索引生成重命名建议名：保留后缀，文件名(不含后缀)后追加 _<i>；无后缀则整名后追加 _<i>。
+     * 例：report.txt → report_1.txt / report_2.txt；photo → photo_1 / photo_2。
+     */
+    private static String renameSuggestion(String name, int i) {
+        int dot = name.lastIndexOf('.');
+        // 仅当存在「真正的」扩展名（非首字符的 . 隐藏文件，且不是末尾的点）时才拆分后缀
+        if (dot > 0 && dot < name.length() - 1) {
+            return name.substring(0, dot) + "_" + i + name.substring(dot);
+        }
+        return name + "_" + i;
     }
 
     private String joinNames(List<String> s) {
@@ -1512,6 +2369,7 @@ public class MainActivity extends Activity {
 
     /** 读取持久化设置并应用：固定每行列数、图标尺寸、列表名称字号、图标主题、Root、隐藏文件。 */
     private void applySettings() {
+        Ui.loadFontScale(this);   // 设置页可能调整了界面字体大小，同步全局缩放
         cols = Prefs.columns(this);
         textLv = Prefs.textLevel(this);
 
@@ -1521,16 +2379,14 @@ public class MainActivity extends Activity {
         for (Button b : cmdBtns) b.setTextColor(Ui.PRIMARY);
         for (Button b : bottomBtns) b.setTextColor(Ui.PRIMARY);
         for (Button b : addrBtns) b.setTextColor(Ui.PRIMARY);
-        rebuildTabs();   // 标签下划线 / 🔒 锁颜色随强调色刷新
-        applyTabLockUi();   // 锁定标签：地址栏禁用变灰、前往/上级按钮禁用
+        updateSortBtn();   // 着重色可能变化，重绘排序按钮右侧小三角
+        updateAddBtn();    // 同步新建按钮底色 / 长按提示
+        updateFavBtn();    // 同步收藏按钮底色 / 长按提示
+        rebuildTabs();   // 标签底部着重色条 / 🔒 锁颜色随强调色刷新
+        applyTabLockUi();   // 同步锁定态：地址栏禁用、导航按钮保持可用（长按复制路径）
 
-        gridLm.setSpanCount(cols);
-        int w = getResources().getDisplayMetrics().widthPixels;
-        int colPx = Math.max(1, w / cols);
-        int iconPx = (int) (colPx * 0.52f);
-        iconPx = Math.max(Util.dp(this, 26), Math.min(Util.dp(this, 72), iconPx));
-        // 列表名称统一字号、列表字型（副标题行已移除）
-        adapter.setSizes(iconPx, Prefs.listNameSp(this));
+        // 网格 / 列表视图：列数、图标尺寸、适配器布局统一在这里应用
+        applyViewModeToGrid();
         adapter.setFont(Prefs.listFont(this));
 
         titleTv.setTextSize(Ui.sp(textLv, 16, 18, 20));
@@ -1544,26 +2400,30 @@ public class MainActivity extends Activity {
         for (Button b : addrBtns) b.setTextSize(Ui.sp(textLv, 11, 12, 14));
 
         Fs.showHidden = Prefs.showHidden(this);
+        swipeTabs = Prefs.swipeTabs(this);
+        swipeMinDist = Prefs.swipeDist(this);
+        swipeMinVel = Prefs.swipeVel(this);
         // 图标主题：从设置页返回或冷启动时注入绘制器（变化会清缓存）
         IconFactory.setTheme(Prefs.iconTheme(this));
     }
 
-    /** 锁定标签：地址栏禁用并变灰、清空焦点；前往/上级按钮禁用。
-     *  解锁后地址栏仍保持「默认不抢焦点」——只有直接点它才会获得焦点（见 pathEdit 的 OnTouchListener）。 */
+    /** 锁定标签：地址栏禁用（变灰、不可输入、清焦点），但「前往 / 上级」按钮始终保持可用。
+     *  按钮不禁用的原因：锁定时仍需长按「前往」把当前路径复制到剪贴板，而 setEnabled(false)
+     *  会让长按监听器失效。按钮点击的越界跳转仍由 gotoPath → canEnter 静默拦截，
+     *  保证「可用」与「不破坏锁定约束」（只能在锁定根目录及其子目录内活动）两者兼得。 */
     private void applyTabLockUi() {
         if (tabs.isEmpty()) return;
         boolean locked = cur().locked;
         pathEdit.setEnabled(!locked);
-        // 注意：不要在这里把 pathEdit 设回 focusable=true（否则未锁定时点文件列表也可能让它抢焦点）。
-        // 默认保持不可聚焦，仅当用户直接点地址栏时，OnTouchListener 才临时开启焦点。
         pathEdit.setTextColor(locked ? Ui.HINT : Ui.TEXT);
         if (locked) {
             pathEdit.setFocusable(false);
             pathEdit.setFocusableInTouchMode(false);
             pathEdit.clearFocus();
         }
-        if (addrBtns.size() >= 1) addrBtns.get(0).setEnabled(!locked);   // 前往
-        if (addrBtns.size() >= 2) addrBtns.get(1).setEnabled(!locked);   // 上级
+        // 导航按钮始终可用：锁定态下长按「前往」复制路径仍有效（enabled=false 会吞掉长按）。
+        if (addrBtns.size() >= 1) addrBtns.get(0).setEnabled(true);   // 前往
+        if (addrBtns.size() >= 2) addrBtns.get(1).setEnabled(true);   // 上级
         applyArchiveUi();   // 切换/刷新目录后，按当前标签是否 archive:// 同步工具栏与列表背景
     }
 
@@ -1579,25 +2439,45 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** 根据 toolbarArchiveMode 重建顶部工具栏按钮：普通视图=完整工具，压缩包视图=去新建/收藏+解压。 */
+    /** 根据 toolbarArchiveMode 重建顶部工具栏按钮：普通视图=完整工具，压缩包视图=去新建+解压；
+     *  收藏按钮两个视图都有（压缩包内点收藏项会新开标签跳到真实目录）。 */
     private void rebuildToolbar() {
         if (toolbar == null) return;
+        closeSortDropdown();   // 工具栏重建（进出压缩包视图等）时先收起所有下拉菜单
+        closeAddDropdown();
+        closeFavDropdown();
         toolbar.removeAllViews();
         toolBtns.clear();
         String[] names, acts;
         if (toolbarArchiveMode) {
-            names = new String[]{"后退", "前进", "全选", "解压", "内部存储", "根目录", "搜索"};
-            acts  = new String[]{"back", "fwd", "selectAll", "extract", "home", "rootDir", "search"};
+            names = new String[]{"后退", "前进", "视图", "全选", "解压", "根目录", "内部存储", "搜索", "排序", "收藏"};
+            acts  = new String[]{"back", "fwd", "viewMode", "selectAll", "extract", "rootDir", "home", "search", "sort", "fav"};
         } else {
-            names = new String[]{"后退", "前进", "全选", "新建文件夹", "新建文件", "内部存储", "根目录", "搜索"};
-            acts  = new String[]{"back", "fwd", "selectAll", "newFolder", "newFile", "home", "rootDir", "search"};
+            // 原「新建文件夹 / 新建文件」两个按钮合并为一枚「新建」图标，两项收进其下拉菜单
+            names = new String[]{"后退", "前进", "视图", "全选", "新建", "根目录", "内部存储", "搜索", "排序", "收藏"};
+            acts  = new String[]{"back", "fwd", "viewMode", "selectAll", "newItem", "rootDir", "home", "search", "sort", "fav"};
         }
         for (int i = 0; i < names.length; i++) {
             if (i > 0) addVLine(toolbar);
             final String a = acts[i];
             Button b = Ui.flat(this, names[i], textLv);
             b.setTextColor(Ui.PRIMARY);   // 与 applySettings 对工具栏按钮上色一致（teal 强调色）
-            if ("extract".equals(a)) {
+            // 所有工具栏按钮统一收紧左右内边距：图标间距从 10+1+10=21dp 降到 4+1+4=9dp
+            int thp = Util.dp(this, 4), tvp = Util.dp(this, 6);
+            b.setPadding(thp, tvp, thp, tvp);
+            if ("viewMode".equals(a)) {
+                viewModeBtn = b;
+                updateViewModeBtn();   // 按当前模式设置图标 / 长按提示
+            } else if ("sort".equals(a)) {
+                sortBtn = b;
+                updateSortBtn();       // 排序图标 + 右侧小三角 + 当前排序方式提示
+            } else if ("fav".equals(a)) {
+                favBtn = b;
+                updateFavBtn();        // 收藏星标（图标 + 右侧小三角）
+            } else if ("newItem".equals(a)) {
+                addBtn = b;
+                updateAddBtn();        // 新建图标（图标 + 右侧小三角）
+            } else if ("extract".equals(a)) {
                 // 解压图标：用矢量 drawable（assets/ui 无对应 png），否则回退为「解压」文字
                 b.setText("");
                 try {
@@ -1621,6 +2501,391 @@ public class MainActivity extends Activity {
             toolbar.addView(b);
             toolBtns.add(b);
         }
+    }
+
+    /** 视图切换按钮：图标表示「点一下会切到的视图」，随当前着重色染色；长按显示名称。 */
+    private void updateViewModeBtn() {
+        if (viewModeBtn == null) return;
+        final boolean list = Prefs.viewMode(this) == Prefs.VIEW_LIST;
+        final String label = list ? "切换为网格视图" : "切换为列表视图";
+        android.graphics.drawable.Drawable d = ToolbarIcons.get(this, list ? "viewGrid" : "viewList");
+        if (d != null) {
+            d = d.mutate();
+            d.setColorFilter(Color.BLACK, android.graphics.PorterDuff.Mode.SRC_IN);
+            viewModeBtn.setText("");
+            viewModeBtn.setCompoundDrawables(d, null, null, null);
+        } else {
+            viewModeBtn.setText(list ? "网格" : "列表");
+        }
+        viewModeBtn.setContentDescription(label);
+        viewModeBtn.setOnLongClickListener(new View.OnLongClickListener() {
+            public boolean onLongClick(View v) { toast(label); return true; }
+        });
+    }
+
+    /** 按当前视图模式设置列数、图标尺寸与适配器布局；从设置页返回 / 切换视图时共用。 */
+    private void applyViewModeToGrid() {
+        boolean list = Prefs.viewMode(this) == Prefs.VIEW_LIST;
+        gridLm.setSpanCount(list ? 1 : cols);
+        int iconPx;
+        if (list) {
+            iconPx = Util.dp(this, 36);   // 列表行固定小图标，不随「每行列数」放大
+        } else {
+            int w = getResources().getDisplayMetrics().widthPixels;
+            int colPx = Math.max(1, w / cols);
+            iconPx = (int) (colPx * 0.52f);
+            iconPx = Math.max(Util.dp(this, 26), Math.min(Util.dp(this, 72), iconPx));
+        }
+        adapter.setSizes(iconPx, Prefs.listNameSp(this));
+        adapter.setViewMode(list);
+        updateViewModeBtn();   // 着重色可能刚变化，重新染色
+    }
+
+    /** 工具栏「视图」按钮：网格 ⇄ 列表，写入设置；不重新列目录，尽量保持当前位置。 */
+    private void toggleViewMode() {
+        final int next = Prefs.viewMode(this) == Prefs.VIEW_LIST ? Prefs.VIEW_GRID : Prefs.VIEW_LIST;
+        Prefs.setViewMode(this, next);
+        int pos = firstVisible();
+        applyViewModeToGrid();
+        int n = adapter.getCount();
+        if (n > 0) gridLm.scrollToPositionWithOffset(Math.min(pos, n - 1), 0);
+        Dbg.log("ACTION", "viewMode -> " + (next == Prefs.VIEW_LIST ? "列表" : "网格"));
+    }
+
+    // ==================== 排序（工具栏下拉菜单）====================
+
+    private boolean isSortDropdownOpen() {
+        return sortPopup != null && sortPopup.isShowing();
+    }
+
+    /** 排序按钮：左侧排序图标、右侧小三角；展开时加浅灰底；长按提示当前排序方式。 */
+    private void updateSortBtn() {
+        if (sortBtn == null) return;
+        final int mode = Prefs.sortMode(this);
+        final String label = "排序：" + (mode == Prefs.SORT_TIME ? "时间" : "字母");
+        // 收紧尺寸：图标略小于其它按钮、三角更小、左右内边距减半，
+        // 让「图标 + 三角」的整枚按钮与单图标按钮差不多宽，不再显得偏大。
+        int hp = Util.dp(this, 4), vp = Util.dp(this, 6);
+        sortBtn.setPadding(hp, vp, hp, vp);
+        android.graphics.drawable.Drawable icon = ToolbarIcons.get(this, "sort", 20);
+        if (icon != null) {
+            sortBtn.setText("");
+            sortBtn.setCompoundDrawables(icon, null, triangleDrawable(), null);
+            sortBtn.setCompoundDrawablePadding(Util.dp(this, 1));
+        } else {
+            sortBtn.setText("排序 ▾");   // 图标资源缺失兜底
+        }
+        sortBtn.setContentDescription(label);
+        sortBtn.setBackgroundColor(isSortDropdownOpen() ? 0xFFEEEEEE : Color.TRANSPARENT);
+        sortBtn.setOnLongClickListener(new View.OnLongClickListener() {
+            public boolean onLongClick(View v) { toast(label); return true; }
+        });
+    }
+
+    /** 按钮右侧的小三角：纯代码绘制，固定黑色。 */
+    private android.graphics.drawable.Drawable triangleDrawable() {
+        int w = Util.dp(this, 7), h = Util.dp(this, 5);
+        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(
+                w, h, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas c = new android.graphics.Canvas(bm);
+        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        p.setColor(Color.BLACK);
+        android.graphics.Path path = new android.graphics.Path();
+        path.moveTo(0, 0); path.lineTo(w, 0); path.lineTo(w / 2f, h); path.close();
+        c.drawPath(path, p);
+        android.graphics.drawable.BitmapDrawable d =
+                new android.graphics.drawable.BitmapDrawable(getResources(), bm);
+        d.setBounds(0, 0, w, h);
+        return d;
+    }
+
+    /** 按当前排序方式重建下拉面板两行，当前项打勾并上着重色。 */
+    private void rebuildSortDropdown() {
+        if (sortDropdown == null) return;
+        sortDropdown.removeAllViews();
+        int mode = Prefs.sortMode(this);
+        addSortItem("字母", Prefs.SORT_NAME, mode == Prefs.SORT_NAME);
+        addLine(sortDropdown);   // 两项之间一条分隔线即可，底部不再留线
+        addSortItem("时间", Prefs.SORT_TIME, mode == Prefs.SORT_TIME);
+    }
+
+    private void addSortItem(final String label, final int mode, boolean checked) {
+        TextView tv = new TextView(this);
+        tv.setText((checked ? "✓  " : "     ") + label);
+        tv.setTextSize(Ui.sp(textLv, 12, 13, 15));
+        tv.setTextColor(checked ? Ui.PRIMARY : Ui.TEXT);
+        tv.setGravity(Gravity.CENTER_VERTICAL);
+        tv.setPadding(Util.dp(this, 12), Util.dp(this, 9), Util.dp(this, 12), Util.dp(this, 9));
+        tv.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { chooseSortMode(mode); }
+        });
+        sortDropdown.addView(tv, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+    }
+
+    /** 点排序按钮：在按钮正下方展开 / 收起窄下拉菜单（浮在文件列表之上，不推动列表）。 */
+    private void toggleSortDropdown() {
+        if (isSortDropdownOpen()) { closeSortDropdown(); return; }
+        closeAddDropdown();   // 三个下拉菜单互斥，避免叠在一起
+        closeFavDropdown();
+        if (sortBtn == null || sortPopup == null) return;
+        rebuildSortDropdown();
+        int w = Math.max(sortBtn.getWidth(), Util.dp(this, 140));
+        sortPopup.setWidth(w);
+        sortPopup.showAsDropDown(sortBtn, 0, 0);
+        sortDropdown.setAlpha(0f);
+        sortDropdown.animate().alpha(1f).setDuration(140).start();
+        updateSortBtn();
+        Dbg.log("ACTION", "排序下拉菜单展开 width=" + w);
+    }
+
+    private void closeSortDropdown() {
+        if (!isSortDropdownOpen()) return;
+        sortDropdown.animate().cancel();
+        sortPopup.dismiss();   // 触发 onDismiss -> updateSortBtn()
+    }
+
+    /** 选择排序方式：只重排当前内存列表，不重新读目录，滚动位置保持不变。 */
+    private void chooseSortMode(int mode) {
+        Prefs.setSortMode(this, mode);
+        if (curItems != null && !curItems.isEmpty()) {
+            applySort(curItems);
+            // 搜索态下网格显示的是搜索结果，不能用目录列表覆盖；只重排内存数据，
+            // 退出搜索（或下次列目录）时自然按新方式呈现。
+            if (!searchActive) adapter.setData(curItems);
+        }
+        closeSortDropdown();
+        Dbg.log("ACTION", "sortMode -> " + (mode == Prefs.SORT_TIME ? "时间" : "字母"));
+    }
+
+    // ==================== 新建（工具栏下拉菜单）====================
+
+    private boolean isAddDropdownOpen() {
+        return addPopup != null && addPopup.isShowing();
+    }
+
+    /** 新建按钮：纯 add 图标（不加小三角，避免像排序按钮那样偏大）；展开时加浅灰底。 */
+    private void updateAddBtn() {
+        if (addBtn == null) return;
+        int hp = Util.dp(this, 4), vp = Util.dp(this, 6);
+        addBtn.setPadding(hp, vp, hp, vp);
+        android.graphics.drawable.Drawable icon = ToolbarIcons.get(this, "add", 20);
+        if (icon != null) {
+            addBtn.setText("");
+            addBtn.setCompoundDrawables(icon, null, triangleDrawable(), null);
+            addBtn.setCompoundDrawablePadding(Util.dp(this, 1));
+        } else {
+            addBtn.setText("＋");   // 图标资源缺失兜底
+        }
+        final String label = "新建：文件夹 / 文件";
+        addBtn.setContentDescription(label);
+        addBtn.setBackgroundColor(isAddDropdownOpen() ? 0xFFEEEEEE : Color.TRANSPARENT);
+        addBtn.setOnLongClickListener(new View.OnLongClickListener() {
+            public boolean onLongClick(View v) { toast(label); return true; }
+        });
+    }
+
+    /** 重建新建菜单两项：左侧沿用原工具栏的 newFolder / newFile 图标，右侧文字。 */
+    private void rebuildAddDropdown() {
+        if (addDropdown == null) return;
+        addDropdown.removeAllViews();
+        addNewItem("新建文件夹", "newFolder", "newFolder");
+        addLine(addDropdown);
+        addNewItem("新建文件", "newFile", "newFile");
+    }
+
+    private void addNewItem(String label, String iconName, final String act) {
+        TextView tv = new TextView(this);
+        tv.setText(label);
+        tv.setTextSize(Ui.sp(textLv, 12, 13, 15));
+        tv.setTextColor(Ui.TEXT);
+        tv.setGravity(Gravity.CENTER_VERTICAL);
+        tv.setPadding(Util.dp(this, 12), Util.dp(this, 9), Util.dp(this, 14), Util.dp(this, 9));
+        android.graphics.drawable.Drawable d = ToolbarIcons.get(this, iconName, 20);
+        if (d != null) {
+            tv.setCompoundDrawables(d, null, null, null);
+            tv.setCompoundDrawablePadding(Util.dp(this, 10));
+        }
+        tv.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { chooseNewItem(act); }
+        });
+        addDropdown.addView(tv, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+    }
+
+    /** 点新建按钮：在按钮正下方展开 / 收起窄下拉菜单（浮在文件列表之上）。 */
+    private void toggleAddDropdown() {
+        if (isAddDropdownOpen()) { closeAddDropdown(); return; }
+        closeSortDropdown();   // 三个下拉菜单互斥，避免叠在一起
+        closeFavDropdown();
+        if (addBtn == null || addPopup == null) return;
+        rebuildAddDropdown();
+        int w = Math.max(addBtn.getWidth(), Util.dp(this, 160));
+        addPopup.setWidth(w);
+        addPopup.showAsDropDown(addBtn, 0, 0);
+        addDropdown.setAlpha(0f);
+        addDropdown.animate().alpha(1f).setDuration(140).start();
+        updateAddBtn();
+        Dbg.log("ACTION", "新建下拉菜单展开 width=" + w);
+    }
+
+    private void closeAddDropdown() {
+        if (!isAddDropdownOpen()) return;
+        addDropdown.animate().cancel();
+        addPopup.dismiss();   // 触发 onDismiss -> updateAddBtn()
+    }
+
+    /** 选一项：先收起浮层，再走原来的 onAction 新建流程（弹输入名称对话框），避免窗口叠盖。 */
+    private void chooseNewItem(String act) {
+        closeAddDropdown();
+        onAction(act);
+    }
+
+    // ==================== 收藏（工具栏下拉菜单）====================
+
+    private boolean isFavDropdownOpen() {
+        return favPopup != null && favPopup.isShowing();
+    }
+
+    /** 收藏按钮：纯星标图标（不加三角，与新建按钮同尺寸）；展开时加浅灰底。 */
+    private void updateFavBtn() {
+        if (favBtn == null) return;
+        int hp = Util.dp(this, 4), vp = Util.dp(this, 6);
+        favBtn.setPadding(hp, vp, hp, vp);
+        android.graphics.drawable.Drawable icon = ToolbarIcons.get(this, "userBookmarks", 20);
+        if (icon != null) {
+            favBtn.setText("");
+            favBtn.setCompoundDrawables(icon, null, triangleDrawable(), null);
+            favBtn.setCompoundDrawablePadding(Util.dp(this, 1));
+        } else {
+            favBtn.setText("★");   // 图标资源缺失兜底
+        }
+        final String label = "收藏夹";
+        favBtn.setContentDescription(label);
+        favBtn.setBackgroundColor(isFavDropdownOpen() ? 0xFFEEEEEE : Color.TRANSPARENT);
+        favBtn.setOnLongClickListener(new View.OnLongClickListener() {
+            public boolean onLongClick(View v) { toast(label); return true; }
+        });
+    }
+
+    /** 每次展开都重新读收藏夹，保证与抽屉里的顺序 / 编辑结果一致。 */
+    private void rebuildFavDropdown() {
+        if (favDropdown == null) return;
+        favDropdown.removeAllViews();
+        ArrayList<String> favs = Prefs.favorites(this);
+        if (favs.isEmpty()) {
+            TextView tv = new TextView(this);
+            tv.setText("（暂无收藏，可在右上角菜单收藏当前目录）");
+            tv.setTextSize(Ui.sp(textLv, 11, 12, 13));
+            tv.setTextColor(Ui.HINT);
+            tv.setPadding(Util.dp(this, 12), Util.dp(this, 10), Util.dp(this, 12), Util.dp(this, 10));
+            favDropdown.addView(tv, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            return;
+        }
+        for (int i = 0; i < favs.size(); i++) {
+            if (i > 0) addLine(favDropdown);
+            addFavItem(favs.get(i));
+        }
+    }
+
+    /** 一条收藏：左侧星标小图标 + 名称 / 完整路径两行；点击跳到该路径。 */
+    private void addFavItem(final String path) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(Util.dp(this, 10), Util.dp(this, 3), Util.dp(this, 10), Util.dp(this, 3));
+
+        android.widget.ImageView iv = new android.widget.ImageView(this);
+        Bitmap fb = IconFactory.folder(Util.dp(this, 18));
+        if (fb != null) iv.setImageBitmap(fb);
+        row.addView(iv, new LinearLayout.LayoutParams(Util.dp(this, 18), Util.dp(this, 18)));
+
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        ilp.leftMargin = Util.dp(this, 9);
+        TextView name = new TextView(this);
+        name.setText(labelOf(path));
+        name.setTextSize(Ui.sp(textLv, 12, 13, 14));
+        name.setTextColor(Ui.TEXT);
+        name.setSingleLine(true);
+        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        TextView sub = new TextView(this);
+        sub.setText(path);
+        sub.setTextSize(Ui.sp(textLv, 9, 10, 11));
+        sub.setTextColor(Ui.HINT);
+        sub.setSingleLine(true);
+        sub.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        info.addView(name);
+        info.addView(sub);
+        row.addView(info, ilp);
+
+        row.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { chooseFavorite(path); }
+        });
+        row.setOnLongClickListener(new View.OnLongClickListener() {
+            public boolean onLongClick(View v) { toast(path); return true; }
+        });
+        favDropdown.addView(row, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+    }
+
+    /** 点收藏按钮：展开 / 收起；菜单高度按内容测量并封顶到半屏，多的话内部滚动。 */
+    private void toggleFavDropdown() {
+        if (isFavDropdownOpen()) { closeFavDropdown(); return; }
+        closeSortDropdown();   // 三个下拉菜单互斥，避免叠在一起
+        closeAddDropdown();
+        if (favBtn == null || favPopup == null) return;
+        rebuildFavDropdown();
+        int w = Math.max(favBtn.getWidth(), Util.dp(this, 220));
+        favPopup.setWidth(w);
+        favDropdown.measure(
+                View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        int contentH = favDropdown.getMeasuredHeight() + Util.dp(this, 8);
+        int maxH = (int) (getResources().getDisplayMetrics().heightPixels * 0.5f);
+        favPopup.setHeight(Math.min(contentH, maxH));
+        favPopup.showAsDropDown(favBtn, 0, 0);
+        favDropdown.setAlpha(0f);
+        favDropdown.animate().alpha(1f).setDuration(140).start();
+        updateFavBtn();
+        Dbg.log("ACTION", "收藏下拉菜单展开 width=" + w + " height=" + Math.min(contentH, maxH));
+    }
+
+    private void closeFavDropdown() {
+        if (!isFavDropdownOpen()) return;
+        favDropdown.animate().cancel();
+        favPopup.dismiss();   // 触发 onDismiss -> updateFavBtn()
+    }
+
+    /** 选一条收藏：先收起浮层，再按抽屉同样的规则跳转（锁定标签 / 压缩包内会新开标签）。 */
+    private void chooseFavorite(String path) {
+        closeFavDropdown();
+        openInAvailableTab(path);
+        Dbg.log("ACTION", "收藏夹跳转 " + path);
+    }
+
+    /**
+     * 列目录（普通目录 / 压缩包内）后按当前排序方式重排。
+     * 「字母」沿用 FileItem.compareTo（返回项 → 文件夹 → 名称）；
+     * 「时间」保留返回项与文件夹优先，其余按修改时间新→旧，同时间按名称。
+     */
+    private void applySort(java.util.List<FileItem> items) {
+        if (items == null || items.isEmpty()) return;
+        if (Prefs.sortMode(this) != Prefs.SORT_TIME) {
+            java.util.Collections.sort(items);
+            return;
+        }
+        java.util.Collections.sort(items, new java.util.Comparator<FileItem>() {
+            public int compare(FileItem a, FileItem b) {
+                if (a.parent != b.parent) return a.parent ? -1 : 1;
+                if (a.dir != b.dir) return a.dir ? -1 : 1;
+                if (a.modified != b.modified) return a.modified > b.modified ? -1 : 1;
+                return a.name.compareToIgnoreCase(b.name);
+            }
+        });
     }
 
     /** 地址栏放弃焦点：收起光标与键盘，并把焦点状态复位（默认不抢焦点）。
@@ -1824,6 +3089,10 @@ public class MainActivity extends Activity {
         }
     }
 
+    // 命令执行期间最近一次 expandCmd 生成的 MYFM_* 环境变量前缀（export ...;），
+    // 供 handleLine 给动态按钮命令加同样的变量上下文；主命令自身也已拼接该前缀。
+    private volatile String myfmEnvPrefix = "";
+
     private String expandCmd(String tmpl, String path, String cwd, List<String> all,
                              boolean asRoot, boolean outputWindow, RootPathMapper mapper) {
         // %f / %n 不带引号：便于直接嵌进 su --mount-master -c '...' 这类带单引号的命令，
@@ -1831,47 +3100,116 @@ public class MainActivity extends Activity {
         // 路径含空格时请在模板里自行加引号，例如 su --mount-master -c 'ls -l "%f"'。
         // 命令走 Root 会话时，/data/data 等路径自动换成 /data_mirror 真实视图。
         // 结果窗口走「独立会话」，须用本窗口会话自己的命名空间状态做路径映射，与主界面隔离。
+        // 压缩包内虚拟路径在设备上没有实体文件，命令无法直接操作；故先解压到 archive_tmp，
+        // 再用真实临时路径替换占位符（%f/%d/%n/%p/%F 全部指向解压出的真实文件/目录）。
+        String realPath = resolveArchiveTarget(path);
+        String realCwd = isArchivePath(cwd) ? archiveTempDir(cwd) : cwd;
         String f, d, p2, fbItem;
         if (asRoot) {
             if (outputWindow) {
-                f = mapper.map(path);
-                d = Util.sq(mapper.map(Util.parent(path)));
-                p2 = Util.sq(CmdOutputActivity.mapRootPath(cwd));
+                f = mapper.map(realPath);
+                d = Util.sq(mapper.map(Util.parent(realPath)));
+                p2 = Util.sq(CmdOutputActivity.mapRootPath(realCwd));
             } else {
-                f = Fs.rootPath(path);
-                d = Util.sq(Fs.rootPath(Util.parent(path)));
-                p2 = Util.sq(Fs.rootPath(cwd));
+                f = Fs.rootPath(realPath);
+                d = Util.sq(Fs.rootPath(Util.parent(realPath)));
+                p2 = Util.sq(Fs.rootPath(realCwd));
             }
         } else {
-            f = path;
-            d = Util.sq(Util.parent(path));
-            p2 = Util.sq(cwd);
+            f = realPath;
+            d = Util.sq(Util.parent(realPath));
+            p2 = Util.sq(realCwd);
         }
-        String n = Util.base(path);
+        String n = Util.base(realPath);
         StringBuilder fb = new StringBuilder();
         for (String x : all) {
+            String rx = resolveArchiveTarget(x);
             if (fb.length() > 0) fb.append(' ');
             fb.append(Util.sq(asRoot
-                    ? (outputWindow ? mapper.map(x) : Fs.rootPath(x)) : x));
+                    ? (outputWindow ? mapper.map(rx) : Fs.rootPath(rx)) : rx));
         }
         String out = tmpl.replace("%f", f).replace("%d", d)
                 .replace("%n", n).replace("%p", p2);
-        return out.replace("%F", fb.toString());
+        out = out.replace("%F", fb.toString());
+        // 同步生成本次展开对应的 MYFM_* 环境变量前缀（脚本/自定义命令/按钮通用）。
+        // 值沿用与占位符完全相同的映射（Root 视图 / archive 临时解压），保证 $MYFM_* 与 %f/%n 一致。
+        // 注意 f 是裸路径（%f 约定不加引号），导出时用 Util.sq 加引号；d/p2 已带引号直接用。
+        myfmEnvPrefix = "export MYFM_F=" + Util.sq(f)
+                + "; export MYFM_D=" + d
+                + "; export MYFM_N=" + Util.sq(n)
+                + "; export MYFM_P=" + p2 + "; ";
+        return out;
+    }
+
+    /** 若 vpath 是压缩包内虚拟路径，解压该条目到 archive_tmp（保留内层目录结构）并返回真实临时文件路径；
+     *  否则原样返回。archive:// 根路径（无内层）返回压缩包自身真实路径，便于对整个包执行命令。 */
+    private String resolveArchiveTarget(String vpath) {
+        if (!isArchivePath(vpath)) return vpath;
+        synchronized (cmdArchiveCache) {
+            String c = cmdArchiveCache.get(vpath);
+            if (c != null) return c;
+        }
+        String[] a = parseArchive(vpath);
+        if (a[1] == null || a[1].isEmpty()) return vpath;
+        String inner = (a[2] == null) ? "" : a[2];
+        if (inner.isEmpty()) return a[1];   // 压缩包根：直接用压缩包自身真实路径
+        int slash = inner.lastIndexOf('/');
+        String parent = slash >= 0 ? inner.substring(0, slash) : "";
+        String base = slash >= 0 ? inner.substring(slash + 1) : inner;
+        File outDir = new File(new File(getCacheDir(), "archive_tmp"),
+                a[0] + (parent.isEmpty() ? "" : "/" + parent));
+        outDir.mkdirs();
+        File outFile = new File(outDir, base);
+        try {
+            PluginManager.ArchiveHandle h = pluginMgr.getArchiveProvider(a[1], null);
+            if (h != null) {
+                ParcelFileDescriptor pfd = h.provider.open(a[1], a[2], "");
+                if (pfd != null) {
+                    InputStream in = new FileInputStream(pfd.getFileDescriptor());
+                    FileOutputStream os = new FileOutputStream(outFile);
+                    byte[] buf = new byte[16384];
+                    int n;
+                    while ((n = in.read(buf)) >= 0) os.write(buf, 0, n);
+                    in.close();
+                    os.close();
+                    pfd.close();
+                    synchronized (cmdArchiveCache) { cmdArchiveCache.put(vpath, outFile.getAbsolutePath()); }
+                    return outFile.getAbsolutePath();
+                }
+            }
+        } catch (Exception ex) { /* 解压失败则回退原始虚拟路径 */ }
+        return vpath;
+    }
+
+    /** 压缩包虚拟目录 → archive_tmp 下对应的真实目录（供 %p 等工作目录占位符使用）。 */
+    private String archiveTempDir(String vpath) {
+        String[] a = parseArchive(vpath);
+        if (a[1] == null || a[1].isEmpty()) return vpath;
+        String inner = (a[2] == null) ? "" : a[2];
+        File d = new File(new File(getCacheDir(), "archive_tmp"),
+                a[0] + (inner.isEmpty() ? "" : "/" + inner));
+        d.mkdirs();
+        return d.getAbsolutePath();
     }
 
     /** 命令执行的「输出接收器」：把流式输出 / 动态按钮 / 状态推送到界面（CmdOutputActivity 或 Dialog）。 */
     private interface CmdSink {
         void append(String s);
         void addButton(String label, String cmd);
+        void removeButton(String label);   // [mycmd:btn:名称:0]：删除同名按钮
         void setRunningRoot(boolean root);
-        void finished(boolean autoClose);
+        void finished();
+        void exit();                  // 收到 [mycmd:exit]：仅标记命令结束，不自动关闭窗口/对话框
+        void startLog(String path);   // [mycmd:log]：增量轮询该文件作为日志输出
+        void setTitle(String t);      // [mycmd:title:标题文本]：动态改变输出窗口顶栏标题
+        void setDebug(boolean d);     // [mycmd:debug:1/0]：详细模式开关（显示/隐藏装饰性提示符）
+        boolean isDebug();            // 读取当前详细模式开关
     }
-    /** 命令执行的「流执行器」：封装 Root 会话的打开 / 流式执行 / 路径映射 / 停止。 */
+    /** 命令执行的「流执行器」：封装 Root 会话的打开 / 流式执行 / 路径映射。 */
     private interface CmdStreamer {
         boolean openRoot(long timeoutMs);
         Fs.ExecResult stream(String script, int timeoutSec, Fs.LineSink sink);
         String mapRootPath(String p);
-        void stopRoot();
     }
     /** Root 路径映射器：模板展开时把 /data/data 等换成当前会话可见真实视图。 */
     private interface RootPathMapper { String map(String p); }
@@ -1879,8 +3217,14 @@ public class MainActivity extends Activity {
     private static final CmdSink ACTIVITY_SINK = new CmdSink() {
         public void append(String s) { CmdOutputActivity.liveAppend(s); }
         public void addButton(String l, String c) { CmdOutputActivity.liveAddButton(l, c); }
+        public void removeButton(String l) { CmdOutputActivity.liveRemoveButton(l); }
         public void setRunningRoot(boolean r) { CmdOutputActivity.setRunningRoot(r); }
-        public void finished(boolean ac) { CmdOutputActivity.liveComplete(ac); }
+        public void finished() { CmdOutputActivity.liveComplete(); }
+        public void exit() { CmdOutputActivity.liveExit(); }
+        public void startLog(String p) { CmdOutputActivity.startLogPoll(p); }
+        public void setTitle(String t) { CmdOutputActivity.liveSetTitle(t); }
+        public void setDebug(boolean d) { CmdOutputActivity.setDebug(d); }
+        public boolean isDebug() { return CmdOutputActivity.getDebug(); }
     };
     private static final CmdStreamer ACTIVITY_STREAMER = new CmdStreamer() {
         public boolean openRoot(long t) { return CmdOutputActivity.openOutputRoot(t); }
@@ -1888,7 +3232,6 @@ public class MainActivity extends Activity {
             return CmdOutputActivity.streamOutputRoot(s, to, sk);
         }
         public String mapRootPath(String p) { return CmdOutputActivity.mapRootPath(p); }
-        public void stopRoot() { CmdOutputActivity.stopOutputRoot(); }
     };
     private static final RootPathMapper ACTIVITY_MAPPER = new RootPathMapper() {
         public String map(String p) { return CmdOutputActivity.mapRootPath(p); }
@@ -1910,66 +3253,104 @@ public class MainActivity extends Activity {
     private void execCore(final Prefs.Cmd cmd, final List<String> targets, final String cwd,
                           final boolean batch, final CmdSink sink, final CmdStreamer streamer,
                           final RootPathMapper mapper) {
+        cmdArchiveCache.clear();   // 每次命令运行重新解压，避免复用上一次残留的临时文件映射
         final int timeout = Prefs.cmdTimeout(this);   // 全局执行超时（秒），0 = 不限时
-        final boolean[] allOk = { true };   // 全部执行成功才允许自动关闭结果窗口
         // 结果窗口使用「独立 Root 会话」（与主界面导航会话隔离）：
         // 首次会弹一次授权，之后复用；即便在此窗口卡死也不波及主界面。
         if (cmd.optRoot() && !streamer.openRoot(30000)) {
             sink.append("未获取到 Root 授权，命令未执行。\n"
                     + "请到「设置 → Root 权限」开启后再运行。\n");
-            sink.finished(false);
+            sink.finished();
             ui.post(new Runnable() {
                 public void run() { status.setText("命令未执行：未获取到 Root"); }
             });
             return;
         }
         int times = batch ? 1 : targets.size();
-        final Pattern btnP = CmdOutputActivity.BTN;
-        sink.setRunningRoot(cmd.optRoot());   // 让「停止」按钮按正确方式终止命令
+        sink.setRunningRoot(cmd.optRoot());   // 进入「执行中」状态（显示「停止」按钮、禁用命令按钮）
         for (int i = 0; i < times; i++) {
-            final String script = expandCmd(cmd.body(), targets.get(i), cwd, targets,
+            final String body = expandCmd(cmd.body(), targets.get(i), cwd, targets,
                     cmd.optRoot(), true, mapper);
-            if (cmd.optPrintOrig()) sink.append("$ " + script + "\n");
+            // 主命令也注入 MYFM_*（与脚本一致）：$MYFM_F/D/N/P 直接可读，无需写 % 占位符。
+            final String script = myfmEnvPrefix + body;
+            if (cmd.optPrintOrig() && sink.isDebug()) sink.append("$ " + script + "\n");
             Fs.ExecResult r;
             if (cmd.optRoot()) {
                 r = streamer.stream(script, timeout, new Fs.LineSink() {
-                    public void line(String line) {
-                        // [btn:标签]命令：动态生成按钮，不进正文
-                        Matcher m = btnP.matcher(line);
-                        if (m.find() && m.start() == 0
-                                && m.group(1).trim().length() > 0
-                                && m.group(2).trim().length() > 0) {
-                            sink.addButton(m.group(1).trim(), m.group(2).trim());
-                            return;
-                        }
-                        sink.append(line + "\n");
-                    }
+                    public void line(String line) { handleLine(line, sink); }
                 });
             } else {
                 r = Fs.shellStream(script, false, timeout, new Fs.LineSink() {
-                    public void line(String line) {
-                        Matcher m = btnP.matcher(line);
-                        if (m.find() && m.start() == 0
-                                && m.group(1).trim().length() > 0
-                                && m.group(2).trim().length() > 0) {
-                            sink.addButton(m.group(1).trim(), m.group(2).trim());
-                            return;
-                        }
-                        sink.append(line + "\n");
-                    }
+                    public void line(String line) { handleLine(line, sink); }
                 });
             }
-            if (!r.ok()) allOk[0] = false;
             if (r.err != null && r.err.trim().length() > 0) {
                 sink.append("[stderr] " + r.err.trim() + "\n");
             }
             if (!r.ok()) sink.append("[退出码 " + r.code + "]\n");
             sink.append("\n");
         }
-        sink.finished(cmd.optAutoClose() && allOk[0]);
+        sink.finished();
         ui.post(new Runnable() {
             public void run() { status.setText("命令执行完毕：" + cmd.name); }
         });
+    }
+
+    /** 处理流式输出的一行：识别控制行并路由。自定义命令与脚本共用，保证两者行为一致。
+     *  统一前缀 [mycmd: 快速判断：非控制行直接进正文，避免逐行跑多次正则，效率更高。
+     *  · `[mycmd:btn:按钮名称]命令`：动态生成按钮，不进正文；
+     *  · `[mycmd:btn:按钮名称:0]`：`]` 后为空，删除同名按钮，不进正文；
+     *  · `[mycmd:log]<路径>`：启动该公共目录文件的增量日志轮询（本进程直读，不走 Root），不进正文；
+     *  · `[mycmd:title:标题文本]`：动态改变输出窗口顶栏标题，不进正文；
+     *  · `[mycmd:exit]`：标记命令已结束（窗口不自动关闭，此后可常规关闭）；
+     *  · 其余：原样追加到正文。 */
+    private void handleLine(String line, CmdSink sink) {
+        if (!line.trim().startsWith(CmdOutputActivity.TAG)) {
+            sink.append(line + "\n"); return;
+        }
+        Matcher dbgm = CmdOutputActivity.DEBUG.matcher(line);
+        if (dbgm.find() && dbgm.start() == 0) {
+            sink.setDebug("1".equals(dbgm.group(1)));   // [mycmd:debug:1] 开，[mycmd:debug:0] 关
+            return;
+        }
+        Matcher dm = CmdOutputActivity.BTN_DEL.matcher(line);
+        if (dm.find() && dm.start() == 0) {
+            String l = dm.group(1).trim();
+            if (!l.isEmpty()) sink.removeButton(l);
+            return;
+        }
+        Matcher m = CmdOutputActivity.BTN.matcher(line);
+        if (m.find() && m.start() == 0
+                && m.group(1).trim().length() > 0
+                && m.group(2).trim().length() > 0) {
+            String l = m.group(1).trim();
+            String c = m.group(2).trim();
+            // 按钮在独立进程执行，拿不到主命令 shell 的变量：把 MYFM_* 的 export 前缀
+            // 直接嵌进按钮命令串，按钮里 $MYFM_N/$MYFM_P 等即可读取当前文件/目录。
+            if (myfmEnvPrefix.length() > 0 && !c.contains("MYFM_F="))
+                c = myfmEnvPrefix + c;
+            sink.addButton(l, c);
+            return;
+        }
+        Matcher lm = CmdOutputActivity.LOG.matcher(line);
+        if (lm.find() && lm.start() == 0) {
+            String p = lm.group(1).trim();
+            if (!p.isEmpty()) sink.startLog(p);
+            return;
+        }
+        Matcher tm = CmdOutputActivity.TITLE.matcher(line);
+        if (tm.find() && tm.start() == 0) {
+            String t = tm.group(1).trim();
+            if (t.endsWith("]")) t = t.substring(0, t.length() - 1).trim();   // 兼容末尾可选 ]
+            if (!t.isEmpty()) sink.setTitle(t);
+            return;
+        }
+        Matcher em = CmdOutputActivity.EXIT.matcher(line);
+        if (em.find() && em.start() == 0) {
+            sink.exit();
+            return;
+        }
+        sink.append(line + "\n");
     }
 
     /** 用自定义 Dialog（固定尺寸）执行命令：有 #options:// size:宽x高 时替代全屏结果窗口。 */
@@ -1996,8 +3377,8 @@ public class MainActivity extends Activity {
         top.setGravity(Gravity.CENTER_VERTICAL);
         top.setPadding(Util.dp(this, 8), Util.dp(this, 4), Util.dp(this, 4), Util.dp(this, 4));
         top.setBackgroundColor(Color.WHITE);
-        TextView title = new TextView(this);
-        title.setText("执行结果 · " + cmd.name);
+        final TextView title = new TextView(this);
+        title.setText(cmd.name);
         title.setTextSize(Ui.sp(1, 13, 14, 16));
         title.setTextColor(Ui.TEXT);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -2040,7 +3421,7 @@ public class MainActivity extends Activity {
         actScroll.setVisibility(View.GONE);
         final LinearLayout actRow = new LinearLayout(this);
         actRow.setOrientation(LinearLayout.HORIZONTAL);
-        actRow.setGravity(Gravity.CENTER_VERTICAL);
+        actRow.setGravity(Gravity.CENTER);   // 按钮在行内水平居中（与全屏结果窗口一致）
         actRow.setPadding(Util.dp(this, 4), 0, Util.dp(this, 4), 0);
         actScroll.addView(actRow, new HorizontalScrollView.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -2053,7 +3434,15 @@ public class MainActivity extends Activity {
         dlg.getWindow().setLayout(wPx, hPx);
 
         // 输出接收器：把流式输出推到 Dialog 的 TextView
+        final java.util.ArrayList<Thread> dlgPollers = new java.util.ArrayList<Thread>();
+        // 同一日志文件只起一个轮询（脚本重复输出 [mycmd:log] 时避免叠加）
+        final java.util.HashSet<String> dlgLogPaths = new java.util.HashSet<String>();
+        // holder 用于在 addButton 的 onClick 里把「同一个 sink」传给 runDialogAction，
+        // 避免匿名类初始化时自引用自身变量导致 "might not have been initialized"。
+        final CmdSink[] sinkHolder = new CmdSink[1];
         final CmdSink sink = new CmdSink() {
+            boolean debug = false;     // 详细模式开关：默认 false（精简，隐藏装饰性提示符，结束只显示 ←END）
+            boolean exited = false;    // 是否已收到 [mycmd:exit]（用于避免结束标记重复）
             public void append(String s) {
                 uiH.post(new Runnable() { public void run() {
                     if (!dlg.isShowing()) return;
@@ -2067,15 +3456,72 @@ public class MainActivity extends Activity {
                     if (!dlg.isShowing()) return;
                     if (actRow.getChildCount() == 0) actScroll.setVisibility(View.VISIBLE);
                     Button b = Ui.solid(MainActivity.this, label, 1);
+                    b.setTag(label);   // 供 [mycmd:btn:名称:0] 删除时按标签定位
                     b.setOnClickListener(new View.OnClickListener() {
-                        public void onClick(View v) { runDialogAction(dlg, session, body, tv, sv, label, c); }
+                        public void onClick(View v) { runDialogAction(dlg, session, body, tv, sv, sinkHolder[0], label, c); }
                     });
                     actRow.addView(b);
                 }});
             }
+            public void removeButton(final String label) {
+                uiH.post(new Runnable() { public void run() {
+                    if (!dlg.isShowing()) return;
+                    for (int i = actRow.getChildCount() - 1; i >= 0; i--) {
+                        if (label.equals(actRow.getChildAt(i).getTag())) actRow.removeViewAt(i);
+                    }
+                    if (actRow.getChildCount() == 0) actScroll.setVisibility(View.GONE);
+                }});
+            }
             public void setRunningRoot(boolean r) {}
-            public void finished(boolean ac) {}
+            public void setDebug(boolean d) { debug = d; }
+            public boolean isDebug() { return debug; }
+            public void finished() {
+                // 自然结束（未收到 [mycmd:exit]）也补上结束标记：详细模式显示横幅，精简模式只显示空行 + ←END
+                uiH.post(new Runnable() { public void run() {
+                    if (!dlg.isShowing() || exited) return;
+                    if (debug) body.append("\n── 命令已结束 ──\n");
+                    else body.append("\n←END\n");
+                    tv.setText(body.toString());
+                }});
+            }
+            public void setTitle(final String t) {
+                uiH.post(new Runnable() { public void run() {
+                    if (!dlg.isShowing()) return;
+                    title.setText(t);
+                }});
+            }
+            public void exit() {
+                // [mycmd:exit] 仅标记命令结束：不自动关闭对话框（X /「确定」仍可随时关闭）
+                exited = true;
+                uiH.post(new Runnable() { public void run() {
+                    if (!dlg.isShowing()) return;
+                    if (debug) body.append("\n── 命令已结束 [mycmd:exit] ──\n");
+                    else body.append("\n←END\n");
+                    tv.setText(body.toString());
+                }});
+            }
+            public void startLog(final String p) {
+                synchronized (dlgLogPaths) {
+                    if (!dlgLogPaths.add(p)) return;   // 同一日志只轮询一次
+                }
+                uiH.post(new Runnable() { public void run() {
+                    if (!dlg.isShowing()) return;
+                    if (debug) body.append("\n── 日志文件：" + p + " ──\n");
+                    tv.setText(body.toString());
+                }});
+                // 日志增量按整行解析：写进日志文件里的 [mycmd:exit]/[mycmd:btn:]/[mycmd:log] 同样生效
+                Thread t = CmdOutputActivity.startLogFilePoll(p, new CmdOutputActivity.LogLine() {
+                    public void line(final String line) {
+                        uiH.post(new Runnable() { public void run() {
+                            if (!dlg.isShowing()) return;
+                            handleLine(line, sinkHolder[0]);
+                        }});
+                    }
+                });
+                dlgPollers.add(t);
+            }
         };
+        sinkHolder[0] = sink;
         // 流执行器：复用 Dialog 自己的 Root 会话
         final CmdStreamer streamer = new CmdStreamer() {
             public boolean openRoot(long t) { return session != null && session.open(t); }
@@ -2091,9 +3537,6 @@ public class MainActivity extends Activity {
             public String mapRootPath(String p) {
                 return session != null ? session.rootPath(p) : Fs.rootPath(p);
             }
-            public void stopRoot() {
-                if (session != null) session.kill(); else Fs.killCurrentShell();
-            }
         };
         final RootPathMapper mapper = new RootPathMapper() {
             public String map(String p) {
@@ -2104,12 +3547,27 @@ public class MainActivity extends Activity {
         // 关闭（X / 确定）：先停止命令，再关闭对话框
         View.OnClickListener close = new View.OnClickListener() {
             public void onClick(View v) {
-                if (session != null) session.kill(); else Fs.killCurrentShell();
+                // 会话清理放子线程：命令仍在执行时会持有会话锁，不能在 UI 线程等待（会卡死）。
+                if (session != null) {
+                    final Fs.OutputSession os = session;
+                    new Thread(new Runnable() {
+                        public void run() { os.kill(); }
+                    }, "dialog-session-kill").start();
+                } else {
+                    Fs.killCurrentShell();
+                }
                 dlg.dismiss();
             }
         };
         closeX.setOnClickListener(close);
         ok.setOnClickListener(close);
+        // 对话框关闭（X / 确定）时中断日志文件轮询线程，避免泄漏
+        dlg.setOnDismissListener(new android.content.DialogInterface.OnDismissListener() {
+            public void onDismiss(android.content.DialogInterface di) {
+                for (Thread t : dlgPollers) { try { t.interrupt(); } catch (Exception ignored) {} }
+                dlgPollers.clear();
+            }
+        });
 
         dlg.show();
         // 子线程执行，输出实时推回主线程的 TextView
@@ -2120,30 +3578,33 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    /** Dialog 内 [btn:标签] 命令按钮：后台执行后把结果追加到同一 Dialog。 */
+    /** Dialog 内 [mycmd:btn:按钮名称] 命令按钮：后台执行后把结果追加到同一 Dialog。 */
     private void runDialogAction(final Dialog dlg, final Fs.OutputSession session,
                                  final StringBuilder body, final TextView tv, final ScrollView sv,
-                                 String label, String command) {
+                                 final CmdSink sink, String label, String command) {
         final String cmd = command;
         toast("运行：" + label);
         new Thread(new Runnable() {
             public void run() {
                 final boolean asRoot = session != null && session.isOpen();
-                final Fs.ExecResult r = asRoot ? session.shell(cmd)
+                // Root 情形下走 su --mount-master -c，保证与后台任务同一挂载命名空间（[mycmd:btn:stop] 等）。
+                final Fs.ExecResult r = asRoot ? Fs.shellMountMaster(cmd)
                         : Fs.shell(cmd, Fs.rootSessionAlive());
-                final StringBuilder sb = new StringBuilder();
-                sb.append("\n\n── ").append(label).append(asRoot ? "（Root）" : "").append(" ──\n");
-                sb.append("$ ").append(cmd).append('\n');
-                if (r.out != null && r.out.length() > 0) {
-                    sb.append(r.out);
-                    if (!r.out.endsWith("\n")) sb.append('\n');
-                }
-                if (r.err != null && r.err.trim().length() > 0)
-                    sb.append("[stderr] ").append(r.err.trim()).append('\n');
-                if (!r.ok()) sb.append("[退出码 ").append(r.code).append("]\n");
                 ui.post(new Runnable() { public void run() {
                     if (!dlg.isShowing()) return;
-                    body.append(sb);
+                    // 精简模式（默认）不显示「按钮动作 / 运行的命令」提示符，详细模式（[mycmd:debug:1]）才显示
+                    if (sink.isDebug()) {
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("\n\n── ").append(label).append(asRoot ? "（Root）" : "").append(" ──\n");
+                        sb.append("$ ").append(cmd).append('\n');
+                        body.append(sb);
+                    }
+                    // 按钮命令输出逐行按控制行规则解析（[mycmd:log] 轮询 / [mycmd:exit] 标记结束 / 其余进正文），与主命令一致
+                    if (r.out != null && r.out.length() > 0) {
+                        for (String ln : r.out.split("\n")) handleLine(ln, sink);
+                    }
+                    if (r.err != null && r.err.trim().length() > 0) sink.append("[stderr] " + r.err.trim() + "\n");
+                    if (!r.ok()) sink.append("[退出码 " + r.code + "]\n");
                     tv.setText(body.toString());
                     sv.post(new Runnable() { public void run() { sv.fullScroll(View.FOCUS_DOWN); } });
                 }});
@@ -2216,14 +3677,17 @@ public class MainActivity extends Activity {
 
         if (rule != null && rule.pkg != null && rule.pkg.length() > 0) {
             in.setPackage(rule.pkg);
+            if (rule.cls != null && rule.cls.length() > 0) in.setClassName(rule.pkg, rule.cls);
             try { startActivity(in); return; }
-            catch (Exception ex) { in.setPackage(null); }   // 指定应用不存在则回退系统选择器
+            catch (Exception ex) { in.setComponent(null); }   // 指定应用/Activity 不存在则回退系统选择器
         }
-        // 直接发起 VIEW：系统里已有该类型的默认应用就直接打开；没有默认才弹
-        // 系统选择器，且系统选择器带「始终 / 仅此一次」，可设置默认应用。
-        // 不能用 Intent.createChooser()——它发起的对话框被 Android 明确禁止设置
-        // 默认（只有「仅此一次」），每次都会弹，这正是之前「所有文件都要选打开
-        // 方式」的原因。底部「打开」按钮保持 chooser 行为不变（临时换应用用）。
+        // 有具体 MIME：直接发起 VIEW，系统里已有该类型的默认应用就直接用（记住默认）。
+        // 通用 MIME（未知格式/无后缀，系统按 octet-stream 一类处理）：用自定义选择器，
+        // 选「始终」时把 扩展名→应用 写成打开规则（按扩展名记忆，不串台），下次直接打开。
+        if (isGenericMime(mime)) {
+            showOpenAppPicker(it, mime, ext, in);
+            return;
+        }
         try {
             startActivity(in);
         } catch (Exception ex) {
@@ -2234,6 +3698,154 @@ public class MainActivity extends Activity {
                 toast("没有可打开此文件的应用");
             }
         }
+    }
+
+    /** 是否是无区分度的通用 MIME：这类格式若让系统记住默认，会导致不同格式共用一个默认应用。 */
+    private static boolean isGenericMime(String mime) {
+        if (mime == null) return true;
+        String m = mime.toLowerCase().trim();
+        return m.isEmpty() || "*/*".equals(m)
+                || "application/octet-stream".equals(m)
+                || "binary/octet-stream".equals(m)
+                || "application/unknown".equals(m);
+    }
+
+    /** 通用 MIME 文件的自定义打开选择器：列表形式（图标在左、名称在右）+ 底部「记住此选择」复选框。
+     *  点应用直接用它打开；若勾选复选框，则把 扩展名→应用 写成打开规则（按扩展名记忆、不串台），
+     *  下次不再弹。无后缀时复选框禁用。 */
+    private void showOpenAppPicker(final FileItem it, final String mime, final String ext, final Intent base) {
+        final PackageManager pm = getPackageManager();
+        Intent probe = new Intent(Intent.ACTION_VIEW);
+        probe.setDataAndType(uriForPath(it.path), mime);
+        List<ResolveInfo> found = pm.queryIntentActivities(probe, 0);
+
+        final String selfPkg = getPackageName();
+        // 本应用不再混进候选列表；单独记下自己的组件，供「直接打开」按钮调用
+        final ArrayList<ResolveInfo> cands = new ArrayList<ResolveInfo>();
+        ResolveInfo selfRi = null;
+        if (found != null) {
+            for (ResolveInfo ri : found) {
+                if (ri.activityInfo == null) continue;
+                if (selfPkg.equals(ri.activityInfo.packageName)) {
+                    if (selfRi == null) selfRi = ri;
+                } else {
+                    cands.add(ri);
+                }
+            }
+        }
+        final String selfCls = selfRi != null ? selfRi.activityInfo.name : null;
+        if (cands.isEmpty() && selfCls == null) { toast("没有可打开此文件的应用"); return; }
+
+        final boolean canRemember = ext != null && ext.length() > 0;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+
+        ListView list = null;
+        CheckBox defCb = null;
+        if (!cands.isEmpty()) {
+            list = new ListView(this);
+            list.setAdapter(new AppPickerAdapter(pm, cands));
+            list.setDividerHeight(0);
+            box.addView(list, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, Util.dp(this, 320)));
+
+            defCb = new CheckBox(this);
+            defCb.setText(canRemember ? "始终用所选应用打开 ." + ext + " 文件，不再提示"
+                                      : "（此文件无扩展名，无法记住默认应用）");
+            defCb.setEnabled(canRemember);
+            defCb.setTextColor(canRemember ? Ui.TEXT : Ui.SUB);
+            defCb.setTextSize(Ui.sp(textLv, 11, 12, 13));
+            int pad = Util.dp(this, 12);
+            defCb.setPadding(pad, Util.dp(this, 6), pad, Util.dp(this, 2));
+            box.addView(defCb);
+        }
+        final ListView fList = list;
+        final CheckBox fDefCb = defCb;
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle("用以下方式打开 " + it.name)
+                .setView(box).setPositiveButton("取消", null);
+        if (selfCls != null) {
+            // 「直接打开」放左边（negative 在左）：用本应用自己的组件打开（带 EXTRA_SELF_INVOKED，走内置定位/查看）
+            builder.setNegativeButton("直接打开", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int which) {
+                    launchPicked(base, selfPkg, selfCls);
+                }
+            });
+        }
+        final AlertDialog dlg = builder.create();
+        if (fList != null) {
+            fList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                public void onItemClick(AdapterView<?> parent, View v, int pos, long id) {
+                    ResolveInfo ri = cands.get(pos);
+                    String pkg = ri.activityInfo.packageName;
+                    String cls = ri.activityInfo.name;
+                    if (fDefCb.isChecked() && canRemember) rememberOpenRule(ext, pkg, cls);
+                    launchPicked(base, pkg, cls);
+                    dlg.dismiss();
+                }
+            });
+        }
+        dlg.show();
+    }
+
+    /** 打开选择器列表项：图标在左、名称在右。 */
+    private class AppPickerAdapter extends BaseAdapter {
+        private final PackageManager pm;
+        private final List<ResolveInfo> items;
+        AppPickerAdapter(PackageManager pm, List<ResolveInfo> items) {
+            this.pm = pm; this.items = items;
+        }
+        public int getCount() { return items.size(); }
+        public Object getItem(int i) { return items.get(i); }
+        public long getItemId(int i) { return i; }
+        public View getView(int pos, View cv, ViewGroup parent) {
+            LinearLayout row = new LinearLayout(MainActivity.this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            int pad = Util.dp(MainActivity.this, 8);
+            row.setPadding(pad, Util.dp(MainActivity.this, 6), pad, Util.dp(MainActivity.this, 6));
+            int sz = Util.dp(MainActivity.this, 28);
+            ImageView iv = new ImageView(MainActivity.this);
+            iv.setLayoutParams(new LinearLayout.LayoutParams(sz, sz));
+            iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            iv.setImageDrawable(items.get(pos).loadIcon(pm));
+            row.addView(iv);
+            TextView tv = new TextView(MainActivity.this);
+            CharSequence lab = items.get(pos).loadLabel(pm);
+            tv.setText(lab == null ? items.get(pos).activityInfo.packageName : lab.toString());
+            tv.setTextColor(Ui.TEXT);
+            tv.setTextSize(Ui.sp(textLv, 12, 13, 14));
+            tv.setSingleLine(true);
+            tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            tv.setLayoutParams(new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            tv.setPadding(Util.dp(MainActivity.this, 10), 0, 0, 0);
+            row.addView(tv);
+            return row;
+        }
+    }
+
+    /** 按用户所选应用直接启动（指定 component，绕过系统默认）。 */
+    private void launchPicked(Intent base, String pkg, String cls) {
+        Intent in = new Intent(base);
+        in.setComponent(new android.content.ComponentName(pkg, cls));
+        in.putExtra(EXTRA_SELF_INVOKED, true);
+        try { startActivity(in); }
+        catch (Exception ex) { toast("打开失败：" + ex.getMessage()); }
+    }
+
+    /** 把「扩展名 → 应用」写成打开规则（后添加优先，覆盖同扩展名的旧规则）。 */
+    private void rememberOpenRule(String ext, String pkg, String cls) {
+        ArrayList<Prefs.OpenRule> rules = Prefs.openRules(this);
+        ArrayList<Prefs.OpenRule> kept = new ArrayList<Prefs.OpenRule>();
+        String e = Prefs.normalizeExts(ext);
+        for (Prefs.OpenRule r : rules) {
+            if (!Prefs.extList(r.ext).contains(e)) kept.add(r);
+        }
+        kept.add(new Prefs.OpenRule(e, "*/*", pkg, cls));
+        Prefs.setOpenRules(this, kept);
+        toast("已记住：." + e + " 用该应用打开（可在设置中修改）");
     }
 
     /** 构造 content:// 文件 URI（系统「打开方式」用）。 */
@@ -2247,7 +3859,7 @@ public class MainActivity extends Activity {
         if (mime != null && mime.toLowerCase().startsWith("image/")) return true;
         if (ext != null) {
             ext = ext.toLowerCase();
-            for (String e : new String[]{"jpg","jpeg","png","gif","bmp","webp","heic","heif","tiff","tif","avif"}) {
+            for (String e : new String[]{"jpg","jpeg","png","gif","bmp","webp","heic","heif","tiff","tif","avif","svg","svgz"}) {
                 if (e.equals(ext)) return true;
             }
         }
@@ -2269,10 +3881,10 @@ public class MainActivity extends Activity {
         List<String> s = selection();
         if (s.isEmpty()) { toast("请先长按选中要打开的文件"); return; }
         final String p = s.get(0);
-        File f = new File(p);
-        if (f.isDirectory()) { toast("文件夹请直接点击进入，不能用应用打开"); return; }
-        if (!f.exists()) { toast("文件不存在：" + p); return; }
-        final FileItem it = new FileItem(f.getName(), p, false, f.length(), f.lastModified());
+        // Root 文件只有 su -mm 命名空间可见：用 Fs.exists / isDirectory 判定，避免普通 File 误报不存在
+        if (isDirectory(p)) { toast("文件夹请直接点击进入，不能用应用打开"); return; }
+        if (!Fs.exists(p)) { toast("文件不存在：" + p); return; }
+        final FileItem it = new FileItem(new File(p).getName(), p, false, new File(p).length(), 0L);
         if (Util.ext(it.name).equals("apk") && !canRequestPackageInstalls()) {
             toast("请先允许本应用「安装未知应用」，开启后重新点击 APK");
             try {
@@ -2317,91 +3929,37 @@ public class MainActivity extends Activity {
         }
         int added = 0;
         for (String p : s) if (Prefs.addFavorite(this, p)) added++;
-        toast(added > 0 ? ("已收藏 " + added + " 项，点顶部「★ 收藏夹」查看") : "选中项已全部在收藏夹中");
+        toast(added > 0 ? ("已收藏 " + added + " 项，可在左侧抽屉「收藏书签」查看") : "选中项已全部在收藏夹中");
     }
 
-    /** 顶部「★ 收藏夹」：列出收藏、点击打开，并提供管理与「收藏当前目录」。 */
-    private void showFavorites() {
-        final ArrayList<String> favs = Prefs.favorites(this);
-        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle("收藏夹（" + favs.size() + " 项）");
-        if (favs.isEmpty()) {
-            b.setMessage("还没有收藏。\n长按选中文件/文件夹后点底部「收藏」，或点下方按钮收藏当前目录。");
-        } else {
-            // 收藏项直接显示完整路径 /path/name，不再叠加类型、名称与分隔符
-            final CharSequence[] labels = new CharSequence[favs.size()];
-            for (int i = 0; i < favs.size(); i++) labels[i] = favs.get(i);
-            b.setItems(labels, new DialogInterface.OnClickListener() {
-                public void onClick(DialogInterface d, int w) { openFavorite(favs.get(w)); }
-            });
+    /** 底部「分享」：把选中项通过系统分享对话框发出去（单文件 ACTION_SEND，多个 ACTION_SEND_MULTIPLE）。 */
+    private void shareSelection() {
+        List<String> s = selection();
+        if (s.isEmpty()) { toast("请先长按选中要分享的文件"); return; }
+        ArrayList<Uri> uris = new ArrayList<Uri>();
+        for (String p : s) {
+            // Root 文件只有 su -mm 命名空间可见，用 Fs.exists 判定（内部会按 rootMode 走 su）
+            if (!Fs.exists(p)) continue;
+            uris.add(uriForPath(p));
         }
-        b.setNeutralButton("＋ 收藏当前目录", new DialogInterface.OnClickListener() {
-            public void onClick(DialogInterface d, int w) {
-                boolean added = Prefs.addFavorite(MainActivity.this, cur().path);
-                toast(added ? ("已收藏当前目录：" + labelOf(cur().path)) : "当前目录已在收藏夹中");
+        if (uris.isEmpty()) { toast("选中的文件不存在"); return; }
+        try {
+            Intent it;
+            if (uris.size() == 1) {
+                it = new Intent(Intent.ACTION_SEND);
+                it.setType("*/*");
+                it.putExtra(Intent.EXTRA_STREAM, uris.get(0));
+            } else {
+                it = new Intent(Intent.ACTION_SEND_MULTIPLE);
+                it.setType("*/*");
+                it.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
             }
-        });
-        // 对话框按钮从左到右为 Neutral / Negative / Positive：
-        // 把「管理」放中间、「关闭」放最右，实现两者位置互换
-        if (!favs.isEmpty()) {
-            b.setNegativeButton("管理", new DialogInterface.OnClickListener() {
-                public void onClick(DialogInterface d, int w) { manageFavorites(); }
-            });
+            it.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(it, "分享到"));
+        } catch (Throwable e) {
+            Dbg.log("ACTION", "分享失败", e);
+            toast("分享失败：" + e.getMessage());
         }
-        b.setPositiveButton("关闭", null).show();
-    }
-
-    /** 管理收藏：点击某项确认后移除。 */
-    private void manageFavorites() {
-        final ArrayList<String> favs = Prefs.favorites(this);
-        if (favs.isEmpty()) { toast("收藏夹为空"); return; }
-        final CharSequence[] labels = new CharSequence[favs.size()];
-        for (int i = 0; i < favs.size(); i++) labels[i] = favs.get(i);
-        new AlertDialog.Builder(this)
-                .setTitle("管理收藏（点击移除）")
-                .setItems(labels, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, final int w) {
-                        final String target = favs.get(w);
-                        new AlertDialog.Builder(MainActivity.this)
-                                .setTitle("移除收藏")
-                                .setMessage("确定从收藏夹移除？\n\n" + target)
-                                .setNegativeButton("取消", null)
-                                .setPositiveButton("移除", new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dd, int ww) {
-                                        Prefs.removeFavorite(MainActivity.this, target);
-                                        toast("已移除收藏");
-                                    }
-                                }).show();
-                    }
-                })
-                .setNegativeButton("关闭", null)
-                .show();
-    }
-
-    /** 打开一个收藏项：目录则跳转，文件则交给 openFile。 */
-    private void openFavorite(String path) {
-        if (path == null || path.length() == 0) return;
-        // 规范化：统一去掉末尾斜杠，避免「有无 /」导致存在判定不一致。
-        final String norm = path.replaceAll("/+$", "");
-        // 存在性探测（含 Root su 往返）与 stat 都放后台，避免在主线程阻塞 UI；
-        // 结果回主线程后再导航/打开。
-        io.execute(new Runnable() {
-            public void run() {
-                final boolean exists = new File(norm).exists()
-                        || new File(norm + "/").exists() || Fs.exists(norm);
-                final File f = new File(norm);
-                final boolean isDir = Fs.rootMode || f.isDirectory();
-                final FileItem fi = isDir ? null
-                        : new FileItem(f.getName(), norm, false, f.length(), f.lastModified());
-                ui.post(new Runnable() {
-                    public void run() {
-                        if (isFinishing()) return;
-                        if (!exists) { toast("收藏项已不存在：\n" + norm); return; }
-                        if (isDir) gotoPath(norm);
-                        else openFile(fi);
-                    }
-                });
-            }
-        });
     }
 
     private void showInfo() {
@@ -2940,7 +4498,7 @@ public class MainActivity extends Activity {
 
         TextView title = new TextView(this);
         if (multi) title.setText("以下权限与所有者将应用到全部 " + items.size() + " 个选中项");
-        else title.setText("设置所有者（用户 / 用户组）与读 / 写 / 执行权限");
+        else title.setText("设置所有者（用户 / 用户组）与 R / W / X 权限");
         title.setTextSize(Ui.sp(textLv, 12, 13, 15));
         title.setTextColor(Ui.SUB);
         box.addView(title);
@@ -2951,9 +4509,14 @@ public class MainActivity extends Activity {
 
         // 矩阵：读 / 写 / 执行 三列
         box.addView(permHeader());
-        box.addView(permRow("用户", true, ui, m, 0));
-        box.addView(permRow("用户组", true, ui, m, 1));
-        box.addView(permRow("其他", false, ui, m, 2));
+        box.addView(permRow("用户", true, ui, m, 0, null));
+        box.addView(permRow("用户组", true, ui, m, 1, null));
+        // 「其他」行右侧（与上面两个 uid 下拉框同一列）放 Auto 按钮：
+        // 点击后读取选中项所在父文件夹的所有者 / 用户组，自动选中上面两个下拉框。
+        View.OnClickListener autoOwner = new View.OnClickListener() {
+            public void onClick(View v) { autoSelectParentOwner(items, ui); }
+        };
+        box.addView(permRow("其他", false, ui, m, 2, autoOwner));
 
         // 特殊权限
         TextView st = new TextView(this);
@@ -3019,13 +4582,16 @@ public class MainActivity extends Activity {
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, Util.dp(this, 2), 0, Util.dp(this, 2));
         row.addView(new View(this), new LinearLayout.LayoutParams(labW, ViewGroup.LayoutParams.WRAP_CONTENT));
-        for (String s : new String[]{"读", "写", "执行"}) {
+        final int permColW = Util.dp(this, 44);
+        for (String s : new String[]{"R", "W", "X"}) {
             TextView t = new TextView(this);
             t.setText(s);
             t.setTextSize(Ui.sp(textLv, 12, 13, 15));
             t.setTextColor(Ui.PRIMARY);
             t.setGravity(Gravity.CENTER);
-            row.addView(t, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+            LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(permColW, ViewGroup.LayoutParams.WRAP_CONTENT);
+            hp.gravity = Gravity.CENTER;
+            row.addView(t, hp);
         }
         // 右侧占位与 spinner 同宽（占剩余空间），保证列对齐
         row.addView(new View(this), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
@@ -3054,8 +4620,10 @@ public class MainActivity extends Activity {
         };
     }
 
-    /** 矩阵中的一行：左身份标签 + 读/写/执行三个无文字复选框（自然宽度居中）+ 右侧可选 uid 选择（占剩余空间）。 */
-    private View permRow(String label, boolean hasSpinner, PermUI ui, int mode, int role) {
+    /** 矩阵中的一行：左身份标签 + 读/写/执行三个无文字复选框（自然宽度居中）+ 右侧可选 uid 选择（占剩余空间）。
+     *  「其他」行（hasSpinner=false）传入 autoClick 时，右侧改放一个「Auto」按钮，与上面两个下拉框同一列、右对齐。 */
+    private View permRow(String label, boolean hasSpinner, PermUI ui, int mode, int role,
+                         View.OnClickListener autoClick) {
         final int labW = Util.dp(this, 64);
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -3072,12 +4640,11 @@ public class MainActivity extends Activity {
         CheckBox r = mkBox((mode & (04 << shift)) != 0, row);
         CheckBox w = mkBox((mode & (02 << shift)) != 0, row);
         CheckBox x = mkBox((mode & (01 << shift)) != 0, row);
-        // 复选框保持自然宽度，居中显示，不被长文本挤压
+        // 三个复选框各占固定窄列（与表头的 R/W/X 三列对齐），居中显示、列间不留大间隙
+        final int permColW = Util.dp(this, 44);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                permColW, ViewGroup.LayoutParams.WRAP_CONTENT);
         cp.gravity = Gravity.CENTER;
-        cp.leftMargin = Util.dp(this, 8);
-        cp.rightMargin = Util.dp(this, 8);
         r.setLayoutParams(cp); w.setLayoutParams(cp); x.setLayoutParams(cp);
         if (role == 0) { ui.uR = r; ui.uW = w; ui.uX = x; }
         else if (role == 1) { ui.gR = r; ui.gW = w; ui.gX = x; }
@@ -3092,6 +4659,15 @@ public class MainActivity extends Activity {
             // 占剩余宽度，文本过长由适配器省略号截断，不再挤压复选框
             row.addView(sp, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
             if (role == 0) ui.ownerSpin = sp; else ui.groupSpin = sp;
+        } else if (autoClick != null) {
+            // 「其他」行右侧：Auto 按钮，右对齐，与上面两个 uid 下拉框同一列
+            LinearLayout wrap = new LinearLayout(this);
+            wrap.setOrientation(LinearLayout.HORIZONTAL);
+            wrap.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+            Button auto = Ui.solid(this, "Auto", 1);
+            auto.setOnClickListener(autoClick);
+            wrap.addView(auto);
+            row.addView(wrap, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         } else {
             row.addView(new View(this), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         }
@@ -3102,6 +4678,8 @@ public class MainActivity extends Activity {
         CheckBox cb = new CheckBox(this);
         cb.setChecked(c);
         cb.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.PRIMARY));
+        // 去掉复选框默认左右内边距（按钮-文字间隙），让三列更紧凑、与 R/W/X 对齐
+        cb.setPadding(0, 0, 0, 0);
         parent.addView(cb);
         return cb;
     }
@@ -3133,6 +4711,61 @@ public class MainActivity extends Activity {
         ArrayAdapter<UidEntry> a = (ArrayAdapter<UidEntry>) sp.getAdapter();
         for (int i = 0; i < a.getCount(); i++)
             if (a.getItem(i).uid == uid) { sp.setSelection(i); return; }
+    }
+
+    /**
+     * 权限页「Auto」按钮：读取选中项所在父文件夹的所有者（用户 / 用户组），
+     * 自动让上面的「用户」「用户组」两个 uid 下拉框选中它们。
+     * stat 走 Fs.shell（Root 模式下会进全局挂载命名空间，可能较慢），放后台线程执行，
+     * 结果回主线程刷新下拉框，避免点击后卡界面。
+     */
+    private void autoSelectParentOwner(final List<Props> items, final PermUI perm) {
+        if (items == null || items.isEmpty() || perm == null) return;
+        // 多选时各项目父目录可能不同，统一取第一个的父文件夹（与「权限」页以 items.get(0) 为基准一致）。
+        final String parent = parentOf(items.get(0).path);
+        toast("读取父文件夹所有者…");
+        io.execute(new Runnable() {
+            public void run() {
+                // statProps 内部已按 Fs.rootMode 做路径映射（Fs.rootPath），与属性页读取方式一致。
+                final Props pr = statProps(parent);
+                final int ou = pr == null ? -1 : pr.ownerUid;
+                final int gg = pr == null ? -1 : pr.groupGid;
+                final String on = pr == null ? null : pr.ownerName;
+                final String gn = pr == null ? null : pr.groupName;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        if (ou < 0 && gg < 0) {
+                            toast("无法读取父文件夹所有者：" + parent);
+                            return;
+                        }
+                        boolean okU = ou >= 0 && selectUidOrAdd(perm.ownerSpin, perm.ownerList, ou, on);
+                        boolean okG = gg >= 0 && selectUidOrAdd(perm.groupSpin, perm.groupList, gg, gn);
+                        String u = okU ? (ou + (on != null ? "(" + on + ")" : "")) : "—";
+                        String g = okG ? (gg + (gn != null ? "(" + gn + ")" : "")) : "—";
+                        toast("已按父文件夹选中 → 用户 " + u + " / 用户组 " + g);
+                    }
+                });
+            }
+        });
+    }
+
+    /** 在 uid 下拉框里选中指定 uid；候选列表里没有该 uid 时补一条（按 uid 升序插入）再选中。
+     *  例如父文件夹所有者是某个已安装应用 uid 或 AID 之外的 gid，原列表未必包含。 */
+    private boolean selectUidOrAdd(Spinner sp, ArrayList<UidEntry> list, int uid, String name) {
+        if (sp == null || list == null || uid < 0) return false;
+        ArrayAdapter<UidEntry> a = (ArrayAdapter<UidEntry>) sp.getAdapter();
+        for (int i = 0; i < a.getCount(); i++)
+            if (a.getItem(i).uid == uid) { sp.setSelection(i); return true; }
+        // 未收录：用 stat 读到的名字（%U/%G 常为 UNKNOWN 或数字，此时 UidEntry 只显示 uid）
+        String nm = (name != null && !"UNKNOWN".equalsIgnoreCase(name.trim())
+                && !name.trim().equals(String.valueOf(uid))) ? name.trim() : null;
+        UidEntry add = new UidEntry(uid, nm);
+        int pos = 0;
+        while (pos < list.size() && list.get(pos).uid < uid) pos++;
+        list.add(pos, add);
+        a.notifyDataSetChanged();
+        sp.setSelection(pos);
+        return true;
     }
 
     private void updatePermVal(Props o, PermUI ui) {
@@ -3253,7 +4886,8 @@ public class MainActivity extends Activity {
             active = 0;
         }
         rebuildTabs();
-        applyTabLockUi();   // 恢复标签后同步锁定态（地址栏禁用变灰等）
+        ensureActiveTabVisible();   // 恢复的激活标签可能位于标签栏视野外
+        applyTabLockUi();   // 恢复标签后同步锁定态（地址栏/导航按钮可用性等）
         pathEdit.setText(cur().path);
         saveTabs();   // 立即写回一份规范化快照
     }
@@ -3292,16 +4926,47 @@ public class MainActivity extends Activity {
         rebuildTabs();
         if (select) {
             pathEdit.setText(cur().path);
-            // 新建标签后把标签条滚动到新标签，让「自动切换到新标签」可见
-            if (active >= 0 && active < tabViews.size()) {
-                final View v = tabViews.get(active);
-                tabScroll.post(new Runnable() {
-                    public void run() { tabScroll.smoothScrollTo(v.getLeft(), 0); }
-                });
-            }
+            // 新建标签后把激活标签滚入可视区域（含最左 / 最右边缘）
+            ensureActiveTabVisible();
             refresh();
         }
         saveTabs();   // select=false 时不触发刷新，这里仍需落盘
+    }
+
+    /**
+     * 把当前激活标签滚动到可视区域内：仅在标签左端或右端被裁掉时做最小滚动，
+     * 已完整可见则不动。用于新建 / 关闭 / 点击 / 左右滑动切换标签后，
+     * 避免最左或最右的激活标签被横向标签栏隐藏。
+     */
+    private void ensureActiveTabVisible() {
+        if (tabScroll == null || active < 0 || active >= tabViews.size()) return;
+        final View v = tabViews.get(active);
+        final int[] tries = {0};
+        final Runnable task = new Runnable() {
+            @Override public void run() {
+                int t = tabScrollTarget(v.getLeft(), v.getRight(),
+                        tabScroll.getWidth(), tabScroll.getScrollX());
+                if (t == -2) {                       // 冷启动 / rebuild 后布局未完成，下一帧再试
+                    if (tries[0]++ < 8) tabScroll.post(this);
+                    return;
+                }
+                if (t >= 0) {
+                    Dbg.log("TAB", "ensureActiveTabVisible 滚动标签栏 active=" + active
+                            + " -> scrollX=" + t);
+                    tabScroll.smoothScrollTo(t, 0);
+                }
+            }
+        };
+        tabScroll.post(task);
+    }
+
+    /** 纯计算：把 [left,right] 滚入 [scrollX, scrollX+viewW] 所需的最小 scrollX。
+     *  返回 -1 = 已完整可见无需滚动；-2 = 布局未完成（viewW<=0 或视图未测量）。 */
+    static int tabScrollTarget(int left, int right, int viewW, int scrollX) {
+        if (viewW <= 0 || right <= left) return -2;
+        if (left < scrollX) return Math.max(0, left);
+        if (right > scrollX + viewW) return Math.max(0, right - viewW);
+        return -1;
     }
 
     private void rebuildTabs() {
@@ -3313,19 +4978,23 @@ public class MainActivity extends Activity {
             // 锁定标签：文字固定为锁定根目录名，进入子文件夹也不变
             String label = (t.locked && t.lockRoot != null) ? labelOf(t.lockRoot) : labelOf(t.path);
 
+            final boolean isActive = (i == active);
             LinearLayout item = new LinearLayout(this);
             item.setOrientation(LinearLayout.VERTICAL);
-            item.setPadding(Util.dp(this, 8), Util.dp(this, 7), Util.dp(this, 4), Util.dp(this, 5));
-            // 当前选中 Tab 用浅灰底，未选中保持透明
-            item.setBackgroundColor(i == active ? Ui.PRIMARY_SOFT : Color.TRANSPARENT);   // 与文件列表选中高亮同一灰色
+            // 标签最小宽度：防止名称很短（如 /、单字）时标签被压得过窄，保证可点区域与 × / 🔒 有足够空间
+            item.setMinimumWidth(Util.dp(this, 50));
+            // 选中态改由「底部着重色条」表达：标签主体透明、文字始终深色。
+            item.setBackgroundColor(Color.TRANSPARENT);
 
             LinearLayout line = new LinearLayout(this);
             line.setOrientation(LinearLayout.HORIZONTAL);
-            line.setGravity(Gravity.CENTER_VERTICAL);
+            line.setGravity(Gravity.TOP | Gravity.START);   // 文字与 × 靠上、水平从左侧排起，不做居中
+            line.setPadding(Util.dp(this, 8), Util.dp(this, 3), Util.dp(this, 4), Util.dp(this, 2));   // 上下压紧，左右保持 8/4 不变
             TextView tv = new TextView(this);
             tv.setText(label);
             tv.setTextSize(Ui.sp(textLv, 11, 12, 14));
-            tv.setTextColor(Ui.TEXT);   // 标签文字默认黑色
+            tv.setTextColor(isActive ? Ui.TEXT : Ui.HINT);   // 当前标签深色，非当前标签灰色
+            tv.setGravity(Gravity.TOP | Gravity.START);   // 文字明确左上角，不用居中
             tv.setSingleLine(true);
             tv.setMaxWidth(Util.dp(this, 90));   // 超长名称截断，避免单个标签过宽
             line.addView(tv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
@@ -3353,11 +5022,12 @@ public class MainActivity extends Activity {
             }
             item.addView(line, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-            View underline = new View(this);
-            underline.setBackgroundColor(i == active ? Ui.PRIMARY : Color.TRANSPARENT);
-            item.addView(underline, new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, Util.dp(this, 2)));
+            // 底部着重色条：选中显示 Ui.PRIMARY，未选中用同高度透明条占位，
+            // 保证所有标签等高、切换选中时标签栏不跳动；item 无 padding，故条通宽贴底。
+            View bar = new View(this);
+            bar.setBackgroundColor(isActive ? Ui.PRIMARY : Color.TRANSPARENT);
+            item.addView(bar, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, Util.dp(this, 8)));
             item.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) { switchTab(idx); }
             });
@@ -3370,8 +5040,7 @@ public class MainActivity extends Activity {
                     rebuildTabs();
                     applyTabLockUi();
                     saveTabs();
-                    toast(locked ? "已锁定标签（长按可解锁；只能进入子目录，地址栏已禁用）"
-                                 : "已解锁标签");
+                    toast(locked ? "已锁定标签（长按可解锁）" : "已解锁标签");
                     return true;
                 }
             });
@@ -3380,8 +5049,20 @@ public class MainActivity extends Activity {
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             // 自适应宽度：按标签文字实际长度排布，不再固定占满；文字最长 90dp（见 tv.setMaxWidth），
             // 单个标签宽度即被限制在该上限内，避免长名称标签过宽。
+            // 左边框：每个标签左侧一条 1dp 细线，颜色走 Ui.line() 与 Tab 栏上方横线完全一致。
+            // MATCH_PARENT 高度由 tabStrip 统一撑满；不加入 tabViews，故滚动定位的 getLeft()/getRight() 仍准确。
+            View sep = Ui.line(this);
+            tabStrip.addView(sep, new LinearLayout.LayoutParams(
+                    Util.dp(this, 1), ViewGroup.LayoutParams.MATCH_PARENT));
             tabStrip.addView(item, lp);
             tabViews.add(item);
+        }
+        // 最后一个标签补一条右边框：与左边框同源同宽，形成完整的标签围框。
+        // 同样不加入 tabViews，自动滚动定位不受影响。
+        if (!tabs.isEmpty()) {
+            View rightBorder = Ui.line(this);
+            tabStrip.addView(rightBorder, new LinearLayout.LayoutParams(
+                    Util.dp(this, 1), ViewGroup.LayoutParams.MATCH_PARENT));
         }
     }
 
@@ -3393,11 +5074,16 @@ public class MainActivity extends Activity {
     }
 
     private void switchTab(int i) {
+        closeSortDropdown();   // 切标签时收起所有下拉菜单
+        closeAddDropdown();
+        closeFavDropdown();
+        Dbg.log("TAB", "switchTab " + active + " -> " + i + " 共 " + tabs.size() + " 个");
         if (i == active || i < 0 || i >= tabs.size()) return;
         if (searchActive) exitSearch();   // 搜索态下切标签需先退出搜索，否则 refresh 提前返回、网格不刷新
         rememberScroll();                 // 记住旧标签当前路径的滚动位置
         active = i;
         rebuildTabs();
+        ensureActiveTabVisible();   // 连续左右滑动到边缘标签时，不能让当前标签留在视野外
         pathEdit.setText(cur().path);
         int[] mem = (scrollMem != null) ? scrollMem.recall(cur().path) : null;
         if (mem != null) { cur().scroll = mem[0]; restoreTop = mem[1]; }
@@ -3405,20 +5091,66 @@ public class MainActivity extends Activity {
         refresh(true, false);   // 仅切换标签时恢复该标签的滚动位置
     }
 
+    // 横向滑动切换标签页：当前内容滑出屏外 → 切到目标标签 → 新内容从另一侧无缝滑入
+    private void animateSwipeToTab(int target, int dir) {
+        if (gridAnimating) return;
+        gridAnimating = true;
+        int w = grid.getWidth();
+        if (w <= 0) { switchTab(target); gridAnimating = false; return; }
+        float exitX = -dir * w;     // 当前内容滑出方向（dir=+1 左滑 → 向左滑出，X 为负）
+        float enterX = dir * w;     // 新内容从对侧屏外进入
+        // 1) 当前内容从手指位置继续滑出到屏外
+        grid.animate().translationX(exitX).setDuration(150)
+                .setInterpolator(new DecelerateInterpolator()).withEndAction(new Runnable() {
+            public void run() {
+                switchTab(target);   // 切换内容（此时在屏外，用户不可见，避免闪烁）
+                adapter.setData(new ArrayList<FileItem>());  // 清掉旧列表，滑入时只显示新页（清空发生在屏外，不可见）
+                // 2) 新内容从对侧屏外滑入
+                grid.setTranslationX(enterX);
+                grid.animate().translationX(0).setDuration(180)
+                        .setInterpolator(new DecelerateInterpolator())
+                        .withEndAction(new Runnable() { public void run() { gridAnimating = false; } })
+                        .start();
+            }
+        }).start();
+    }
+
     private void closeTab(int i) {
         if (tabs.size() <= 1) return;
+        closeSortDropdown();   // 关标签时收起所有下拉菜单
+        closeAddDropdown();
+        closeFavDropdown();
         if (searchActive) exitSearch();   // 同 switchTab：避免搜索态下 refresh 提前返回
         if (i >= 0 && i < tabs.size() && tabs.get(i).locked) {
             toast("该标签已锁定，长按标签解锁后再关闭");
             return;
         }
+        final boolean closedActive = (i == active);   // 关掉的是否为当前正在显示的标签
+        Dbg.log("TAB", "closeTab " + i + " 共 " + tabs.size() + " 个 closedActive=" + closedActive);
         tabs.remove(i);
         tabViews.remove(i);
         if (active >= tabs.size()) active = tabs.size() - 1;
         else if (i < active) active--;
         rebuildTabs();
+        ensureActiveTabVisible();
         pathEdit.setText(cur().path);
-        refresh();
+        applyTabLockUi();   // 激活标签可能换了，地址栏锁定态立即同步
+        if (closedActive) {
+            // 网格里仍是刚被关掉标签的数据：新激活标签的 path 与它自己的 loadedPath 相同，
+            // 若调用 refresh() 会命中「同目录已加载」早退、列表纹丝不动，于是错显旧标签内容。
+            // 按 switchTab 的语义恢复滚动位置并重新列目录，把列表换成新激活标签的内容。
+            curItems = new ArrayList<FileItem>();
+            adapter.setData(curItems);   // 先清掉旧标签残留，加载期间不再错显
+            int[] mem = (scrollMem != null) ? scrollMem.recall(cur().path) : null;
+            if (mem != null) { cur().scroll = mem[0]; restoreTop = mem[1]; }
+            else { cur().scroll = 0; restoreTop = 0; }
+            refresh(true, false);
+        } else {
+            // 关闭的是后台标签：当前显示的列表本来就属于激活标签，保持纹丝不动
+            saveTabs();                 // 但标签数量变了，会话状态仍需落盘
+            updateBottomBar();
+            updateStatus();
+        }
     }
 
     // ==================== 导航 / 加载 ====================
@@ -3458,12 +5190,17 @@ public class MainActivity extends Activity {
      * 行为同图片查看器插件——返回时不跳回列表顶部。
      */
     private void gotoPath(String raw, boolean forceRestore) {
+        Dbg.log("NAV", "gotoPath raw=" + raw + " forceRestore=" + forceRestore
+                + " 当前=" + (tabs.isEmpty() ? "-" : cur().path));
         String p = raw;
         if (p == null || p.trim().isEmpty()) return;
         p = p.trim();
         if (p.length() > 1 && p.endsWith("/")) p = p.replaceAll("/+$", "");
-        // 锁定标签：只允许在「锁定根目录（含）及其子目录」内活动，禁止返回上级或跳到其它位置
+        // 锁定标签：只允许在「锁定根目录（含）及其子目录」内活动，禁止返回上级或跳到其它位置。
+        // 越界跳转在此统一静默拦截（不弹提示），地址栏回填当前真实路径避免显示与实际不符。
         if (!canEnter(p)) {
+            Dbg.log("NAV", "gotoPath 被锁定拦截 raw=" + p + " 当前=" + cur().path);
+            if (pathEdit != null) pathEdit.setText(cur().path);   // 越界路径不生效，回填当前真实路径
             return;
         }
         // 离开当前目录前按路径记住位置：返回上级 / 退出压缩包 / 重启后都能回到原处
@@ -3683,7 +5420,7 @@ public class MainActivity extends Activity {
         CmdOutputActivity.launchStreaming(this, "调试：接收到的参数", new Runnable() {
             public void run() {
                 CmdOutputActivity.liveAppend(text);
-                CmdOutputActivity.liveComplete(false);
+                CmdOutputActivity.liveComplete();
             }
         });
     }
@@ -3767,7 +5504,7 @@ public class MainActivity extends Activity {
     private boolean goBack() {
         if (!cur().sel.isEmpty()) { clearSel(); return true; }
         if (!cur().back()) return false;
-        // 锁定标签：若历史回退会离开「锁定根目录及其子目录」，撤销本次回退（不允许返回上级）
+        // 锁定标签：若历史回退会离开「锁定根目录及其子目录」，静默撤销本次回退（不允许返回上级）
         if (cur().locked && !canEnter(cur().path)) {
             cur().forward();   // 还原历史指针
             return true;
@@ -3800,8 +5537,9 @@ public class MainActivity extends Activity {
      */
     /** 列目录统一入口：普通目录走 Fs，archive:// 虚拟路径走插件。后台线程调用。 */
     private Fs.ListResult loadItems(String path) {
-        if (isArchivePath(path)) return loadArchive(path);
-        return Fs.list(path);
+        Fs.ListResult r = isArchivePath(path) ? loadArchive(path) : Fs.list(path);
+        if (r != null && r.error == null && r.items != null) applySort(r.items);
+        return r;
     }
 
     /** archive:// 虚拟路径：向压缩包插件取内层条目，构造标准 FileItem 列表（含「返回」项）。 */
@@ -3853,15 +5591,51 @@ public class MainActivity extends Activity {
         final int seq = ++refreshSeq;
         final boolean dirChanged = !path.equals(t.loadedPath);
         loading = true;
-        status.setText("加载中… " + path);
+        // 压缩包加载：底部状态栏显示友好提示（压缩包名 / 内层目录），而非不可读的 archive:// 路径
+        status.setText(isArchivePath(path) ? "加载中… " + archiveDlgLabel(path) : "加载中… " + path);
         empty.setVisibility(View.GONE);   // 不残留上一次的错误 / 空目录提示
         // 换目录时立刻把旧列表拉回顶部，加载新目录期间也不会停在中间
         if (dirChanged && !restoreScroll) {
             gridLm.scrollToPositionWithOffset(0, 0);
         }
+        // archive:// 列目录要跨进程让插件跑 7z l，大包可能明显耗时：
+        //  - 首次从真实目录进入压缩包：显示「打开中...」并允许取消；
+        //  - 压缩包内导航（已进入归档、切换内层目录/返回）：不再弹「打开中」，避免频繁打断浏览。
+        final OpenArchiveDlg openDlg;
+        if (isArchivePath(path)) {
+            final OpenArchiveDlg pending = archiveOpenDlg;
+            if (pending != null && !pending.cancelled && !pending.finished) {
+                openDlg = pending;                 // 复用点击压缩包时提前弹出的框，全程只显示一次
+            } else if (!isArchivePath(t.loadedPath)) {
+                openDlg = new OpenArchiveDlg(archiveDlgLabel(path));   // 首次进入压缩包
+                archiveOpenDlg = openDlg;
+            } else {
+                openDlg = null;                    // 压缩包内浏览：不弹「打开中」
+            }
+            if (openDlg != null) {
+                openDlg.bind(path, t.loadedPath, seq);
+                Dbg.log("ARCHIVE", "列目录开始 path=" + path + " 复用提示框=" + (openDlg == pending));
+            } else {
+                Dbg.log("ARCHIVE", "列目录开始(包内导航,不弹框) path=" + path);
+            }
+        } else {
+            openDlg = null;
+        }
         listIo.execute(new Runnable() {
             public void run() {
-                final Fs.ListResult res = loadItems(path);
+                Fs.ListResult res;
+                try {
+                    res = loadItems(path);
+                } catch (Throwable t2) {
+                    res = new Fs.ListResult();
+                    res.error = "读取失败：" + t2.getMessage();
+                }
+                final Fs.ListResult rr = res;
+                if (openDlg != null) {
+                    openDlg.finish();       // 列目录返回即关框（成功 / 失败 / 已取消）
+                    Dbg.log("ARCHIVE", "打开压缩包结束 path=" + path
+                            + (rr.error != null ? " 失败=" + rr.error : " 成功"));
+                }
                 ui.post(new Runnable() {
                     public void run() {
                         if (seq != refreshSeq) return;   // 已有更新的刷新请求，丢弃过期结果
@@ -3874,17 +5648,17 @@ public class MainActivity extends Activity {
                         } else {
                             firstTop = firstTop();
                         }
-                        if (res.error != null) {
+                        if (rr.error != null) {
                             curItems = new ArrayList<FileItem>();
                             adapter.setData(curItems);
-                            status.setText("✗ " + res.error);
+                            status.setText("✗ " + rr.error);
                             empty.setVisibility(View.VISIBLE);
-                            empty.setText(res.error);
+                            empty.setText(rr.error);
                         } else {
-                            curItems = res.items;
-                            adapter.setData(res.items);   // RecyclerView：notify 不重置滚动
-                            empty.setVisibility(res.items.isEmpty() ? View.VISIBLE : View.GONE);
-                            if (res.items.isEmpty()) empty.setText("目录为空，或没有访问权限");
+                            curItems = rr.items;
+                            adapter.setData(rr.items);   // RecyclerView：notify 不重置滚动
+                            empty.setVisibility(rr.items.isEmpty() ? View.VISIBLE : View.GONE);
+                            if (rr.items.isEmpty()) empty.setText("目录为空，或没有访问权限");
                             updateStatus();
                         }
                         rebuildTabs();
@@ -4032,12 +5806,61 @@ public class MainActivity extends Activity {
     private interface NameCb { void onName(String n); }
 
     private void runFs(final String tip, final FsTask task) {
+        runFs(tip, task, (ExtractProgress) null);
+    }
+
+    /** 删除专用：完成后自动关闭对话框并刷新；取消时静默刷新反映真实状态。 */
+    private void runFs(final String tip, final FsTask task, final DeleteProgress prog) {
         status.setText(tip);
         io.execute(new Runnable() {
             public void run() {
                 final String e = task.run();
+                Dbg.log("FS.TASK", tip + " -> " + (e == null ? "OK" : Dbg.clip(e, 600))
+                        + (prog != null && prog.cancelled ? "（已取消）" : ""));
                 ui.post(new Runnable() {
                     public void run() {
+                        if (prog != null && prog.cancelled) {
+                            updateStatus();
+                            cur().sel.clear();
+                            adapter.setChecked(cur().sel);
+                            updateBottomBar();
+                            refreshForce();   // 反映已删除/未删除的真实状态
+                            return;
+                        }
+                        if (prog != null) prog.finish(e == null);
+                        if (e != null) { toast("删除失败：" + e); status.setText("✗ " + e); }
+                        try { task.after(); } catch (Throwable ignored) {}
+                        cur().sel.clear();
+                        adapter.setChecked(cur().sel);
+                        updateBottomBar();
+                        refreshForce();       // 文件操作改变了内容，路径没变也要重列
+                    }
+                });
+            }
+        });
+    }
+
+    /** 带进度对话框的重载：完成后自动关闭对话框（供「从压缩包复制」复用解压进度组件）。 */
+    private void runFs(final String tip, final FsTask task, final ExtractProgress prog) {
+        status.setText(tip);
+        io.execute(new Runnable() {
+            public void run() {
+                final String e = task.run();
+                Dbg.log("FS.TASK", tip + " -> " + (e == null ? "OK" : Dbg.clip(e, 600))
+                        + (prog != null && prog.cancelled ? "（已取消）" : ""));
+                ui.post(new Runnable() {
+                    public void run() {
+                        if (prog != null && prog.cancelled) {
+                            // 已取消：对话框已在 cancel() 里关闭。静默——不提示成功/失败、不清剪贴板（便于重试），
+                            // 仅刷新列表反映真实状态（临时解压目录已由 FsTask 的 finally 清理）。
+                            updateStatus();
+                            cur().sel.clear();
+                            adapter.setChecked(cur().sel);
+                            updateBottomBar();
+                            refreshForce();
+                            return;
+                        }
+                        if (prog != null) prog.finish(e == null);
                         if (e != null) { toast("操作失败：" + e); status.setText("✗ " + e); }
                         else toast("操作完成");
                         try { task.after(); } catch (Throwable ignored) {}
@@ -4051,12 +5874,27 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void askName(String title, String preset, final NameCb cb) {
+    /** selBase=true 时只选中文件名主体（不含最后一个「.扩展名」），用于重命名；isDir=true 表示重命名的是文件夹，不选中。
+     *  选中判定以「是否文件夹」为准，而非有没有点（如 elementary-xfce-0.23 这种带点的文件夹名不误判为扩展名）。 */
+    private void askName(String title, String preset, boolean selBase, boolean isDir, final NameCb cb) {
         final EditText et = new EditText(this);
         et.setText(preset);
         et.setSingleLine(true);
-        et.setSelectAllOnFocus(true);
-        new AlertDialog.Builder(this).setTitle(title).setView(et)
+        final int len = preset == null ? 0 : preset.length();
+        // 选中范围：
+        //  · 文件夹（isDir）：不选中任何字符，光标置末尾，保留原名供直接编辑；
+        //  · 文件且 selBase 且存在合法「.扩展名」（dot 在中间、非首非尾）：只选扩展名前主名，如 photo.jpg → photo；
+        //  · 其它（文件无扩展名 / 新建）：整段选中（空串时即无选中）。
+        int selStart = 0, selEnd = len;
+        if (isDir) {
+            selStart = len; selEnd = len;                            // 文件夹：不选中
+        } else if (selBase && len > 0) {
+            int dot = preset.lastIndexOf('.');
+            if (dot > 0 && dot < len - 1) { selStart = 0; selEnd = dot; }   // 文件有扩展名：选中主名
+            // else 文件无扩展名：保持整段选中 (selStart=0, selEnd=len)
+        }
+        final int fSelStart = selStart, fSelEnd = selEnd;
+        final AlertDialog dlg = new AlertDialog.Builder(this).setTitle(title).setView(et)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("确定", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
@@ -4064,7 +5902,25 @@ public class MainActivity extends Activity {
                         if (n.isEmpty() || n.contains("/")) { toast("名称不合法"); return; }
                         cb.onName(n);
                     }
-                }).show();
+                }).create();
+        // 关键：让对话框显示时自动弹出软键盘（仅 setSoftInputMode 在对话框里最可靠，
+        // showSoftInput 因窗口焦点时机问题经常不弹）。
+        if (dlg.getWindow() != null)
+            dlg.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+        dlg.setOnShowListener(new DialogInterface.OnShowListener() {
+            public void onShow(DialogInterface di) {
+                et.post(new Runnable() { public void run() {
+                    et.requestFocus();                   // 自动获得焦点
+                    et.setSelection(fSelStart, fSelEnd); // 有扩展名选中主名；无扩展名（文件夹）不选中，光标置末尾
+                }});
+            }
+        });
+        dlg.show();
+    }
+
+    /** 兼容旧调用：整段选中、非文件夹。 */
+    private void askName(String title, String preset, final NameCb cb) {
+        askName(title, preset, false, false, cb);
     }
 
     private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
@@ -4114,10 +5970,26 @@ public class MainActivity extends Activity {
         }
     }
 
+    // 排序下拉菜单的点外部收起 / 返回键收起由 PopupWindow（outsideTouchable + focusable）处理：
+    // 外部第一次点击只关菜单、不会误触下面的文件，Activity 侧无需再拦截触摸事件。
+
     @Override
     public void onBackPressed() {
+        // 压缩包内文件提取进行中：按返回照常导航（退出压缩包 / 上级），但让后台提取任务取消，
+        // 不在返回键上拦截，避免打断正常导航。任务中止后由 finishArchiveOpen 复位状态栏。
+        if (archiveOpening) archiveOpenCancel = true;
+        // 任一工具栏下拉菜单展开中：返回键先收起菜单，不执行任何导航
+        if (isSortDropdownOpen() || isAddDropdownOpen() || isFavDropdownOpen()) {
+            if (isSortDropdownOpen()) closeSortDropdown();
+            if (isAddDropdownOpen()) closeAddDropdown();
+            if (isFavDropdownOpen()) closeFavDropdown();
+            return;
+        }
         // 选中态：先取消选择
         if (!cur().sel.isEmpty()) { clearSel(); return; }
+        // 搜索态：收起搜索回到当前目录列表，不跳上级、不弹提示（搜索结果是跨目录的，
+        // 跳父目录会冲掉结果）。退出搜索后已是正常浏览态，再按返回才按常规跳上级。
+        if (searchActive) { exitSearch(); return; }
         // 由「其它 APP」拉起本界面：按返回直接结束 Activity，回到发起的外部 APP，
         // 而不是逐级返回到上级目录 / 根目录。
         if (launchedFromExternal) { finish(); return; }
@@ -4131,6 +6003,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        Dbg.log("LIFE", "MainActivity.onPause");
         rememberScroll();   // 退后台 / 进设置 / 锁屏前记住当前位置并落盘
         saveTabs();   // 按 Home、进设置、锁屏、进程被回收前兜底落盘
         super.onPause();
@@ -4138,10 +6011,26 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        Dbg.log("LIFE", "MainActivity.onDestroy");
         rememberScroll();
         saveTabs();
         io.shutdownNow();
         listIo.shutdownNow();
+        // 未关闭的「打开中...」框必须直接 dismiss，否则 Activity 销毁时会泄漏窗口
+        if (archiveOpenDlg != null) {
+            try { archiveOpenDlg.dlg.dismiss(); } catch (Throwable ignored) {}
+            archiveOpenDlg = null;
+        }
+        // 未关闭的下拉浮层也要 dismiss，避免 Activity 销毁时泄漏窗口
+        if (sortPopup != null) {
+            try { sortPopup.dismiss(); } catch (Throwable ignored) {}
+        }
+        if (addPopup != null) {
+            try { addPopup.dismiss(); } catch (Throwable ignored) {}
+        }
+        if (favPopup != null) {
+            try { favPopup.dismiss(); } catch (Throwable ignored) {}
+        }
         if (adapter != null) adapter.release();
         if (pluginMgr != null) pluginMgr.release();
         if (pluginStateReceiver != null) {
@@ -4157,6 +6046,23 @@ public class MainActivity extends Activity {
         final String path, label;
         final File file;
         StorageItem(String p, String l, File f) { path = p; label = l; file = f; }
+    }
+
+    /** 文件列表容器：在 dispatchTouchEvent 把完整触摸序列喂给手势检测器。
+     *  文件项是 clickable，会消费落在它身上的触摸，导致挂在 RecyclerView 上的 OnTouchListener
+     *  收不到 DOWN/MOVE（只有空白处能触发）。父容器的 dispatchTouchEvent 是事件分发第一入口，
+     *  无论子 View 是否消费，每次都先经过这里，因此文件区与空白区都能稳定检测到横向甩动。
+     *  这里只「旁听」、不拦截、不改变返回值，点击 / 长按 / 纵向滚动完全不受影响。 */
+    private class SwipeHost extends FrameLayout {
+        SwipeHost(Context c) { super(c); }
+        @Override public boolean dispatchTouchEvent(MotionEvent e) {
+            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                dropAddrFocus();
+                swipeDownX = e.getX();   // 记录起点 X，供 onFling 排除左边缘抽屉手势
+            }
+            if (swipeDetector != null) swipeDetector.onTouchEvent(e);
+            return super.dispatchTouchEvent(e);
+        }
     }
 
     /** 包裹主内容、拦截左边缘右滑手势的容器（替代官方 DrawerLayout，避免引入 Material 依赖）。 */
@@ -4203,6 +6109,8 @@ public class MainActivity extends Activity {
 
     private void buildDrawerContent() {
         drawerPanel.removeAllViews();
+        drawerPanel.setClipChildren(false);
+        drawerPanel.setClipToPadding(false);
         int pad = Util.dp(this, 14);
 
         // 头部：应用名 + 版本
@@ -4233,36 +6141,34 @@ public class MainActivity extends Activity {
             drawerPanel.addView(storageRow(s));
         }
 
-        // 第二节：收藏书签（复用 Prefs.favorites）
-        drawerPanel.addView(sectionTitle("收藏书签"));
+        // 第二节：收藏书签（复用 Prefs.favorites），支持「长按拖动排序」
+        drawerPanel.addView(sectionTitle("收藏书签（长按拖动排序）"));
         ArrayList<String> favs = Prefs.favorites(this);
         if (favs.isEmpty()) {
             TextView empty = new TextView(this);
-            empty.setText("（暂无收藏，可在文件上点「收藏」，或在菜单收藏当前目录）");
+            empty.setText("（暂无收藏，可长按选中文件后点底部「收藏」，或在右上角菜单收藏当前目录）");
             empty.setTextColor(Ui.HINT);
             empty.setTextSize(Ui.sp(textLv, 11, 12, 13));
             empty.setPadding(pad, Util.dp(this, 8), pad, Util.dp(this, 8));
             drawerPanel.addView(empty);
         } else {
-            for (final String f : favs) {
-                drawerPanel.addView(bookmarkRow(f));
-            }
+            // 用 RecyclerView + ItemTouchHelper 实现拖动排序，避免重排时重建整个抽屉
+            drawerPanel.addView(buildFavList(favs));
         }
 
-        // 第三节：Bash 脚本（读取脚本目录下标记了 #myfileman_script: 的 .sh）
+        // 第三节：Bash 脚本（加载脚本目录下全部 .sh，标题取文件名）
         drawerPanel.addView(sectionTitle("Bash"));
         ArrayList<ScriptItem> scripts = loadScripts();
         if (scripts.isEmpty()) {
             TextView empty = new TextView(this);
-            empty.setText("（在「设置 → 自定义脚本」指定目录后，自动加载其中标记 #myfileman_script: 的 .sh）");
+            empty.setText("（在「设置 → 自定义脚本」指定目录后，自动加载其中全部 .sh）");
             empty.setTextColor(Ui.HINT);
             empty.setTextSize(Ui.sp(textLv, 11, 12, 13));
             empty.setPadding(pad, Util.dp(this, 8), pad, Util.dp(this, 8));
             drawerPanel.addView(empty);
         } else {
-            for (final ScriptItem s : scripts) {
-                drawerPanel.addView(scriptRow(s));
-            }
+            // 一排 3 个脚本按钮，按钮文字取文件名（去 .sh）
+            drawerPanel.addView(scriptGrid(scripts));
         }
     }
 
@@ -4284,13 +6190,18 @@ public class MainActivity extends Activity {
         TypedValue dd = new TypedValue();
         getTheme().resolveAttribute(android.R.attr.selectableItemBackground, dd, true);
         if (dd.resourceId != 0) row.setBackgroundResource(dd.resourceId);
+
+        // 第一行：左=名称（粗体） 右=可用/共（两列排列）
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
         TextView name = new TextView(this);
         name.setText(s.label);
         name.setTextColor(Ui.TEXT);
         name.setTextSize(Ui.sp(textLv, 14, 15, 16));
         name.setTypeface(null, android.graphics.Typeface.BOLD);
-        row.addView(name);
-
+        name.setSingleLine(true);
+        head.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         long total = -1, avail = -1;
         try {
             StatFs fs = new StatFs(s.file.getAbsolutePath());
@@ -4302,13 +6213,20 @@ public class MainActivity extends Activity {
             cap.setText("可用 " + fmtSize(avail) + " / 共 " + fmtSize(total));
             cap.setTextColor(Ui.HINT);
             cap.setTextSize(Ui.sp(textLv, 10, 11, 12));
-            row.addView(cap);
+            cap.setSingleLine(true);
+            cap.setGravity(Gravity.END);
+            head.addView(cap, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            row.addView(head);
             ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
             pb.setMax(100);
             pb.setProgress((int) (100 - (avail * 100 / total)));
             pb.setProgressTintList(android.content.res.ColorStateList.valueOf(Ui.PRIMARY));
             row.addView(pb, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, Util.dp(this, 3)));
+        } else {
+            // 拿不到容量信息时，名称仍靠左、右侧留空
+            row.addView(head);
         }
         row.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { closeDrawer(); openInAvailableTab(s.path); }
@@ -4410,6 +6328,150 @@ public class MainActivity extends Activity {
                 }).show();
     }
 
+    /** 抽屉「收藏书签」列表：RecyclerView + ItemTouchHelper，支持长按拖动排序；点击打开、⋮ 编辑/删除。 */
+    private RecyclerView buildFavList(final ArrayList<String> favs) {
+        RecyclerView rv = new RecyclerView(this);
+        rv.setLayoutManager(new LinearLayoutManager(this));
+        // 列表高度按实际内容自适应（WRAP_CONTENT）：项数少时不留底部空白；
+        // 项数过多时通过 post 测量把高度封顶到屏高 45%，超出部分在列表内滚动。
+        int maxH = (int) (getResources().getDisplayMetrics().heightPixels * 0.45f);
+        rv.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        rv.post(new Runnable() {
+            public void run() {
+                int m = rv.getMeasuredHeight();
+                if (m > maxH) {
+                    rv.getLayoutParams().height = maxH;
+                    rv.requestLayout();
+                }
+            }
+        });
+
+        final FavDrawerAdapter[] adapterRef = new FavDrawerAdapter[1];
+        final ItemTouchHelper[] touchRef = new ItemTouchHelper[1];
+        touchRef[0] = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(
+                ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0) {
+            public boolean onMove(RecyclerView r, RecyclerView.ViewHolder a, RecyclerView.ViewHolder b) {
+                int from = a.getAdapterPosition(), to = b.getAdapterPosition();
+                if (from < 0 || to < 0) return false;
+                Collections.swap(favs, from, to);
+                adapterRef[0].notifyItemMoved(from, to);
+                return true;
+            }
+            public void onSwiped(RecyclerView.ViewHolder vh, int d) {}
+            // 拖动结束（松手）时落盘新顺序
+            public void clearView(RecyclerView r, RecyclerView.ViewHolder vh) {
+                super.clearView(r, vh);
+                Prefs.setFavorites(MainActivity.this, favs);
+                vh.itemView.setBackgroundColor(Color.WHITE);
+            }
+            public void onSelectedChanged(RecyclerView.ViewHolder vh, int state) {
+                super.onSelectedChanged(vh, state);
+                if (vh != null && state == ItemTouchHelper.ACTION_STATE_DRAG)
+                    vh.itemView.setBackgroundColor(0xFFE0F2F1);  // 拖动中高亮
+            }
+        });
+        final FavDrawerAdapter adapter = new FavDrawerAdapter(favs, new FavDrawerAdapter.Cb() {
+            public void onOpen(String path) { closeDrawer(); openInAvailableTab(path); }
+            public void onMenu(View anchor, String path) { showBookmarkMenu(anchor, path); }
+            public void onDelete(int pos) {
+                if (pos < 0 || pos >= favs.size()) return;
+                favs.remove(pos);
+                adapterRef[0].notifyItemRemoved(pos);
+                Prefs.setFavorites(MainActivity.this, favs);
+            }
+        });
+        adapterRef[0] = adapter;
+        rv.setAdapter(adapter);
+        touchRef[0].attachToRecyclerView(rv);
+        return rv;
+    }
+
+    /** 抽屉收藏夹列表适配器：每行 = 拖动手柄 ≡ / 名称+路径(点击打开) / ⋮ 菜单；整行或手柄长按触发拖动排序。 */
+    private static class FavDrawerAdapter extends RecyclerView.Adapter<FavDrawerAdapter.VH> {
+        interface Cb {
+            void onOpen(String path);
+            void onMenu(View anchor, String path);
+            void onDelete(int pos);
+        }
+        private final ArrayList<String> list;
+        private final Cb cb;
+        FavDrawerAdapter(ArrayList<String> l, Cb cb) { this.list = l; this.cb = cb; }
+        public int getItemCount() { return list.size(); }
+        public VH onCreateViewHolder(ViewGroup p, int t) {
+            Context c = p.getContext();
+            LinearLayout row = new LinearLayout(c);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(Util.dp(c, 8), Util.dp(c, 6), Util.dp(c, 6), Util.dp(c, 6));
+            // 关键：行必须填满抽屉宽度，否则 weight 无剩余空间可分、⋮ 会随文字长度漂移
+            row.setLayoutParams(new RecyclerView.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+            TextView handle = new TextView(c);
+            handle.setText("≡");
+            handle.setTextSize(18);
+            handle.setTextColor(0xFF888888);
+            handle.setPadding(0, 0, Util.dp(c, 4), 0);
+
+            LinearLayout info = new LinearLayout(c);
+            info.setOrientation(LinearLayout.VERTICAL);
+            info.setPadding(Util.dp(c, 4), 0, Util.dp(c, 4), 0);
+            TextView name = new TextView(c);
+            name.setTextSize(14);
+            name.setTextColor(Ui.TEXT);
+            name.setSingleLine(true);
+            name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            name.setLayoutParams(new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            TextView sub = new TextView(c);
+            sub.setTextSize(10);
+            sub.setTextColor(Ui.HINT);
+            sub.setSingleLine(true);
+            sub.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            sub.setLayoutParams(new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            info.addView(name);
+            info.addView(sub);
+            info.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            TextView more = new TextView(c);
+            more.setText("⋮");
+            more.setTextSize(20);
+            more.setTextColor(Ui.HINT);
+            more.setPadding(Util.dp(c, 8), 0, Util.dp(c, 8), 0);
+
+            row.addView(handle);
+            row.addView(info);
+            row.addView(more);
+            return new VH(row, handle, info, name, sub, more);
+        }
+        public void onBindViewHolder(final VH h, int pos) {
+            final String path = list.get(pos);
+            h.name.setText(Util.base(path));
+            h.sub.setText(path);
+            h.info.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { cb.onOpen(path); }
+            });
+            h.more.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { cb.onMenu(h.more, path); }
+            });
+            // 整行或手柄长按触发拖动排序（ItemTouchHelper 默认长按即拖动）
+            View.OnLongClickListener dragL = new View.OnLongClickListener() {
+                public boolean onLongClick(View v) { return true; }
+            };
+            h.handle.setOnLongClickListener(dragL);
+            h.info.setOnLongClickListener(dragL);
+        }
+        static class VH extends RecyclerView.ViewHolder {
+            TextView handle, name, sub, more;
+            View info;
+            VH(View v, TextView handle, View info, TextView name, TextView sub, TextView more) {
+                super(v); this.handle = handle; this.info = info; this.name = name; this.sub = sub; this.more = more;
+            }
+        }
+    }
+
     /** 枚举存储设备：内部存储、根目录、以及 SD 卡/OTG 等可移动卷。 */
     private ArrayList<StorageItem> loadStorages() {
         ArrayList<StorageItem> list = new ArrayList<StorageItem>();
@@ -4453,8 +6515,8 @@ public class MainActivity extends Activity {
         String path;
     }
 
-    /** 读取「设置 → 自定义脚本」目录下的全部 .sh，筛出前 5 行含
-     *  #myfileman_script:标题 的文件，返回其（标题, 路径）。APP 加载/每次开抽屉时调用。 */
+    /** 读取「设置 → 自定义脚本」目录下的全部 .sh，直接用文件名（去掉 .sh）作标题。
+     *  不再读取脚本文件内容，因此无需事先打开每个文件。APP 加载/每次开抽屉时调用。 */
     private ArrayList<ScriptItem> loadScripts() {
         ArrayList<ScriptItem> out = new ArrayList<ScriptItem>();
         String dir = Prefs.scriptDir(this);
@@ -4468,10 +6530,8 @@ public class MainActivity extends Activity {
                 for (String name : names) {
                     if (!name.toLowerCase().endsWith(".sh")) continue;
                     String full = dir.endsWith("/") ? dir + name : dir + "/" + name;
-                    String title = parseScriptTitleRoot(full);
-                    if (title == null) continue;
                     ScriptItem si = new ScriptItem();
-                    si.title = title;
+                    si.title = scriptTitleOf(name);
                     si.path = full;
                     out.add(si);
                 }
@@ -4482,78 +6542,75 @@ public class MainActivity extends Activity {
             if (!f.isFile()) continue;
             String name = f.getName();
             if (!name.toLowerCase().endsWith(".sh")) continue;
-            String title = parseScriptTitle(f);
-            if (title == null) continue;
             ScriptItem si = new ScriptItem();
-            si.title = title;
+            si.title = scriptTitleOf(name);
             si.path = f.getAbsolutePath();
             out.add(si);
         }
         return out;
     }
 
-    /** 通过 Root 会话读取文件前 5 行并解析 #myfileman_script: 标题（对应 root 权限下不可见的目录）。 */
-    private String parseScriptTitleRoot(String path) {
-        String head = Fs.rootHead(path, 5);
-        if (head == null) return null;
-        String[] lines = head.split("\n");
-        for (String line : lines) {
-            int idx = line.indexOf("#myfileman_script:");
-            if (idx >= 0) {
-                String rest = line.substring(idx + "#myfileman_script:".length()).trim();
-                return rest.length() > 0 ? rest : null;
-            }
-        }
-        return null;
+    /** 用文件名作标题：去掉末尾的 .sh（大小写不敏感），空文件名回退为原名。 */
+    private static String scriptTitleOf(String name) {
+        String t = (name.length() > 3) ? name.substring(0, name.length() - 3) : name;
+        return t.length() > 0 ? t : name;
     }
 
-    /** 读取文件前 5 行，若出现 "#myfileman_script:标题"，返回冒号后的文字；否则 null。 */
-    private String parseScriptTitle(File f) {
-        BufferedReader br = null;
-        try {
-            br = new BufferedReader(new InputStreamReader(new FileInputStream(f)));
-            String line;
-            int n = 0;
-            while ((line = br.readLine()) != null && n < 5) {
-                n++;
-                int idx = line.indexOf("#myfileman_script:");
-                if (idx >= 0) {
-                    String rest = line.substring(idx + "#myfileman_script:".length()).trim();
-                    return rest.length() > 0 ? rest : null;
-                }
+    /** Bash 分类：一排 3 个按钮，按钮文字为文件名（去掉 .sh），点击在结果窗口运行脚本。 */
+    private View scriptGrid(final ArrayList<ScriptItem> scripts) {
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.VERTICAL);
+        grid.setClipChildren(false);
+        grid.setClipToPadding(false);
+        int side = Util.dp(this, 14), gap = Util.dp(this, 6);
+        grid.setPadding(side, Util.dp(this, 2), side, Util.dp(this, 4));
+        LinearLayout row = null;
+        for (int i = 0; i < scripts.size(); i++) {
+            if (i % 3 == 0) {
+                row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setWeightSum(3f);
+                row.setClipChildren(false);
+                row.setClipToPadding(false);
+                grid.addView(row, new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             }
-        } catch (Throwable ignored) {
-        } finally {
-            try { if (br != null) br.close(); } catch (Throwable ignored) {}
+            final ScriptItem s = scripts.get(i);
+            Button b = new Button(this);
+            b.setText(s.title);
+            b.setTextSize(Ui.sp(textLv, 11, 12, 13));
+            b.setTextColor(Ui.PRIMARY);
+            b.setAllCaps(false);
+            b.setSingleLine(true);
+            b.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            b.setMinimumWidth(0);
+            b.setMinimumHeight(Util.dp(this, 32));   // 紧凑高度，圆角仍完整
+            // 灰色圆角背景，按下加深
+            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+            gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+            gd.setCornerRadius(Util.dp(this, 4));
+            gd.setColor(0xFFE8E8E8);
+            android.graphics.drawable.StateListDrawable sld = new android.graphics.drawable.StateListDrawable();
+            android.graphics.drawable.GradientDrawable pressed = new android.graphics.drawable.GradientDrawable();
+            pressed.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+            pressed.setCornerRadius(Util.dp(this, 4));
+            pressed.setColor(0xFFD0D0D0);
+            sld.addState(new int[]{android.R.attr.state_pressed}, pressed);
+            sld.addState(new int[]{}, gd);
+            b.setBackgroundDrawable(sld);
+            // 必须在 setBackgroundDrawable 之后设 padding：否则会被背景 drawable 的默认 padding 覆盖清零
+            b.setPadding(Util.dp(this, 4), Util.dp(this, 4), Util.dp(this, 4), Util.dp(this, 4));
+            b.setClipToOutline(false);
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            bp.setMargins(i % 3 == 0 ? 0 : gap, gap, gap, gap);   // 四边留白，底角不与下一行贴边
+            b.setLayoutParams(bp);
+            b.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { closeDrawer(); runScript(s.path, s.title); }
+            });
+            row.addView(b);
         }
-        return null;
-    }
-
-    /** Bash 分类下的一行：标题 + .sh 文件名，点击在结果窗口运行脚本。 */
-    private View scriptRow(final ScriptItem s) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(Util.dp(this, 14), Util.dp(this, 5), Util.dp(this, 14), Util.dp(this, 5));
-        TypedValue dd = new TypedValue();
-        getTheme().resolveAttribute(android.R.attr.selectableItemBackground, dd, true);
-        if (dd.resourceId != 0) row.setBackgroundResource(dd.resourceId);
-        TextView name = new TextView(this);
-        name.setText(s.title);
-        name.setTextColor(Ui.TEXT);
-        name.setTextSize(Ui.sp(textLv, 14, 15, 16));
-        name.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        row.addView(name);
-        TextView sub = new TextView(this);
-        sub.setText(new File(s.path).getName());
-        sub.setTextColor(Ui.HINT);
-        sub.setTextSize(Ui.sp(textLv, 9, 10, 11));
-        sub.setPadding(Util.dp(this, 8), 0, 0, 0);
-        row.addView(sub);
-        row.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { closeDrawer(); runScript(s.path, s.title); }
-        });
-        return row;
+        return grid;
     }
 
     /** 在结果窗口流式运行一个 .sh 脚本（沿用自定义命令的 Root 会话逻辑）。 */
@@ -4561,24 +6618,37 @@ public class MainActivity extends Activity {
         final int timeout = Prefs.cmdTimeout(this);
         CmdOutputActivity.launchStreaming(this, title, new Runnable() {
             public void run() {
-                final boolean root = Fs.rootMode;
+                final boolean root = Prefs.scriptRootEnabled(MainActivity.this);   // 设置页「以 Root 运行脚本」
                 if (root && !CmdOutputActivity.openOutputRoot(30000)) {
                     CmdOutputActivity.liveAppend("未获取到 Root 授权，脚本未执行。\n"
                             + "请到「设置 → Root 权限」开启后再运行。\n");
-                    CmdOutputActivity.liveComplete(false);
+                    CmdOutputActivity.liveComplete();
                     return;
                 }
                 CmdOutputActivity.setRunningRoot(root);
-                CmdOutputActivity.liveAppend("$ sh " + path + "\n");
-                final String cmd = "sh " + Util.sq(path);
+                // 把与自定义命令一致的 4 个路径变量以环境变量注入脚本：
+                //   MYFM_F 当前文件绝对路径(%f) / MYFM_D 其所在目录(%d) /
+                //   MYFM_N 文件名(%n) / MYFM_P 当前浏览目录(%p)
+                // 脚本内直接读 $MYFM_F 等即可，无需写 % 占位符；root / 非 root 同样生效。
+                final String cwd = cur().path;
+                final List<String> sel = selection();
+                final String targetPath = sel.isEmpty() ? cwd : sel.get(0);
+                final String envPrefix = "export MYFM_F=" + Util.sq(targetPath)
+                        + "; export MYFM_D=" + Util.sq(Util.parent(targetPath))
+                        + "; export MYFM_N=" + Util.sq(Util.base(targetPath))
+                        + "; export MYFM_P=" + Util.sq(cwd) + "; ";
+                myfmEnvPrefix = envPrefix;   // 脚本输出的动态按钮继承同样的 MYFM 上下文
+                if (CmdOutputActivity.getDebug())
+                    CmdOutputActivity.liveAppend("$ " + envPrefix + "sh " + path + "\n");
+                final String cmd = envPrefix + "sh " + Util.sq(path);
                 Fs.ExecResult r;
                 if (root) {
                     r = CmdOutputActivity.streamOutputRoot(cmd, timeout, new Fs.LineSink() {
-                        public void line(String line) { CmdOutputActivity.liveAppend(line + "\n"); }
+                        public void line(String line) { handleLine(line, ACTIVITY_SINK); }
                     });
                 } else {
                     r = Fs.shellStream(cmd, false, timeout, new Fs.LineSink() {
-                        public void line(String line) { CmdOutputActivity.liveAppend(line + "\n"); }
+                        public void line(String line) { handleLine(line, ACTIVITY_SINK); }
                     });
                 }
                 if (!r.ok()) {
@@ -4586,7 +6656,7 @@ public class MainActivity extends Activity {
                         CmdOutputActivity.liveAppend("[stderr] " + r.err.trim() + "\n");
                     CmdOutputActivity.liveAppend("[退出码 " + r.code + "]\n");
                 }
-                CmdOutputActivity.liveComplete(false);
+                CmdOutputActivity.liveComplete();
             }
         });
     }

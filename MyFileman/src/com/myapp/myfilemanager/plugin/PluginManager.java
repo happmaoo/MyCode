@@ -1,5 +1,7 @@
 package com.myapp.myfilemanager.plugin;
 
+import com.myapp.myfilemanager.Dbg;
+
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -80,6 +82,9 @@ public class PluginManager {
     private final Map<ComponentName, PluginConn> conns = new HashMap<ComponentName, PluginConn>();
     /** 优化2：按压缩包路径缓存已建立的 ArchiveHandle，跳过重复的能力协商（getInfo/hasCapability/...）。 */
     private final Map<String, ArchiveHandle> archiveCache = new HashMap<String, ArchiveHandle>();
+
+    /** 最近一次成功取得的压缩包能力 Binder；供 cancel() 在任意线程安全地发中断（避免遍历 HashMap）。 */
+    private volatile IArchiveProvider lastArchiveProvider;
     private final Object lock = new Object();
 
     private static class PluginConn {
@@ -96,7 +101,10 @@ public class PluginManager {
     public ArchiveHandle getArchiveProvider(String path, String mime) {
         // 优化2：同一压缩包命中已缓存且存活的 provider → 跳过全套能力协商
         ArchiveHandle cached = archiveCache.get(path);
-        if (cached != null && alive(cached.cn)) return cached;
+        if (cached != null && alive(cached.cn)) {
+            lastArchiveProvider = cached.provider;
+            return cached;
+        }
         // 优化3：仅遍历声明过 archive 能力的内置插件，避免冷启图片查看器等无关插件进程
         for (ComponentName cn : discover()) {
             if (!knownCaps(cn).contains(CAP_ARCHIVE)) continue;
@@ -126,6 +134,7 @@ public class PluginManager {
                         ArchiveHandle h = new ArchiveHandle(ap, pid);
                         h.cn = cn;
                         archiveCache.put(path, h);   // 缓存，供后续导航复用
+                        lastArchiveProvider = ap;
                         return h;
                     }
                 }
@@ -267,6 +276,7 @@ public class PluginManager {
      * 必须在后台线程调用。
      */
     public int extractEntry(String archivePath, String innerPath, String outDir) {
+        Dbg.log("HOST.PM", "extractEntry archive=" + archivePath + " inner=" + innerPath);
         ArchiveHandle h = getArchiveProvider(archivePath, null);
         if (h == null) return -1;
         try {
@@ -285,6 +295,7 @@ public class PluginManager {
      * @return 7z 退出码；无可用/被禁用插件返回 -1
      */
     public int extractAll(String archivePath, String outDir) {
+        Dbg.log("HOST.PM", "extractAll archive=" + archivePath + " outDir=" + outDir);
         ArchiveHandle h = getArchiveProvider(archivePath, null);
         if (h == null) return -1;
         try {
@@ -302,13 +313,50 @@ public class PluginManager {
      * @return null = 全部成功；否则返回错误说明（可直接展示给用户）
      */
     public String extractBatch(String archivePath, List<String> innerPaths, String outDir) {
+        Dbg.log("HOST.PM", "extractBatch 进入 archive=" + archivePath + " outDir=" + outDir
+                + " inners(" + (innerPaths == null ? 0 : innerPaths.size()) + ")="
+                + Dbg.clip(String.valueOf(innerPaths), 800));
         ArchiveHandle h = getArchiveProvider(archivePath, null);
+        Dbg.log("HOST.PM", "绑定 provider=" + (h == null ? "NULL(无可用插件)" : "OK"));
         if (h == null) return "没有可用的压缩包插件";
         try {
-            return h.provider.extractBatch(archivePath, innerPaths, "", outDir);
+            String res = h.provider.extractBatch(archivePath, innerPaths, "", outDir);
+            Dbg.log("HOST.PM", "AIDL extractBatch 返回 -> "
+                    + (res == null ? "OK" : Dbg.clip(res, 800)));
+            return res;
         } catch (Throwable t) {
+            Dbg.log("HOST.PM", "AIDL extractBatch 抛异常", t);
             return "批量解压失败：" + t.getMessage();
         }
+    }
+
+    /**
+     * 解压前估算「解压后实际大小」（Byte），供进度条做分母。
+     *  innerPaths 传 null/空 = 整个压缩包；非空 = 只累加这些条目（从压缩包复制部分文件时用）。
+     *  失败返回 -1（调用方降级为不确定进度或按字节刷新但不显示百分比）。必须在后台线程调用。
+     */
+    public long contentSize(String archivePath, List<String> innerPaths) {
+        Dbg.log("HOST.PM", "contentSize archive=" + archivePath
+                + " 选中=" + (innerPaths == null ? 0 : innerPaths.size()));
+        ArchiveHandle h = getArchiveProvider(archivePath, null);
+        if (h == null) return -1;
+        try {
+            return h.provider.contentSize(archivePath, innerPaths, "");
+        } catch (RemoteException e) {
+            return -1;
+        }
+    }
+
+    /**
+     * 中断插件进程当前正在执行的 7z/su 命令（解压对话框「取消」按钮调用）。
+     * AIDL 方法为 oneway，调用立即返回、不等待服务端；可在任意线程（含主线程）安全调用。
+     * 直接复用最近一次已绑定的能力 Binder，无需重新协商/绑定，也不触碰 archiveCache 遍历。
+     */
+    public void cancel() {
+        Dbg.log("HOST.PM", "cancel 调用");
+        IArchiveProvider p = lastArchiveProvider;
+        if (p == null) return;
+        try { p.cancel(); } catch (Throwable ignored) {}
     }
 
     /**

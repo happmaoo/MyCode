@@ -1,5 +1,7 @@
 package com.myapp.myfilemanager.plugin;
 
+import com.myapp.myfilemanager.Dbg;
+
 import android.app.Service;
 import android.content.Intent;
 import android.os.IBinder;
@@ -65,6 +67,7 @@ public class ArchivePluginService extends Service {
         }
 
         public ArchiveListing list(String archivePath, String innerPath, String password) {
+            Dbg.log("PLUGIN.Stub", "list archive=" + archivePath + " inner=" + innerPath);
             try {
                 ensureDetected();
                 ListResult res = sz.list(archivePath, password == null ? "" : password);
@@ -101,6 +104,7 @@ public class ArchivePluginService extends Service {
         }
 
         public ParcelFileDescriptor open(String archivePath, String innerPath, String password) {
+            Dbg.log("PLUGIN.Stub", "open archive=" + archivePath + " inner=" + innerPath);
             try {
                 ensureDetected();
                 SevenZipEntry e = sz.find(archivePath, innerPath, password == null ? "" : password);
@@ -115,6 +119,7 @@ public class ArchivePluginService extends Service {
         }
 
         public int extract(String archivePath, String innerPath, String password, String outDir) {
+            Dbg.log("PLUGIN.Stub", "extract inner=" + innerPath + " outDir=" + outDir);
             try {
                 ensureDetected();
                 SevenZipEntry e = sz.find(archivePath, innerPath, password == null ? "" : password);
@@ -128,6 +133,7 @@ public class ArchivePluginService extends Service {
         }
 
         public int extractAll(String archivePath, String password, String outDir) {
+            Dbg.log("PLUGIN.Stub", "extractAll archive=" + archivePath + " outDir=" + outDir);
             try {
                 ensureDetected();
                 RootShell.Result r = sz.extractAll(archivePath,
@@ -140,15 +146,50 @@ public class ArchivePluginService extends Service {
 
         public String extractBatch(String archivePath, List<String> innerPaths,
                                    String password, String outDir) {
+            Dbg.log("PLUGIN.Stub", "extractBatch 进入 bin=" + sz.getBin()
+                    + " mm=" + sz.isUseMountMaster() + " archive=" + archivePath
+                    + " outDir=" + outDir + " inners("
+                    + (innerPaths == null ? 0 : innerPaths.size()) + ")="
+                    + Dbg.clip(String.valueOf(innerPaths), 800));
             try {
                 ensureDetected();
-                return sz.extractMany(archivePath, innerPaths,
+                String res = sz.extractMany(archivePath, innerPaths,
                         password == null ? "" : password, outDir);
+                Dbg.log("PLUGIN.Stub", "extractMany 返回 -> "
+                        + (res == null ? "OK(成功)" : Dbg.clip(res, 800)));
+                return res;
             } catch (Throwable t) {
+                Dbg.log("PLUGIN.Stub", "extractBatch 抛异常", t);
                 return "批量解压失败：" + t.getMessage();
             }
         }
+
+        public long contentSize(String archivePath, List<String> innerPaths,
+                                String password) {
+            Dbg.log("PLUGIN.Stub", "contentSize archive=" + archivePath);
+            try {
+                ensureDetected();
+                return sz.contentSize(archivePath, innerPaths,
+                        password == null ? "" : password);
+            } catch (Throwable t) {
+                return -1;
+            }
+        }
+
+        /** 用户点「取消」：销毁插件进程当前正在执行的 7z/su，使阻塞中的解压调用尽快返回。
+         *  由 Binder 线程池的独立线程执行（oneway），不受解压占用线程的影响。 */
+        public void cancel() {
+            Dbg.log("PLUGIN.Stub", "cancel 收到中断请求");
+            RootShell.cancelCurrent();
+        }
     };
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        Dbg.install();
+        Dbg.log("PLUGIN", "ArchivePluginService.onCreate 进程启动");
+    }
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -165,13 +206,21 @@ public class ArchivePluginService extends Service {
             String b = sp.getString("bin", null);
             if (b != null && !b.isEmpty()) {
                 sz.restore(b, sp.getBoolean("mm", false));
+                Dbg.log("PLUGIN.detect", "从缓存恢复 bin=" + b
+                        + " mm=" + sp.getBoolean("mm", false));
             }
         }
         if (sz.getBin().isEmpty()) {
             DetectResult d = sz.detect(false);
+            Dbg.log("PLUGIN.detect", "detect(默认) bin=" + d.getBin());
             // 若默认命名空间没找到，再试全局命名空间
-            if (d.getBin() == null) sz.detect(true);
+            if (d.getBin() == null) {
+                DetectResult d2 = sz.detect(true);
+                Dbg.log("PLUGIN.detect", "detect(全局命名空间) bin=" + d2.getBin());
+            }
             // 探测成功则写回磁盘，供下次冷启动直接复用
+            Dbg.log("PLUGIN.detect", "ensureDetected 完成 bin=[" + sz.getBin()
+                    + "] mm=" + sz.isUseMountMaster());
             if (!sz.getBin().isEmpty()) {
                 getSharedPreferences("archive7z_cache", MODE_PRIVATE).edit()
                         .putString("bin", sz.getBin())

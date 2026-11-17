@@ -20,6 +20,8 @@ public class ZoomImageView extends ImageView {
     private final float[] m = new float[9];
     private float minScale = 1f;
     private final float maxScale = 8f;
+    /** SVG 等矢量渲染位图允许初始放大铺满视图（渲染分辨率 800px 起步，放大仍较清晰）。 */
+    private boolean allowUpscale = false;
     private ScaleGestureDetector sg;
     private GestureDetector gd;
     private float lastX, lastY;
@@ -53,8 +55,17 @@ public class ZoomImageView extends ImageView {
         });
     }
 
-    /** 设置位图并按当前视图尺寸做「居中适应」初始化。 */
+    /** 设置位图并按当前视图尺寸做「居中适应」初始化；小位图按实际像素显示，不放大。 */
     public void setBitmap(Bitmap b) {
+        setBitmap(b, false);
+    }
+
+    /**
+     * @param upscale true 时允许初始放大铺满视图（SVG 位图用：渲染分辨率高，放大仍清晰）；
+     *                false 保持位图常规行为：图片尺寸未超过界面时按实际像素显示。
+     */
+    public void setBitmap(Bitmap b, final boolean upscale) {
+        allowUpscale = upscale;
         setImageBitmap(b);
         post(new Runnable() { public void run() { fit(); } });
     }
@@ -68,7 +79,8 @@ public class ZoomImageView extends ImageView {
         int vh = getHeight() - getPaddingTop() - getPaddingBottom();
         if (vw <= 0 || vh <= 0) return;
         float s = Math.min((float) vw / dw, (float) vh / dh);
-        if (s > 1f) s = 1f;   // 图片尺寸未超过界面时按实际像素显示，不做放大
+        // 位图放大只会变糊，故默认小图按实际像素显示；SVG 渲染位图分辨率高，允许放大铺满。
+        if (!allowUpscale && s > 1f) s = 1f;
         if (s <= 0) s = 1f;
         minScale = s;
         matrix.setScale(s, s);

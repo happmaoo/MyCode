@@ -13,7 +13,8 @@ import android.os.Bundle;
  */
 public class ImageViewerPluginService extends Service {
     private static final String[] IMG_EXT = {
-        "jpg", "jpeg", "png", "gif", "bmp", "webp", "heic", "heif", "tiff", "tif", "avif"
+        "jpg", "jpeg", "png", "gif", "bmp", "webp", "heic", "heif", "tiff", "tif", "avif",
+        "svg", "svgz"
     };
 
     private final IPlugin.Stub pluginStub = new IPlugin.Stub() {
@@ -57,6 +58,13 @@ public class ImageViewerPluginService extends Service {
             return null;   // 方式B（内嵌渲染）预留；当前采用方式A（独立 Activity 预览）
         }
     };
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        com.myapp.myfilemanager.Dbg.install();
+        com.myapp.myfilemanager.Dbg.log("PLUGIN", "ImageViewerPluginService.onCreate 进程启动");
+    }
 
     @Override
     public IBinder onBind(Intent intent) {

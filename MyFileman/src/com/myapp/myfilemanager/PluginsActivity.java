@@ -37,6 +37,7 @@ public class PluginsActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        Dbg.log("ACTIVITY", "PluginsActivity.onCreate");
         setContentView(buildUi());
         pm = new PluginManager(this);
         load();
@@ -198,29 +199,26 @@ public class PluginsActivity extends Activity {
             card.addView(ext);
         }
 
-        // 关联格式：输入框（预填默认/已存值，逗号分隔）。统一由右上角「保存」提交，不在卡片内重复放置按钮。
-        LinearLayout assocRow = new LinearLayout(this);
-        assocRow.setOrientation(LinearLayout.HORIZONTAL);
-        assocRow.setGravity(Gravity.CENTER_VERTICAL);
-        assocRow.setPadding(0, Util.dp(this, 8), 0, 0);
+        // 关联格式：标签一行 + 输入框单独一行（可自动换行、普通字号）。统一由右上角「保存」提交，不在卡片内重复放置按钮。
         TextView lbl = new TextView(this);
         lbl.setText("关联格式：");
         lbl.setTextSize(Ui.sp(1, 11, 12, 14));
         lbl.setTextColor(Ui.SUB);
-        assocRow.addView(lbl);
+        lbl.setPadding(0, Util.dp(this, 8), 0, 0);
+        card.addView(lbl);
         final EditText input = new EditText(this);
         input.setText(Prefs.pluginAssocRaw(this, info.id));
         input.setHint("jpg,gif,...");
-        input.setTextSize(Ui.sp(1, 11, 12, 14));
-        input.setSingleLine(true);
+        input.setTextSize(Ui.sp(1, 13, 14, 16));
+        input.setSingleLine(false);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.setGravity(Gravity.TOP | Gravity.START);
         input.setPadding(Util.dp(this, 6), Util.dp(this, 4), Util.dp(this, 6), Util.dp(this, 4));
         input.setBackgroundColor(0xFFEEEEEE);
-        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        input.setLayoutParams(ip);
-        assocRow.addView(input);
+        card.addView(input, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         assocInputs.put(info.id, input);   // 登记到全局表，供右上角「保存」统一读取
-        card.addView(assocRow);
         return card;
     }
 

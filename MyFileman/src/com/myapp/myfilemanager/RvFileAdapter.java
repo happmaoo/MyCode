@@ -47,6 +47,7 @@ public class RvFileAdapter extends RecyclerView.Adapter<RvFileAdapter.Holder> {
     private float nameSp = 13;
     private String fontId = "";
     private Listener listener;
+    private boolean listMode = false;   // true=列表视图（单列、图标在左、名称+大小/时间两行）
 
     private final int namePx, padTop, padBottom, padSide;
 
@@ -87,6 +88,15 @@ public class RvFileAdapter extends RecyclerView.Adapter<RvFileAdapter.Holder> {
 
     public void setFont(String id) { fontId = (id == null) ? "" : id; notifyDataSetChanged(); }
 
+    /** 切换网格 / 列表视图。两种布局用不同 viewType，RecyclerView 不会混用它们的 ViewHolder。 */
+    public void setViewMode(boolean list) {
+        if (listMode == list) return;
+        listMode = list;
+        notifyDataSetChanged();
+    }
+
+    @Override public int getItemViewType(int position) { return listMode ? 1 : 0; }
+
     public void release() { apkIo.shutdownNow(); thumbIo.shutdownNow(); }
 
     @Override public int getItemCount() { return items.size(); }
@@ -95,7 +105,7 @@ public class RvFileAdapter extends RecyclerView.Adapter<RvFileAdapter.Holder> {
     public FileItem getItem(int p) { return items.get(p); }
 
     public static class Holder extends RecyclerView.ViewHolder {
-        ImageView icon; NameText name; LinearLayout cell;
+        ImageView icon; NameText name; TextView listName, meta; LinearLayout cell;
         Holder(LinearLayout c) { super(c); cell = c; }
     }
 
@@ -112,6 +122,41 @@ public class RvFileAdapter extends RecyclerView.Adapter<RvFileAdapter.Holder> {
 
     @Override
     public Holder onCreateViewHolder(ViewGroup parent, int viewType) {
+        if (viewType == 1) {
+            // 列表视图：整宽单行，图标在左，右侧名称 + 副标题（大小 / 修改时间）
+            LinearLayout cell = new LinearLayout(ctx);
+            cell.setOrientation(LinearLayout.HORIZONTAL);
+            cell.setGravity(Gravity.CENTER_VERTICAL);
+            cell.setPadding(Util.dp(ctx, 10), Util.dp(ctx, 3), Util.dp(ctx, 10), Util.dp(ctx, 3));
+
+            ImageView icon = new ImageView(ctx);
+            icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            cell.addView(icon, new LinearLayout.LayoutParams(iconPx, iconPx));
+
+            LinearLayout texts = new LinearLayout(ctx);
+            texts.setOrientation(LinearLayout.VERTICAL);
+            TextView name = new TextView(ctx);
+            name.setSingleLine(true);
+            name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            TextView meta = new TextView(ctx);
+            meta.setSingleLine(true);
+            meta.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            meta.setTextSize(11);
+            meta.setTextColor(Ui.HINT);
+            texts.addView(name, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            texts.addView(meta, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            tlp.leftMargin = Util.dp(ctx, 10);
+            cell.addView(texts, tlp);
+
+            Holder h = new Holder(cell);
+            h.icon = icon; h.listName = name; h.meta = meta;
+            return h;
+        }
+        // 网格视图：图标在上、名称在下，固定像素高度保证逐格等高
         LinearLayout cell = new LinearLayout(ctx);
         cell.setOrientation(LinearLayout.VERTICAL);
         cell.setGravity(Gravity.CENTER_HORIZONTAL | Gravity.TOP);
@@ -136,45 +181,39 @@ public class RvFileAdapter extends RecyclerView.Adapter<RvFileAdapter.Holder> {
     @Override
     public void onBindViewHolder(Holder h, int pos) {
         final FileItem it = items.get(pos);
-        int cellH = padTop + iconPx + namePx + padBottom;
-        h.cell.setLayoutParams(new RecyclerView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, cellH));
-
         boolean sel = checked.contains(it.path);
         Typeface tf = typeface();
         boolean hidden = !it.parent && it.name.startsWith(".");
 
-        LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(iconPx, iconPx);
-        ilp.gravity = Gravity.CENTER_HORIZONTAL;
-        h.icon.setLayoutParams(ilp);
+        h.cell.setBackgroundColor(sel ? Ui.PRIMARY_SOFT : Color.TRANSPARENT);
         h.icon.setTag(it.path);
 
-        h.name.setText(it.name);
-        h.name.setTextSize(nameSp);
-        h.name.setTypeface(tf);
-        h.name.setTextColor(hidden ? Ui.HINT : Ui.TEXT);
-        h.cell.setBackgroundColor(sel ? Ui.PRIMARY_SOFT : Color.TRANSPARENT);
-
-        int kind = Util.kind(it.name, it.dir, it.parent);
-        if (kind == Util.T_APK && !it.parent && !it.dir) {
-            final String key = IconFactory.apkKey(it, iconPx);
-            Bitmap ab = IconFactory.apkCached(key);
-            if (ab != null) h.icon.setImageBitmap(ab);
-            else {
-                h.icon.setImageBitmap(IconFactory.get(it, iconPx));
-                if (!IconFactory.apkFailed(key)) requestApk(key, it.path, iconPx, h.icon);
-            }
-        } else if (kind == Util.T_IMAGE && !it.parent && !it.dir) {
-            final String key = IconFactory.thumbKey(it, iconPx);
-            Bitmap tb = IconFactory.thumbCached(key);
-            if (tb != null) h.icon.setImageBitmap(tb);
-            else {
-                h.icon.setImageBitmap(IconFactory.get(it, iconPx));
-                if (!IconFactory.thumbFailed(key)) requestThumb(key, it.path, iconPx, h.icon);
-            }
+        if (listMode) {
+            int rowH = Math.max(iconPx, Util.dp(ctx, 40)) + Util.dp(ctx, 8);
+            h.cell.setLayoutParams(new RecyclerView.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, rowH));
+            LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(iconPx, iconPx);
+            ilp.gravity = Gravity.CENTER_VERTICAL;
+            h.icon.setLayoutParams(ilp);
+            h.listName.setText(it.name);
+            h.listName.setTextSize(nameSp + 1);
+            h.listName.setTypeface(tf);
+            h.listName.setTextColor(hidden ? Ui.HINT : Ui.TEXT);
+            h.meta.setText(metaText(it));
         } else {
-            h.icon.setImageBitmap(IconFactory.get(it, iconPx));
+            int cellH = padTop + iconPx + namePx + padBottom;
+            h.cell.setLayoutParams(new RecyclerView.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, cellH));
+            LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(iconPx, iconPx);
+            ilp.gravity = Gravity.CENTER_HORIZONTAL;
+            h.icon.setLayoutParams(ilp);
+            h.name.setText(it.name);
+            h.name.setTextSize(nameSp);
+            h.name.setTypeface(tf);
+            h.name.setTextColor(hidden ? Ui.HINT : Ui.TEXT);
         }
+
+        bindIcon(h.icon, it);
 
         h.cell.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { if (listener != null) listener.onItemClick(it, v); }
@@ -185,6 +224,38 @@ public class RvFileAdapter extends RecyclerView.Adapter<RvFileAdapter.Holder> {
                 return true;
             }
         });
+    }
+
+    /** 网格 / 列表共用的图标加载：APK 图标、图片缩略图走异步缓存，其余直接取主题图标。 */
+    private void bindIcon(ImageView iv, FileItem it) {
+        int kind = Util.kind(it.name, it.dir, it.parent);
+        if (kind == Util.T_APK && !it.parent && !it.dir) {
+            final String key = IconFactory.apkKey(it, iconPx);
+            Bitmap ab = IconFactory.apkCached(key);
+            if (ab != null) iv.setImageBitmap(ab);
+            else {
+                iv.setImageBitmap(IconFactory.get(it, iconPx));
+                if (!IconFactory.apkFailed(key)) requestApk(key, it.path, iconPx, iv);
+            }
+        } else if (kind == Util.T_IMAGE && !it.parent && !it.dir) {
+            final String key = IconFactory.thumbKey(it, iconPx);
+            Bitmap tb = IconFactory.thumbCached(key);
+            if (tb != null) iv.setImageBitmap(tb);
+            else {
+                iv.setImageBitmap(IconFactory.get(it, iconPx));
+                if (!IconFactory.thumbFailed(key)) requestThumb(key, it.path, iconPx, iv);
+            }
+        } else {
+            iv.setImageBitmap(IconFactory.get(it, iconPx));
+        }
+    }
+
+    /** 列表视图副标题：返回项 / 文件夹显示类型，文件显示大小与修改时间。 */
+    private String metaText(FileItem it) {
+        if (it.parent) return "返回";
+        if (it.dir) return "文件夹";
+        String t = Util.time(it.modified);
+        return t.isEmpty() ? Util.size(it.size) : Util.size(it.size) + "   " + t;
     }
 
     private static final HashMap<String, Typeface> FONT_CACHE = new HashMap<String, Typeface>();

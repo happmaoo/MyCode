@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font-family: sans-serif; line-height: 1.7; color: #202124; margin: 0; padding: 16px 18px 28px; }
+  p { margin: 8px 0; }
+  img.appicon { width: 64px; height: 64px; }
+  hr { border: none; border-top: 1px solid #e0e0e0; margin: 16px 0; }
+  h2 { font-size: 18px; color: #1a73e8; margin-top: 22px; }
+  h3 { font-size: 15px; color: #1a73e8; margin: 20px 0 4px; }
+  ul { margin: 4px 0 8px; padding-left: 20px; }
+  li { margin: 3px 0; }
+  code { background: #f1f3f4; border-radius: 3px; padding: 0 3px; font-size: 90%; }
+  pre { background: #f6f8fa; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px 12px; overflow-x: auto; font-size: 12px; line-height: 1.55; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+  th, td { border: 1px solid #e0e0e0; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f6f8fa; }
+  .tip { color: #80868b; font-size: 12px; }
+  .warn { background: #fff8e1; border-left: 3px solid #f9a825; padding: 8px 12px; margin: 10px 0; font-size: 13px; }
+  .toc { background: #f6f8fa; border-radius: 6px; padding: 8px 12px; font-size: 13px; }
+  .toc a { color: #1a73e8; text-decoration: none; }
+</style>
+</head>
+<body>
+<p>%APPICON%</p>
+<p>%APPNAME%</p>
+<p>%VERSION%</p>
+<hr>
+<p>MyFileman是我做的一款文件管理APP，当初是AI十分强大我写一些APP感觉还不错，后来感觉市面上的文件管理器功能太少，特别是自定义功能，玩法少不方便，所以就结合AI一点点写出来的，主打自定义功能。可以自定义按钮设置你想要的命令。也欢迎大家进行再加工，但是保留来源版权声明。</p>
+
+<h2>使用帮助</h2>
+<p class="toc">
+  <a href="#s1">一、自定义命令</a> ·
+  <a href="#s2">二、控制行 [mycmd:]</a> ·
+  <a href="#s3">三、结果窗口行为</a> ·
+  <a href="#s4">四、日志与后台长任务</a> ·
+  <a href="#s5">五、自定义脚本</a> ·
+  <a href="#s6">六、其他设置</a>
+</p>
+
+<h3 id="s1">一、自定义命令</h3>
+<p>在「设置 → 自定义命令」里添加/编辑。命令模板直接写 shell 命令即可，<b>不要再写 su</b>（是否以 Root 执行由选项决定）。</p>
+<p>模板里的占位符会在执行时替换为选中的文件：</p>
+<table>
+  <tr><th>占位符</th><th>含义</th></tr>
+  <tr><td><code>&#37;n</code></td><td>文件名</td></tr>
+  <tr><td><code>&#37;f</code></td><td>文件路径</td></tr>
+  <tr><td><code>&#37;d</code></td><td>所在目录路径</td></tr>
+  <tr><td><code>&#37;F</code></td><td>全部选中文件的路径</td></tr>
+  <tr><td><code>&#37;pid:插件id</code></td><td>调用插件，如 <code>&#37;pid:archive7z &#37;F</code> 用压缩包插件打开选中文件、<code>&#37;pid:imageviewer &#37;F</code> 用图片查看器打开</td></tr>
+</table>
+<p>选项写在模板<b>前 5 行</b>内，一行即可，格式 <code>#options://root:0/printown:1/ena:2/</code>：</p>
+<table>
+  <tr><th>选项</th><th>说明</th></tr>
+  <tr><td><code>root:1</code></td><td>以 Root 方式执行（强制 mount-master 全局挂载命名空间）</td></tr>
+  <tr><td><code>printown:1</code></td><td>在结果里输出原命令</td></tr>
+  <tr><td><code>ena:1</code></td><td>工具栏常启用</td></tr>
+  <tr><td><code>ena:2</code></td><td>仅选中 1 个文件时启用</td></tr>
+  <tr><td><code>ena:3</code></td><td>选中 1 个以上文件或文件夹（可混合）时启用</td></tr>
+</table>
+<p class="tip">缺省取默认值：root:0 / printown:1 / ena:2。</p>
+<p>模板里另起一行写 <code>size:宽x高</code>（如 <code>size:500x500</code>），结果就用固定尺寸的弹窗显示，而不是全屏输出窗口；弹窗右上角 X 与下方居中的「确定」按钮均可关闭。</p>
+
+<h3 id="s2">二、控制行（统一前缀 [mycmd:）</h3>
+<p>输出里以 <code>[mycmd:</code> 开头的行会被识别为控制指令，<b>不会显示在正文里</b>。三个来源都会逐行识别：主命令 stdout、点击动态按钮后命令的输出、以及 <code>[mycmd:log]</code> 轮询的日志文件内容。</p>
+<table>
+  <tr><th>写法</th><th>作用</th></tr>
+  <tr><td><code>[mycmd:title:标题文本]</code></td><td>动态改变输出窗口顶栏标题（末尾 <code>]</code> 可带可不带）。标题就是这段纯文本，前面不加前缀、后面不加「执行中」等状态文字</td></tr>
+  <tr><td><code>[mycmd:btn:按钮名称]命令</code></td><td>在窗口底部生成一个按钮，点击即用 shell 执行 <code>]</code> 后面的命令；同名按钮只生成一个</td></tr>
+  <tr><td><code>[mycmd:btn:按钮名称:0]</code></td><td>删除同名按钮（<code>:0</code> 是删除标记，<code>]</code> 后面必须为空、不跟命令）</td></tr>
+  <tr><td><code>[mycmd:log]路径</code></td><td>启动该文件的增量日志轮询</td></tr>
+  <tr><td><code>[mycmd:exit]</code></td><td>标记命令已结束</td></tr>
+</table>
+
+<h3 id="s3">三、结果窗口行为</h3>
+<ul>
+  <li>顶栏标题＝命令名，或由 <code>[mycmd:title:]</code> 指定的文本；前后不加任何多余文字。</li>
+  <li><code>[mycmd:exit]</code> <b>只标记命令结束，不会自动关窗</b>；之后点「关闭」直接关闭。收到它之前点「关闭」或系统返回键，会先弹确认框。</li>
+  <li>命令未结束时切到后台、再从桌面图标打开 APP，会自动切回结果窗口，标题、正文、按钮、日志进度与滚动位置都恢复，不会重跑命令、不会重放历史输出。</li>
+  <li>执行期间动态按钮不可点，收到 <code>[mycmd:exit]</code> 后恢复可点。窗口被重建后不再显示「停止」按钮——停止请用脚本自带的 <code>[mycmd:btn:停止]命令</code>。</li>
+  <li>长任务请把命令放到后台运行（结尾 <code>&amp;</code>），否则窗口被销毁时命令会被一起中断。</li>
+</ul>
+
+<h3 id="s4">四、日志文件与后台长任务</h3>
+<ul>
+  <li><code>[mycmd:log]</code> 后面的路径必须是 APP 能直接读的<b>公共目录</b>（如 <code>/sdcard/Download/xxx.log</code>）。APP 本进程直读，不走 Root、不弹授权通知。</li>
+  <li><code>[mycmd:log]</code> 这一行<b>必须输出到 stdout</b>——要先用它启动轮询，之后才能读到日志文件里的控制行。</li>
+  <li>写进日志文件的 <code>title</code> / <code>btn</code> / 删除按钮 / <code>exit</code> 控制行同样生效，但每条必须<b>独占一行</b>，不要和其他输出拼在同一行。</li>
+</ul>
+<div class="warn">日志按「已读字节偏移」增量读取，所以<b>不要用 <code>&gt;</code> 反复覆盖写</b>：覆盖会让文件长度忽大忽小，APP 可能从半截开始读，出现控制行缺字符、识别失败。请用 <code>&gt;&gt;</code> 追加，或整个后台任务只在启动时重定向一次；脚本重跑时只在最开始清空一次文件。</div>
+<p>完整示例：</p>
+<pre><code>LOG=/sdcard/Download/.mylog.log
+OUT=/sdcard/Download/out.7z
+
+: &gt; "$LOG"                          # 仅在任务开始前清空一次
+echo "[mycmd:log]$LOG"              # 此行必须输出到 stdout
+echo "[mycmd:title:开始压缩]"
+echo '[mycmd:btn:停止]pkill -9 7z'
+
+( stdbuf -oL 7z a -y -bsp0 "$OUT" "${file_list[@]}"
+  echo "[mycmd:exit]" ) &gt; "$LOG" 2&gt;&amp;1 &amp;
+</code></pre>
+<p class="tip">上面整个子 shell 只在启动时打开一次日志文件，之后所有输出共享同一 fd 持续写入，长度单调增长，是安全的。若改成多条命令分步写，请一律用 <code>&gt;&gt;</code>，例如 <code>printf '&#37;s\n' "[mycmd:title:标题文本2]" &gt;&gt; "$LOG"</code>。</p>
+
+<h3 id="s5">五、自定义脚本（侧栏 Bash）</h3>
+<p>在「设置 → 自定义脚本」填一个目录，APP 启动后自动加载其中所有 <code>.sh</code> 脚本，显示在侧栏的 Bash 分类，标题直接取脚本文件名（去掉 <code>.sh</code>），无需事先读取脚本内容或写任何标记。勾选「以 Root 运行脚本」可让侧栏脚本统一以 Root 会话执行（可访问系统目录等）。</p>
+
+<h3 id="s6">六、其他设置</h3>
+<ul>
+  <li><b>扩展名打开方式</b>：按扩展名（不带点，多个用逗号分隔，如 <code>sh,txt,log</code>）指定 MIME、或直接用某应用/某 Activity 打开；留空＝系统自动处理，后添加的同名规则优先。底部「打开」按钮始终弹系统选择框。</li>
+  <li><b>接收文件时执行的命令</b>：从其他应用用「打开方式 / 分享」把文件送进 APP 时执行。</li>
+  <li><b>插件</b>：<code>archive7z</code>（压缩包）、<code>imageviewer</code>（图片查看器）在独立进程运行，单个插件崩溃不影响主界面，可在插件页启用/禁用。</li>
+  <li><b>图片查看器</b>：支持 jpg / png / gif / bmp / webp / heic / tiff / avif 等位图，以及 <code>.svg</code>、<code>.svgz</code> 矢量图。SVG 按矢量绘制，双指放大不失真；列表里也会显示 SVG 缩略图。SVG 的滤镜、动画、外部引用图片等高级特性不受支持，复杂图形可能显示不全。</li>
+  <li><b>全局调试日志</b>：记录应用启动、界面操作、文件与命令、插件调用、7z 全链路与崩溃堆栈；设置页可开关、查看、清空、分享，主进程与插件进程共享、即时生效。</li>
+  <li>还有图标主题、字号、左右滑动切换标签页、隐藏文件、Root 权限等常规选项。</li>
+</ul>
+<hr>
+<p class="tip">本页内容随版本更新；脚本写法有问题时，可打开调试日志查看命令的实际执行与输出。</p>
+</body>
+</html>

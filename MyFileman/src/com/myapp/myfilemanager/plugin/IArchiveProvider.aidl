@@ -29,4 +29,15 @@ interface IArchiveProvider {
      * @return null = 全部成功；否则返回错误说明（供界面直接展示）
      */
     String extractBatch(String archivePath, in List<String> innerPaths, String password, String outDir);
+
+    /**
+     * 解压前估算「解压后实际大小」（Byte），供进度条做分母：
+     *  innerPaths 为空 = 整个压缩包（解析 7z l 末尾汇总行）；非空 = 仅这些条目累加。
+     *  失败返回 -1。
+     */
+    long contentSize(String archivePath, in List<String> innerPaths, String password);
+
+    /** 中断本插件进程当前正在执行的 7z/su 命令（解压对话框「取消」按钮调用）。
+     *  oneway：异步、不等待服务端执行，调用方立即返回，不会阻塞主线程。 */
+    oneway void cancel();
 }

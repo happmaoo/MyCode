@@ -49,7 +49,8 @@ public final class Util {
         if (dir) return T_FOLDER;
         String e = ext(name);
         if (e.equals("jpg") || e.equals("jpeg") || e.equals("png") || e.equals("gif")
-                || e.equals("bmp") || e.equals("webp") || e.equals("heic") || e.equals("svg")) return T_IMAGE;
+                || e.equals("bmp") || e.equals("webp") || e.equals("heic") || e.equals("svg")
+                || e.equals("svgz")) return T_IMAGE;
         if (e.equals("mp4") || e.equals("mkv") || e.equals("avi") || e.equals("mov")
                 || e.equals("3gp") || e.equals("webm") || e.equals("flv") || e.equals("ts")) return T_VIDEO;
         if (e.equals("mp3") || e.equals("wav") || e.equals("flac") || e.equals("aac")

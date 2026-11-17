@@ -21,25 +21,34 @@ public final class Prefs {
 
     private static final String FILE = "settings";
     private static final String K_COLS = "columns";        // 每行列数，默认 5
-    private static final String K_TEXT = "text_level";     // 0 小 / 1 中 / 2 大（界面文字）
+    private static final String K_VIEW_MODE = "view_mode"; // 文件列表视图：0 网格 / 1 列表
+    public static final int VIEW_GRID = 0, VIEW_LIST = 1;
+    private static final String K_SORT_MODE = "sort_mode"; // 文件排序：0 字母 / 1 时间
+    public static final int SORT_NAME = 0, SORT_TIME = 1;
+    private static final String K_TEXT = "text_level";      // 0 小 / 1 中 / 2 大（界面文字）
+    private static final String K_UI_FONT_SP = "ui_font_sp"; // 界面字体大小 sp（0=未设置不缩放）
     private static final String K_NAME_SP = "list_name_sp";      // 列表名称统一字号 sp
     private static final String K_FOLDER_SP_OLD = "folder_name_sp"; // 1.6 旧值，仅用于迁移读取
     private static final String K_LIST_FONT = "list_font";       // 列表字体：""默认 / serif / monospace / bold / 字体文件路径
     private static final String K_DEBUG_RX = "debug_rx";         // 调试：启动时显示接收到的全部参数
     private static final String K_ICON_THEME = "icon_theme";      // 主题下标（见 IconFactory.THEME_NAMES）
-    private static final String K_ICON_THEME_VER = "icon_theme_ver"; // 1=旧 8 套下标 / 2=现 5 套下标
-    private static final int THEME_VER = 2;
+    private static final String K_ICON_THEME_VER = "icon_theme_ver"; // 1=旧8套 / 2=中间5套 / 3=现2套
+    private static final int THEME_VER = 3;
     private static final String K_CMD_TEXT = "cmd_text_level"; // 0 小 / 1 中 / 2 大（命令结果窗口）
     private static final String K_CMD_TIMEOUT = "cmd_timeout";  // 命令执行超时（秒），0 = 不限时
     private static final String K_HIDDEN = "show_hidden";
     private static final String K_ROOT = "root_enabled";
     private static final String K_SCRIPT_DIR = "script_dir";   // 侧栏 Bash 脚本目录
+    private static final String K_SCRIPT_ROOT = "script_root";  // 自定义脚本是否以 Root 运行
     private static final String K_CMDS = "custom_commands";
     private static final String K_CMD_VER = "cmd_ver";     // 预置命令版本，用于升级迁移
-    private static final int CMD_VER = 2;
+    private static final int CMD_VER = 3;
     private static final String K_FAVS = "favorites";            // 收藏路径（明文转义，换行分隔）
     private static final String K_OPEN_RULES = "open_rules";     // 扩展名打开方式规则
     private static final String K_ACCENT = "accent";             // 着重色（十六进制 RGB，如 FD5555；空=默认）
+    private static final String K_SWIPE_TABS = "swipe_tabs";     // 左右滑动切换标签页
+    private static final String K_SWIPE_DIST = "swipe_dist";      // 滑动切换最小横向位移阈值（dp）
+    private static final String K_SWIPE_VEL  = "swipe_vel";       // 滑动切换最小甩动速度阈值（px/s）
 
     private static SharedPreferences sp(Context c) {
         return c.getSharedPreferences(FILE, Context.MODE_PRIVATE);
@@ -53,12 +62,37 @@ public final class Prefs {
         sp(c).edit().putInt(K_COLS, Math.max(2, Math.min(10, v))).apply();
     }
 
+    /** 文件列表视图模式：网格（默认）/ 列表。设置页的列数仅在网格视图下生效。 */
+    public static int viewMode(Context c) {
+        return sp(c).getInt(K_VIEW_MODE, VIEW_GRID) == VIEW_LIST ? VIEW_LIST : VIEW_GRID;
+    }
+    public static void setViewMode(Context c, int v) {
+        sp(c).edit().putInt(K_VIEW_MODE, v == VIEW_LIST ? VIEW_LIST : VIEW_GRID).apply();
+    }
+
+    /** 文件排序方式：字母（沿用原有名称顺序，默认）/ 时间（修改时间新→旧）。 */
+    public static int sortMode(Context c) {
+        return sp(c).getInt(K_SORT_MODE, SORT_NAME) == SORT_TIME ? SORT_TIME : SORT_NAME;
+    }
+    public static void setSortMode(Context c, int v) {
+        sp(c).edit().putInt(K_SORT_MODE, v == SORT_TIME ? SORT_TIME : SORT_NAME).apply();
+    }
+
     public static int textLevel(Context c) {
         int v = sp(c).getInt(K_TEXT, 1);
         return v < 0 ? 0 : (v > 2 ? 2 : v);
     }
     public static void setTextLevel(Context c, int v) {
         sp(c).edit().putInt(K_TEXT, Math.max(0, Math.min(2, v))).apply();
+    }
+
+    /** 界面字体大小（sp，标准字号基准 14；0 = 未设置，不缩放）。
+     *  设置后所有界面文字按 X/14 缩放（Ui.FONT_SCALE），三档小/中/大仍决定相对层次。 */
+    public static int uiFontSp(Context c) {
+        return sp(c).getInt(K_UI_FONT_SP, 0);
+    }
+    public static void setUiFontSp(Context c, int v) {
+        sp(c).edit().putInt(K_UI_FONT_SP, Math.max(0, Math.min(28, v))).apply();
     }
 
     /** 命令执行结果窗口的字号档位（0 小 / 1 中 / 2 大），独立于界面文字档位。 */
@@ -125,12 +159,14 @@ public final class Prefs {
     }
 
     /** 图标主题：默认 elementary（IconFactory.THEME_DEFAULT），越界回退默认。
-     *  v2.7 及以前使用 8 套主题的下标；覆盖安装后按 IconFactory.migrateTheme 一次性迁移到
-     *  现在的 5 套下标，已删除的扁平/Papirus/Qogir 会归到默认 elementary。 */
+     *  现仅保留 elementary / adwaita 两套。覆盖安装时按旧值版本一次性迁移：
+     *  ver=1（8 套）与 ver=2（5 套）经 IconFactory.migrateTheme 归到现行下标，
+     *  已删除的主题统一回默认 elementary；ver=3 已是现行下标。 */
     public static int iconTheme(Context c) {
         SharedPreferences p = sp(c);
-        if (p.getInt(K_ICON_THEME_VER, 1) < THEME_VER) {
-            int migrated = IconFactory.migrateTheme(p.getInt(K_ICON_THEME, 0));
+        int ver = p.getInt(K_ICON_THEME_VER, 1);
+        if (ver < THEME_VER) {
+            int migrated = IconFactory.migrateTheme(p.getInt(K_ICON_THEME, 0), ver);
             p.edit().putInt(K_ICON_THEME, migrated)
                     .putInt(K_ICON_THEME_VER, THEME_VER).apply();
             return migrated;
@@ -164,6 +200,12 @@ public final class Prefs {
     }
     public static void setScriptDir(Context c, String dir) {
         sp(c).edit().putString(K_SCRIPT_DIR, dir == null ? "" : dir).apply();
+    }
+    public static boolean scriptRootEnabled(Context c) {
+        return sp(c).getBoolean(K_SCRIPT_ROOT, false);
+    }
+    public static void setScriptRootEnabled(Context c, boolean on) {
+        sp(c).edit().putBoolean(K_SCRIPT_ROOT, on).apply();
     }
 
     // ---------------- 旧版 Base64 → 明文 一次性迁移 ----------------
@@ -256,7 +298,7 @@ public final class Prefs {
     // ---------------- 自定义命令 ----------------
 
     /**
-     * 一条自定义命令：名称、命令模板，及（兼容旧版的）root/autoClose/showOrig 字段。
+     * 一条自定义命令：名称、命令模板，及（兼容旧版的）root/showOrig 字段。
      * 新版选项改为写在模板前 5 行的 #options:// 注释里（见下方解析方法），
      * 字段仅作为「模板中无选项行时」的兜底，保证旧数据仍可正常运行。
      */
@@ -264,13 +306,11 @@ public final class Prefs {
         public String name;
         public String tmpl;
         public boolean root;
-        public boolean autoClose;
         public boolean showOrig = true;   // 默认显示原命令，保持旧版行为
-        public Cmd(String n, String t) { this(n, t, false, false, true); }
-        public Cmd(String n, String t, boolean r) { this(n, t, r, false); }
-        public Cmd(String n, String t, boolean r, boolean ac) { this(n, t, r, ac, true); }
-        public Cmd(String n, String t, boolean r, boolean ac, boolean so) {
-            name = n; tmpl = t; root = r; autoClose = ac; showOrig = so;
+        public Cmd(String n, String t) { this(n, t, false, true); }
+        public Cmd(String n, String t, boolean r) { this(n, t, r, true); }
+        public Cmd(String n, String t, boolean r, boolean so) {
+            name = n; tmpl = t; root = r; showOrig = so;
         }
 
         /** 在 tmpl 前 5 行内查找首个 #options:// 行并解析选项；找不到返回 null。 */
@@ -280,8 +320,8 @@ public final class Prefs {
             for (int i = 0; i < lines.length && i < 5; i++) {
                 String ln = lines[i].trim();
                 if (ln.startsWith("#options://")) {
-                    // 默认值：root:0 / printown:1 / autoclose:0 / ena:2
-                    int[] r = new int[]{0, 1, 0, 2};
+                    // 默认值：root:0 / printown:1 / ena:2
+                    int[] r = new int[]{0, 1, 2};
                     String body = ln.substring("#options://".length());
                     String[] parts = body.split("/");
                     for (String p : parts) {
@@ -293,8 +333,7 @@ public final class Prefs {
                         try { val = Integer.parseInt(v); } catch (Exception ignored) { val = 0; }
                         if (k.equals("root")) r[0] = val;
                         else if (k.equals("printown")) r[1] = val;
-                        else if (k.equals("autoclose")) r[2] = val;
-                        else if (k.equals("ena")) r[3] = val;
+                        else if (k.equals("ena")) r[2] = val;
                     }
                     return r;
                 }
@@ -308,10 +347,8 @@ public final class Prefs {
         public boolean optRoot()      { int[] o = parseOptions(); return o != null ? o[0] != 0 : root; }
         /** 是否在结果中输出原命令；无选项行时取字段值。 */
         public boolean optPrintOrig() { int[] o = parseOptions(); return o != null ? o[1] != 0 : showOrig; }
-        /** 执行成功后是否自动关闭结果窗口；无选项行时取字段值。 */
-        public boolean optAutoClose() { int[] o = parseOptions(); return o != null ? o[2] != 0 : autoClose; }
         /** 工具栏启用条件：1 常启 / 2 仅选中 1 个文件 / 3 选中 1 个以上文件或文件夹（可混合）即启用。 */
-        public int optEna()           { int[] o = parseOptions(); return o != null ? o[3] : 2; }
+        public int optEna()           { int[] o = parseOptions(); return o != null ? o[2] : 2; }
         /** 是否指定了弹窗尺寸（size:宽x高）；返回 int[]{宽,高} 或 null（未指定走默认全屏窗口）。 */
         public int[] optSize() {
             if (tmpl == null) return null;
@@ -477,7 +514,7 @@ public final class Prefs {
         }
     }
 
-    /** 每条命令序列化为 esc(name)|esc(tmpl)|root|autoClose|showOrig，多条用换行连接。 */
+    /** 每条命令序列化为 esc(name)|esc(tmpl)|root|showOrig，多条用换行连接（已移除 autoclose）。 */
     public static List<Cmd> commands(Context c) {
         migrateIfNeeded(c);
         ArrayList<Cmd> out = new ArrayList<Cmd>();
@@ -491,9 +528,12 @@ public final class Prefs {
             String tmpl = a[1];
             if (name.length() == 0 && tmpl.length() == 0) continue;
             boolean root = a.length >= 3 && "1".equals(a[2]);
-            boolean autoClose = a.length >= 4 && "1".equals(a[3]);
-            boolean showOrig = a.length < 5 || "1".equals(a[4]);   // 缺省显示原命令
-            out.add(new Cmd(name, tmpl, root, autoClose, showOrig));
+            // 兼容旧版 5 字段（含 autoClose）：a[3]=autoClose(忽略) a[4]=showOrig；新版 4 字段：a[3]=showOrig。
+            boolean showOrig;
+            if (a.length >= 5) showOrig = "1".equals(a[4]);
+            else if (a.length >= 4) showOrig = "1".equals(a[3]);
+            else showOrig = true;   // 缺省显示原命令
+            out.add(new Cmd(name, tmpl, root, showOrig));
         }
         return out;
     }
@@ -503,27 +543,43 @@ public final class Prefs {
         for (Cmd x : list) {
             if (b.length() > 0) b.append('\n');
             b.append(esc(x.name)).append('|').append(esc(x.tmpl)).append('|')
-             .append(x.root ? '1' : '0').append('|').append(x.autoClose ? '1' : '0')
-             .append('|').append(x.showOrig ? '1' : '0');
+             .append(x.root ? '1' : '0').append('|').append(x.showOrig ? '1' : '0');
         }
         sp(c).edit().putString(K_CMDS, b.toString()).apply();
     }
 
     private static ArrayList<Cmd> defaultCommands() {
+        // 每条默认命令末尾追加「发送命令结束」标记：执行完输出 [mycmd:exit]，
+        // 结果窗口据此自动标记命令结束（不自动关闭，此后点关闭不再确认）。
+        String end = "\n#发送命令结束\necho \"[mycmd:exit]\"";
         ArrayList<Cmd> d = new ArrayList<Cmd>();
-        d.add(new Cmd("查看文件详情", "ls -ld %f", false));
-        d.add(new Cmd("查看内容", "cat %f", false));
-        d.add(new Cmd("计算 SHA256", "sha256sum %F", false));
-        d.add(new Cmd("安装 APK", "pm install -r %f", true));
+        d.add(new Cmd("查看文件详情", "ls -ld %f" + end, false));
+        d.add(new Cmd("查看内容", "cat %f" + end, false));
+        d.add(new Cmd("计算 SHA256", "sha256sum %F" + end, false));
+        d.add(new Cmd("安装 APK", "pm install -r %f" + end, true));
         return d;
     }
 
-    /** 旧版预置（1.3 及之前），用于判断用户是否从未自定义过命令。 */
-    private static boolean isOldDefaults(List<Cmd> list) {
-        return list.size() == 3
-                && "查看文件详情".equals(list.get(0).name)
-                && "计算 SHA256".equals(list.get(1).name)
-                && "安装 APK（Root）".equals(list.get(2).name);
+    /** 判断用户是否从未自定义过命令（仅仍是预置命令）：
+     *  - 老版 3 条（1.3 及之前）；
+     *  - 上一版 4 条（无 [mycmd:exit] 标记）。
+     *  两者都视为可安全升级到最新预置。 */
+    private static boolean isPristineDefaults(List<Cmd> list) {
+        if (list.size() == 3) {
+            return "查看文件详情".equals(list.get(0).name)
+                    && "计算 SHA256".equals(list.get(1).name)
+                    && "安装 APK（Root）".equals(list.get(2).name);
+        }
+        if (list.size() == 4) {
+            // 4 条预置名全匹配，且没有任何一条含 exit 标记（即尚未升级到带 exit 的版本）
+            String[] names = {"查看文件详情", "查看内容", "计算 SHA256", "安装 APK"};
+            for (int i = 0; i < 4; i++) {
+                if (!names[i].equals(list.get(i).name)) return false;
+                if (list.get(i).tmpl != null && list.get(i).tmpl.contains("[mycmd:exit]")) return false;
+            }
+            return true;
+        }
+        return false;
     }
 
     /** 首次启动写入预置命令；覆盖安装时仅在用户没自定义过命令的情况下升级预置。 */
@@ -533,7 +589,7 @@ public final class Prefs {
         if (p.getInt(K_CMD_VER, 1) >= CMD_VER && p.contains(K_CMDS)) return;
         if (!p.contains(K_CMDS)) {
             setCommands(c, defaultCommands());
-        } else if (isOldDefaults(commands(c))) {
+        } else if (isPristineDefaults(commands(c))) {
             setCommands(c, defaultCommands());
         }
         p.edit().putInt(K_CMD_VER, CMD_VER).apply();
@@ -552,14 +608,14 @@ public final class Prefs {
         String[] a = splitFields(raw, 4);
         String tmpl = a.length >= 1 ? a[0] : "";
         boolean root = a.length >= 2 && "1".equals(a[1]);
-        boolean autoClose = a.length >= 3 && "1".equals(a[2]);
-        boolean showOrig = a.length < 4 || "1".equals(a[3]);   // 缺省显示原命令
-        return new Cmd("接收命令", tmpl, root, autoClose, showOrig);
+        // 兼容旧版 4 字段（含 autoClose）：a[2]=autoClose(忽略) a[3]=showOrig；新版 3 字段：a[2]=showOrig。
+        boolean showOrig = a.length >= 4 ? "1".equals(a[3]) : (a.length >= 3 ? "1".equals(a[2]) : true);
+        return new Cmd("接收命令", tmpl, root, showOrig);
     }
 
     public static void setRxCommand(Context c, Cmd cmd) {
         String v = esc(cmd.tmpl) + "|" + (cmd.root ? '1' : '0') + "|"
-                + (cmd.autoClose ? '1' : '0') + "|" + (cmd.showOrig ? '1' : '0');
+                + (cmd.showOrig ? '1' : '0');
         sp(c).edit().putString(K_RX_CMD, v).apply();
     }
 
@@ -710,10 +766,12 @@ public final class Prefs {
 
     // ---------------- 扩展名打开方式 ----------------
 
-    /** 一条打开规则：扩展名（小写、不带点）、MIME 类型（可空）、应用包名（可空）。 */
+    /** 一条打开规则：扩展名（逗号分隔的多个扩展名，均小写、不带点，如 "sh,txt,log"）、
+     *  MIME 类型（可空）、应用包名（可空）、Activity 完整类名（可空）。 */
     public static class OpenRule {
-        public String ext, mime, pkg;
-        public OpenRule(String e, String m, String p) { ext = e; mime = m; pkg = p; }
+        public String ext, mime, pkg, cls;
+        public OpenRule(String e, String m, String p) { this(e, m, p, ""); }
+        public OpenRule(String e, String m, String p, String c) { ext = e; mime = m; pkg = p; cls = c; }
     }
 
     private static String normExt(String e) {
@@ -723,7 +781,44 @@ public final class Prefs {
         return s.trim();
     }
 
-    /** 每条规则序列化为 esc(ext)|esc(mime)|esc(pkg)，多条用换行连接。 */
+    /** 归一化逗号分隔的扩展名串（去点、转小写、去空白与空项），用逗号重新连接。 */
+    private static String normExts(String raw) {
+        StringBuilder b = new StringBuilder();
+        if (raw != null) {
+            for (String part : raw.split(",")) {
+                String e = normExt(part);
+                if (e.length() > 0) {
+                    if (b.length() > 0) b.append(',');
+                    b.append(e);
+                }
+            }
+        }
+        return b.toString();
+    }
+
+    /** 归一化后的扩展名列表（小写、不带点、去重），供 UI 展示与规则匹配复用。 */
+    public static List<String> extList(String raw) {
+        List<String> out = new ArrayList<String>();
+        if (raw == null) return out;
+        for (String part : raw.split(",")) {
+            String e = normExt(part);
+            if (e.length() > 0 && !out.contains(e)) out.add(e);
+        }
+        return out;
+    }
+
+    /** 把用户输入的扩展名（可能逗号分隔、带点、带空白）规范化为可存储的逗号串；无有效项返回空串。 */
+    public static String normalizeExts(String raw) {
+        List<String> l = extList(raw);
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < l.size(); i++) {
+            if (i > 0) b.append(',');
+            b.append(l.get(i));
+        }
+        return b.toString();
+    }
+
+    /** 每条规则序列化为 esc(ext)|esc(mime)|esc(pkg)|esc(cls)，多条用换行连接。 */
     public static ArrayList<OpenRule> openRules(Context c) {
         migrateIfNeeded(c);
         ArrayList<OpenRule> out = new ArrayList<OpenRule>();
@@ -731,12 +826,13 @@ public final class Prefs {
         if (raw == null || raw.length() == 0) return out;
         for (String line : splitLines(raw)) {
             if (line.length() == 0) continue;
-            String[] a = splitFields(line, 3);
-            String e = normExt(a.length >= 1 ? a[0] : "");
+            String[] a = splitFields(line, 4);
+            String e = normExts(a.length >= 1 ? a[0] : "");
             if (e.length() == 0) continue;
             String m = a.length >= 2 ? a[1].trim() : "";
             String p = a.length >= 3 ? a[2].trim() : "";
-            out.add(new OpenRule(e, m, p));
+            String c2 = a.length >= 4 ? a[3].trim() : "";
+            out.add(new OpenRule(e, m, p, c2));
         }
         return out;
     }
@@ -745,12 +841,13 @@ public final class Prefs {
         StringBuilder b = new StringBuilder();
         for (OpenRule r : list) {
             if (r == null) continue;
-            String e = normExt(r.ext);
+            String e = normExts(r.ext);
             if (e.length() == 0) continue;
             if (b.length() > 0) b.append('\n');
             b.append(esc(e)).append('|')
              .append(esc(r.mime == null ? "" : r.mime.trim())).append('|')
-             .append(esc(r.pkg == null ? "" : r.pkg.trim()));
+             .append(esc(r.pkg == null ? "" : r.pkg.trim())).append('|')
+             .append(esc(r.cls == null ? "" : r.cls.trim()));
         }
         sp(c).edit().putString(K_OPEN_RULES, b.toString()).apply();
     }
@@ -764,13 +861,37 @@ public final class Prefs {
         sp(c).edit().putString(K_ACCENT, hex == null ? "" : hex.trim()).apply();
     }
 
-    /** 按扩展名查规则；后添加的规则优先，便于覆盖。 */
+    /** 是否在文件列表上左右滑动切换标签页（默认开启）。 */
+    public static boolean swipeTabs(Context c) {
+        return sp(c).getBoolean(K_SWIPE_TABS, true);
+    }
+    public static void setSwipeTabs(Context c, boolean on) {
+        sp(c).edit().putBoolean(K_SWIPE_TABS, on).apply();
+    }
+
+    /** 滑动切换标签页的最小横向位移阈值（dp）；默认 60，与历史手感一致。 */
+    public static int swipeDist(Context c) {
+        return sp(c).getInt(K_SWIPE_DIST, 60);
+    }
+    public static void setSwipeDist(Context c, int dp) {
+        sp(c).edit().putInt(K_SWIPE_DIST, dp).apply();
+    }
+
+    /** 滑动切换标签页的最小甩动速度阈值（px/s）；默认 300，与历史手感一致。 */
+    public static int swipeVel(Context c) {
+        return sp(c).getInt(K_SWIPE_VEL, 300);
+    }
+    public static void setSwipeVel(Context c, int vel) {
+        sp(c).edit().putInt(K_SWIPE_VEL, vel).apply();
+    }
+
+    /** 按扩展名查规则（一条规则可覆盖多个逗号分隔的扩展名）；后添加的规则优先，便于覆盖。 */
     public static OpenRule openRuleFor(Context c, String ext) {
         String e = normExt(ext);
         if (e.length() == 0) return null;
         ArrayList<OpenRule> l = openRules(c);
         for (int i = l.size() - 1; i >= 0; i--) {
-            if (l.get(i).ext.equals(e)) return l.get(i);
+            if (extList(l.get(i).ext).contains(e)) return l.get(i);
         }
         return null;
     }

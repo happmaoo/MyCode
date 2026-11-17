@@ -1,5 +1,7 @@
 package com.myapp.myfilemanager.plugin.sevenzip;
 
+import com.myapp.myfilemanager.Dbg;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -231,11 +233,63 @@ public class SevenZip {
     public ListResult list(String archive, String password) {
         String args = "l -slt -ba -sccUTF-8 -y " + pwArg(password) + q(archive);
         RootShell.Result r = run7z(args, 60_000L, 16 * 1024 * 1024);
-        return new ListResult(parseListing(r.getText()), r.getCode(), r.getStderr());
+        List<SevenZipEntry> es = parseListing(r.getText(), archive);
+        if (es.isEmpty() && r.getCode() == 0 && r.getText().trim().length() > 0) {
+            // 兜底：-slt 解析不出条目但 7z 正常退出 → 改跑表格模式再解析一次
+            // （部分版本的 -slt 对某些格式可能连 Size 段都不同，表格行尾的条目名始终在）
+            RootShell.Result r2 = run7z("l -ba -sccUTF-8 -y " + pwArg(password) + q(archive),
+                    60_000L, 16 * 1024 * 1024);
+            List<SevenZipEntry> es2 = parseListingTable(r2.getText());
+            if (!es2.isEmpty()) {
+                Dbg.log("7Z.list", "-slt 解析为空，表格模式兜底命中 条目数=" + es2.size());
+                es = es2;
+            }
+        }
+        if (es.isEmpty())   // 诊断：两种模式都空时记录原始输出，便于上报排查
+            Dbg.log("7Z.list", "条目解析为空 code=" + r.getCode()
+                    + " stdout=" + Dbg.clip(r.getText(), 400)
+                    + " stderr=" + Dbg.clip(r.getStderr(), 400));
+        return new ListResult(es, r.getCode(), r.getStderr());
     }
 
-    /** 解析 -slt 输出：遇到 "Path = " 就开启一个新记录，不依赖空行分隔 */
-    List<SevenZipEntry> parseListing(String text) {
+    /**
+     * 表格模式（7z l -ba）回退解析。行格式：[Date Time] Attr Size Packed Name…（Name 含空格原样在行尾）：
+     *                     .....     30914560      4512536  adwaita-icon-theme-51.0.tar
+     * 识别条件：attr 列含 "....."（目录/加密为 D 开头），且行尾不是汇总行（"N files/folders"）。
+     * 仅作 -slt 解析不出条目时的兜底，精度要求低。
+     */
+    private static final java.util.regex.Pattern TABLE_ROW = java.util.regex.Pattern.compile(
+            "^(.*?)\\s{2,}(\\d+)\\s+(\\d+)\\s{2,}(.+)$");
+
+    List<SevenZipEntry> parseListingTable(String text) {
+        List<SevenZipEntry> out = new ArrayList<SevenZipEntry>();
+        for (String line : StrUtil.lines(text.replace("\r\n", "\n"))) {
+            boolean attrLike = line.contains(".....")
+                    || line.replace('\t', ' ').trim().matches("[Dd].*");
+            if (!attrLike) continue;
+            java.util.regex.Matcher m = TABLE_ROW.matcher(line.trim());
+            if (!m.matches()) continue;
+            String[] pre = m.group(1).trim().split("\\s+");
+            String attr = pre[pre.length - 1];
+            if (attr.matches("\\d.*") || attr.matches("\\d{4}-\\d{2}-\\d{2}")) continue;
+            String name = m.group(4).trim();
+            if (name.isEmpty() || name.matches("\\d+\\s+(files|folders).*")) continue;
+            out.add(new SevenZipEntry(name,
+                    StrUtil.trimEndChar(name.replace('\\', '/'), '/'),
+                    attr.contains("D") || attr.startsWith("d") || name.endsWith("/"),
+                    StrUtil.parseLongOr(m.group(2), 0L),
+                    StrUtil.parseLongOr(m.group(3), 0L),
+                    "", false, ""));
+        }
+        return out;
+    }
+
+    /** 解析 -slt 输出：遇到 "Path = " 就开启一个新记录，不依赖空行分隔。
+     *  特例：xz / gz / bz2 / zst 等单流归档的条目段【没有 Path 行】（7z 17.05+ 实测，
+     *  只有 Size / Packed Size / Method），靠 Path 开块会得到 0 条 → 表现为「压缩包为空」。
+     *  这类块补上「包名去掉最后一个扩展名」作为条目名 —— 与 7z x 解压落盘名一致，
+     *  该名称也可直接作为 7z e 的文件参数用于后续提取（实测 23.01）。 */
+    List<SevenZipEntry> parseListing(String text, String archivePath) {
         List<Map<String, String>> blocks = new ArrayList<Map<String, String>>();
         Map<String, String> cur = null;
         for (String line : StrUtil.lines(text.replace("\r\n", "\n"))) {
@@ -253,7 +307,13 @@ public class SevenZip {
         List<SevenZipEntry> out = new ArrayList<SevenZipEntry>();
         for (Map<String, String> m : blocks) {
             String raw = m.get("Path");
-            if (raw == null || raw.isEmpty()) continue;
+            if (raw == null || raw.isEmpty()) {
+                // 无 Path 的块：只有含 Size（条目必有）的才视作单流条目，
+                // 归档信息段（Physical Size / Type，不带 -ba 时出现）无纯 Size 键，跳过。
+                if (!m.containsKey("Size")) continue;
+                raw = singleStreamEntryName(archivePath);
+                if (raw == null) continue;
+            }
             String norm = StrUtil.trimEndChar(raw.replace('\\', '/'), '/');
             if (norm.isEmpty()) continue;
             String folder = m.get("Folder");
@@ -271,6 +331,22 @@ public class SevenZip {
             ));
         }
         return out;
+    }
+
+    /**
+     * 单流归档（xz / gz / bz2 / zst / lzma 等）的条目名：包名去掉最后一个扩展名。
+     * 例如 a/b/c.tar.xz → c.tar、d.log.gz → d.log；无扩展名或只剩基名时返回 null（不造条目）。
+     * 该名称与 7z x 的解压落盘名一致，也可直接作为 7z e 的文件参数提取。
+     */
+    private static String singleStreamEntryName(String archivePath) {
+        if (archivePath == null) return null;
+        String base = archivePath.replace('\\', '/');
+        int s = base.lastIndexOf('/');
+        base = (s >= 0) ? base.substring(s + 1) : base;
+        int d = base.lastIndexOf('.');
+        if (d <= 0 || d >= base.length() - 1) return null;
+        String name = base.substring(0, d);
+        return name.isEmpty() ? null : name;
     }
 
     /** 在压缩包里按规范化内层路径（无首尾斜杠）反查原始条目，供 read/extract 定位。 */
@@ -299,17 +375,98 @@ public class SevenZip {
 
     /** 把包内单个文件解压到指定目录（用 e 平铺，不保留包内路径，落盘名即基本名）。 */
     public RootShell.Result extract(String archive, String rawPath, String password, String outDir) {
-        String args = "e -o" + q(outDir) + " -y -bd " + pwArg(password)
+        String args = "e -o" + q(outDir) + " -y -aoa -bd " + pwArg(password)
                 + q(archive) + " " + q(rawPath);
         String script = "mkdir -p " + q(outDir) + " && " + RootShell.termuxCommand(bin, args);
-        return RootShell.exec(script, 120_000L, 1024 * 1024, useMountMaster);
+        Dbg.log("7Z.extractAll", "archive=" + archive + " outDir=" + outDir
+                + " 脚本长度=" + script.length());
+        RootShell.Result r = RootShell.exec(script, 120_000L, 1024 * 1024, useMountMaster);
+        Dbg.log("7Z.extractAll", "结果 code=" + r.getCode()
+                + " stderr=" + Dbg.clip(r.getStderr(), 400));
+        return r;
     }
 
     /** 把整个压缩包解压到指定目录（用 x 保留内部目录结构），返回执行结果。 */
     public RootShell.Result extractAll(String archive, String password, String outDir) {
-        String args = "x -o" + q(outDir) + " -y -bd " + pwArg(password) + q(archive);
+        String args = "x -o" + q(outDir) + " -y -aoa -bd " + pwArg(password) + q(archive);
         String script = "mkdir -p " + q(outDir) + " && " + RootShell.termuxCommand(bin, args);
-        return RootShell.exec(script, 120_000L, 1024 * 1024, useMountMaster);
+        RootShell.Result r = RootShell.exec(script, 120_000L, 1024 * 1024, useMountMaster);
+        return r;
+    }
+
+    /**
+     * 解压前估算「解压后实际大小」（Byte），用作进度条分母。
+     *  - innerPaths 为空/null：解压整包 —— 跑一次 {@code 7z l}（表格输出，带 -y），从末尾
+     *    汇总行「2026-11-13 04:36:06   33512732   2579814  10410 files, 191 folders」
+     *    取第一个大数（33512732 = 解压后实际大小）。取不到时回退为累加 -slt 全部文件 Size。
+     *  - innerPaths 非空：从压缩包复制部分条目 —— 累加这些条目（含文件夹展开）的 -slt Size。
+     * 失败返回 -1（调用方按「总大小未知」降级处理）。
+     */
+    public long contentSize(String archive, List<String> innerPaths, String password) {
+        boolean whole = (innerPaths == null || innerPaths.isEmpty());
+        if (whole) {
+            long s = summarySize(archive, password);
+            if (s > 0) return s;
+        }
+        ListResult lr = list(archive, password);
+        if (lr.entries.isEmpty()) return -1;
+        // 用 rawPath 作键：ArchiveTree.collect 产出的正是 rawPath（可能含反斜杠），
+        // 直接对应可避免规范化路径不一致导致漏算（Windows 打包的压缩包尤其明显）。
+        Map<String, Long> sizeByRaw = new LinkedHashMap<String, Long>();
+        for (SevenZipEntry e : lr.entries) {
+            if (!e.isDir) sizeByRaw.put(e.rawPath, e.size);
+        }
+        if (whole) {
+            long sum = 0;
+            for (Long v : sizeByRaw.values()) sum += v;
+            return sum;
+        }
+        // 部分条目：把选中的文件夹展开成具体文件，按 rawPath 累加实际大小
+        TreeNode root = ArchiveTree.buildTree(lr.entries);
+        LinkedHashSet<String> files = new LinkedHashSet<String>();
+        LinkedHashSet<String> dirs = new LinkedHashSet<String>();
+        for (String inner : innerPaths) {
+            TreeNode n = ArchiveTree.find(root, inner);
+            if (n == null) continue;
+            ArchiveTree.collect(n, files, dirs);
+        }
+        long sum = 0;
+        for (String raw : files) {
+            Long v = sizeByRaw.get(raw);
+            if (v != null) sum += v;
+        }
+        return sum > 0 ? sum : -1;
+    }
+
+    /** 跑一次 {@code 7z l}（表格输出，带 -y），解析末尾汇总行的第一个大数（解压后总大小）。 */
+    private long summarySize(String archive, String password) {
+        // 表格输出可能很长（上万条目），用 tail 只保留末尾几行，避免把 stdout 缓冲撑满
+        String args = "l -sccUTF-8 -y " + pwArg(password) + q(archive);
+        String script = RootShell.termuxCommand(bin, args) + " | tail -n 8";
+        RootShell.Result r = RootShell.exec(script, 60_000L, 256 * 1024, useMountMaster);
+        List<String> lines = StrUtil.lines(r.getText());
+        // 汇总行示例：2026-11-13 04:36:06   33512732   2579814  10410 files, 191 folders
+        // 结构固定为「日期 时间 <解压后大小> <压缩后大小> <文件数> files[, <目录数> folders]」。
+        // 用两个/多个大数 + files 的模式，精确取第一个大数（解压后大小），避开日期时间中的数字。
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                "(\\d+)\\s+\\d+\\s+\\d+\\s+files?\\b");
+        for (int i = lines.size() - 1; i >= 0; i--) {
+            java.util.regex.Matcher m = p.matcher(lines.get(i));
+            if (m.find()) {
+                try { return Long.parseLong(m.group(1)); } catch (NumberFormatException ignored) {}
+            }
+        }
+        // 兜底：含 files 的行里取第一个 >=5 位的数字（兼容中间有 Attr 列等变体）
+        java.util.regex.Pattern p2 = java.util.regex.Pattern.compile("\\d{5,}");
+        for (int i = lines.size() - 1; i >= 0; i--) {
+            String ln = lines.get(i);
+            if (!ln.contains("files") && !ln.contains("file")) continue;
+            java.util.regex.Matcher m = p2.matcher(ln);
+            if (m.find()) {
+                try { return Long.parseLong(m.group()); } catch (NumberFormatException ignored) {}
+            }
+        }
+        return -1;
     }
 
     // ---------------- 批量解压（文件 + 文件夹多选复制） ----------------
@@ -322,9 +479,15 @@ public class SevenZip {
      * @return null = 全部成功；否则返回错误说明
      */
     public String extractMany(String archive, List<String> innerPaths, String password, String outDir) {
+        Dbg.log("7Z.extractMany", "进入 archive=" + archive + " outDir=" + outDir
+                + " inners(" + (innerPaths == null ? 0 : innerPaths.size()) + ")="
+                + Dbg.clip(String.valueOf(innerPaths), 800));
         if (innerPaths == null || innerPaths.isEmpty()) return "没有可解压的条目";
         // 1) 一次列出全部条目并建树，再把选中的文件/文件夹展开成具体条目
         ListResult lr = list(archive, password);
+        Dbg.log("7Z.extractMany", "list code=" + lr.code + " 条目数="
+                + (lr.entries == null ? 0 : lr.entries.size())
+                + " stderr=" + Dbg.clip(lr.stderr, 300));
         if (lr.entries.isEmpty()) {
             String err = StrUtil.take(lr.stderr, 300);
             return "无法读取压缩包（7z 退出码 " + lr.code + "）" + (err.trim().isEmpty() ? "" : "\n" + err);
@@ -340,14 +503,44 @@ public class SevenZip {
         }
         if (files.isEmpty() && dirs.isEmpty())
             return "找不到选中的条目（可能已改名或路径不规范）";
-        // 2) 一次 su：mkdir -p 目标与空目录，然后分批 7z x，最后把反斜杠条目归位
-        String script = buildExtractScript(bin, archive,
-                new ArrayList<String>(files), new ArrayList<String>(dirs), password, outDir);
-        RootShell.Result r = RootShell.exec(script, 600_000L, 1024 * 1024, useMountMaster);
-        String msg = parseExtractResult(r);
-        if (msg == null) msg = verifyOutputs(outDir, new ArrayList<String>(files), new ArrayList<String>(dirs));
-        if (msg != null) return msg;
-        return missing > 0 ? "（" + missing + " 个条目在包内未找到，其余已解压）" : null;
+        // 2) 一次 su：mkdir -p 目标与空目录，然后分批 7z x，最后把反斜杠条目归位。
+        //    条目上万时脚本可达数百 KB，传入 outDir 作为落盘目录：RootShell 会在脚本超长时
+        //    自动写成 .sh 再让 sh 读取，避免 su -c 的单个参数触发内核 E2BIG（Argument list too long）。
+        final List<String> fileList = new ArrayList<String>(files);
+        final List<String> dirList = new ArrayList<String>(dirs);
+        String script = buildExtractScript(bin, archive, fileList, dirList, password, outDir);
+        // 只记长度不记内容：上万条目的脚本可达数百 KB，打印出来会把日志撑爆
+        Dbg.log("7Z.extractMany", "展开 files=" + fileList.size() + " dirs=" + dirList.size()
+                + " 未找到=" + missing + " 脚本长度=" + script.length() + "字符");
+        RootShell.Result r = RootShell.exec(script, 600_000L, 1024 * 1024, useMountMaster, outDir);
+        Dbg.log("7Z.extractMany", "exec code=" + r.getCode()
+                + " stdout=" + r.getStdout().length + "B 标记数=" + markerCount(r)
+                + " stderr=" + Dbg.clip(r.getStderr(), 400));
+
+        // 成功与否以「期望文件是否真实落地」为准，而不是 stdout 里的 __SZRC__ 标记数。
+        // 标记偶发丢失（7z 子进程继承 stdout 管道写端 → 读线程 join 超时拿到空 stdout；
+        // 或短时间内多次 su 申请被 root daemon 偶发拒绝）过去会被误报成
+        // 「7z 未执行 / root 未授权」，其实文件已经解压成功。
+        final String warn = missing > 0 ? "（" + missing + " 个条目在包内未找到，其余已解压）" : null;
+        String miss = verifyOutputs(outDir, fileList, dirList);
+        Dbg.log("7Z.extractMany", "verifyOutputs -> "
+                + (miss == null ? "全部落地(成功)" : Dbg.clip(miss, 600)));
+        if (miss == null) return warn;                 // 事实成功：忽略标记统计，不误报
+
+        // 文件没齐且一个标记都没有 → 疑似这次 su 压根没跑起来（root daemon 抖动），重试一次脚本
+        if (markerCount(r) == 0) {
+            Dbg.log("7Z.extractMany", "标记数为 0，重试一次脚本");
+            r = RootShell.exec(script, 600_000L, 1024 * 1024, useMountMaster, outDir);
+            Dbg.log("7Z.extractMany", "重试 exec code=" + r.getCode()
+                    + " 标记数=" + markerCount(r));
+            miss = verifyOutputs(outDir, fileList, dirList);
+            if (miss == null) return warn;
+        }
+        // 仍失败：优先给标记诊断（已中性化，不再断言 root 未授权），否则返回缺失清单
+        String diag = parseExtractResult(r);
+        String ret = diag != null ? diag : miss;
+        Dbg.log("7Z.extractMany", "最终返回错误=" + Dbg.clip(ret, 800));
+        return ret;
     }
 
     /**
@@ -403,7 +596,7 @@ public class SevenZip {
         for (int from = 0; from < files.size(); from += BATCH) {
             int to = Math.min(from + BATCH, files.size());
             StringBuilder args = new StringBuilder();
-            args.append("x -y -bso0 -bsp0 -bd -sccUTF-8 -o").append(q(outDir)).append(' ')
+            args.append("x -y -aoa -bso0 -bsp0 -bd -sccUTF-8 -o").append(q(outDir)).append(' ')
                     .append(pwArg(password)).append(q(archive)).append(' ');
             for (int i = from; i < to; i++) {
                 if (i > from) args.append(' ');
@@ -431,7 +624,21 @@ public class SevenZip {
         return b.toString();
     }
 
-    /** 解析批量执行结果：统计 __SZRC__ 标记；全 0 返回 null，否则返回错误说明。 */
+    /** 统计 stdout 里 __SZRC__ 标记数；0 表示脚本输出一个标记都没读到。 */
+    static int markerCount(RootShell.Result r) {
+        int n = 0;
+        for (String line : StrUtil.lines(r.getText())) {
+            if (line.trim().startsWith("__SZRC__=")) n++;
+        }
+        return n;
+    }
+
+    /**
+     * 解析批量执行结果：统计 __SZRC__ 标记；全 0 返回 null，否则返回错误说明。
+     * 注意：标记数只作「辅助诊断」，成功与否由 verifyOutputs 以落盘文件为准。
+     * total==0 不再武断断言「root 未授权」——标记丢失也可能只是 stdout 管道读取竞态 / 超时，
+     * 只有 stderr 明确出现授权相关关键字或退出码为负时才提示 root 相关。
+     */
     static String parseExtractResult(RootShell.Result r) {
         int total = 0, ok = 0;
         for (String line : StrUtil.lines(r.getText())) {
@@ -443,7 +650,13 @@ public class SevenZip {
         }
         if (total == 0) {
             String err = StrUtil.take(r.getStderr(), 300);
-            return "7z 未执行（root 未授权 / su 失败，退出码 " + r.getCode() + "）"
+            String low = err.toLowerCase(java.util.Locale.US);
+            boolean rootHint = r.getCode() < 0
+                    || low.contains("permission denied") || low.contains("su:")
+                    || low.contains("not authorized") || low.contains("denied");
+            String why = rootHint ? "可能是 root 授权超时或 su 未响应"
+                                  : "7z 脚本未产生输出（可能被中断或超时）";
+            return "解压未完成：" + why + "（退出码 " + r.getCode() + "）"
                     + (err.trim().isEmpty() ? "" : "\n" + err);
         }
         if (ok == total) return null;

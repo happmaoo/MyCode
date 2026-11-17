@@ -29,6 +29,9 @@ public final class Fs {
     public static volatile boolean rootMode = false;
     public static volatile boolean showHidden = false;
 
+    /** 批量文件操作（大目录复制/清理）的 Root 会话超时：上万个小文件在 FUSE 上可能耗时数分钟。 */
+    public static final long BULK_TIMEOUT_MS = 600_000L;
+
     // Root 会话的挂载命名空间状态，建立会话时探测一次。
     // Android 11+ 的 per-app 挂载命名空间里 /data/data 只剩本应用数据，
     // 看不到其它应用目录；全局命名空间或 /data_mirror 镜像才是完整视图。
@@ -57,6 +60,14 @@ public final class Fs {
     // ---------------- 一次性进程（普通 shell） ----------------
 
     public static ExecResult exec(final String[] argv) {
+        Dbg.log("FS.EXEC", "argv=" + Dbg.clip(java.util.Arrays.toString(argv), 800));
+        ExecResult r = exec0(argv);
+        Dbg.log("FS.EXEC", "结果 code=" + r.code + " out=" + Dbg.clip(r.out, 200)
+                + " err=" + Dbg.clip(r.err, 200));
+        return r;
+    }
+
+    private static ExecResult exec0(final String[] argv) {
         final ExecResult r = new ExecResult();
         try {
             final Process p = Runtime.getRuntime().exec(argv);
@@ -92,10 +103,49 @@ public final class Fs {
         catch (Exception ignored) { return ""; }
     }
 
+    /**
+     * 以 root（优先 mount-master 全局命名空间）读取文件原始字节写入 out。
+     * 供 FileProvider 通过管道把「普通进程命名空间看不到的 root 文件」流式提供给外部 App。
+     * out 由调用方负责关闭；返回 true 表示 cat 成功结束（code==0）。
+     */
+    public static boolean streamRootFileTo(String path, java.io.OutputStream out) {
+        String mapped = rootPath(path);
+        String cmd = "cat " + Util.sq(mapped) + " 2>/dev/null";
+        Dbg.log("FS.STREAM", "cat " + mapped);
+        if (streamCat(new String[]{"su", "--mount-master", "-c", cmd}, out)) return true;
+        return streamCat(new String[]{"su", "-c", cmd}, out);   // 兜底：不支持 --mount-master 的 su
+    }
+
+    private static boolean streamCat(String[] argv, java.io.OutputStream out) {
+        Process p = null;
+        try {
+            p = Runtime.getRuntime().exec(argv);
+            java.io.InputStream is = p.getInputStream();
+            byte[] buf = new byte[16384];
+            int n, total = 0;
+            while ((n = is.read(buf)) > 0) { out.write(buf, 0, n); total += n; }
+            int code = p.waitFor();
+            Dbg.log("FS.STREAM", "code=" + code + " bytes=" + total + " argv=" + argv[0]);
+            return code == 0;
+        } catch (Exception e) {
+            Dbg.log("FS.STREAM", "失败 " + e.getMessage());
+            return false;
+        } finally {
+            if (p != null) {
+                try { p.getErrorStream().close(); } catch (Exception ignored) {}
+                try { p.getInputStream().close(); } catch (Exception ignored) {}
+            }
+        }
+    }
+
     // ---------------- 持久 Root 会话 ----------------
 
     private static final Object ROOT_LOCK = new Object();
     private static RootSession rootSession = null;
+    private static volatile boolean cancelRequested = false;
+
+    /** 请求中断当前 Root 会话命令（供进度对话框「取消」）；下一条命令开始时自动清除。 */
+    public static void cancelRootCommand() { cancelRequested = true; }
 
     // 非 Root 的一次性 sh 进程引用，供「停止」按钮在命令卡死时强制结束，避免窗口挂死。
     private static volatile Process sCurrentShell = null;
@@ -128,6 +178,7 @@ public final class Fs {
     }
 
     public static boolean ensureRootSession(long timeoutMs) {
+        Dbg.log("FS.ROOT", "ensureRootSession timeoutMs=" + timeoutMs);
         synchronized (ROOT_LOCK) {
             if (rootSession != null && !rootSession.dead) return true;
             closeLocked();
@@ -183,6 +234,7 @@ public final class Fs {
 
     /** 关闭持久会话（设置页关闭 Root 时调用）。 */
     public static void closeRootSession() {
+        Dbg.log("FS.ROOT", "closeRootSession");
         synchronized (ROOT_LOCK) { closeLocked(); }
     }
 
@@ -199,17 +251,52 @@ public final class Fs {
      * 从根本上避免「每次点击文件夹都申请一次 Root」。
      */
     public static ExecResult shell(String script, boolean root) {
+        return shell(script, root, 30_000L);
+    }
+
+    /** 可指定超时：批量复制/删除等长命令传 BULK_TIMEOUT_MS，避免固定 30 秒误杀。 */
+    public static ExecResult shell(String script, boolean root, long timeoutMs) {
+        Dbg.log("FS.SHELL", "root=" + root + " timeout=" + timeoutMs
+                + "ms 脚本=" + Dbg.clip(script, 1000));
+        ExecResult r = shell0(script, root, timeoutMs);
+        Dbg.log("FS.SHELL", "结果 code=" + r.code + " out=" + Dbg.clip(r.out, 300)
+                + " err=" + Dbg.clip(r.err, 300));
+        return r;
+    }
+
+    /**
+     * 以「su --mount-master -c」直接运行命令（全局挂载命名空间）。用于 Root 环境下由脚本生成的
+     * [mycmd:btn:...] 按钮命令：脚本里常通过 touch 停标 / pkill 等方式在全局命名空间里停止后台任务，
+     * 走 su --mount-master 才能保证与后台任务处于同一挂载命名空间而命中目标。
+     * 极少数不支持 --mount-master 的 su 实现会快速失败，此时自动回退到普通「su -c」。
+     */
+    public static ExecResult shellMountMaster(String script) {
+        Dbg.log("FS.MM", "su --mount-master -c " + Dbg.clip(script, 1000));
+        ExecResult r = exec(new String[]{"su", "--mount-master", "-c", script});
+        if (r.ok()) return r;
+        // 回退：部分 su（如旧版 toybox/非 Magisk）不支持 --mount-master 长选项
+        ExecResult r2 = exec(new String[]{"su", "-c", script});
+        if (r2.ok()) return r2;
+        return r;   // 两次都不成功：返回首次错误信息
+    }
+
+    private static ExecResult shell0(String script, boolean root, long timeoutMs) {
         if (!root) return exec(new String[]{"sh", "-c", script});
         synchronized (ROOT_LOCK) {
             RootSession s = rootSession;
             if (s == null || s.dead) {
-                ExecResult r = new ExecResult();
-                r.code = -1;
-                r.err = "Root 会话未就绪：请重启应用，或到「设置 → Root 权限」重新开启以授权";
-                return r;
+                // 会话曾因命令超时/取消被销毁：静默重建一次（已永久授权时不会弹窗），
+                // 让后续清理命令仍能执行，避免临时目录残留；重建失败才提示重新授权。
+                if (!ensureRootSession(15_000L)) {
+                    ExecResult r = new ExecResult();
+                    r.code = -1;
+                    r.err = "Root 会话未就绪：请重启应用，或到「设置 → Root 权限」重新开启以授权";
+                    return r;
+                }
+                s = rootSession;
             }
             // 整段执行都持有 ROOT_LOCK，保证多条命令不会交叉写入同一会话导致输出串台
-            return s.run(script, 30000);
+            return s.run(script, timeoutMs);
         }
     }
 
@@ -219,16 +306,27 @@ public final class Fs {
      * 返回值与 shell() 一致（out 为完整输出，供超时/失败等兜底场景使用）。
      */
     public static ExecResult shellStream(String script, boolean root, int timeoutSec, LineSink sink) {
+        Dbg.log("FS.SHELL", "流式 root=" + root + " timeout=" + timeoutSec
+                + "s 脚本=" + Dbg.clip(script, 1000));
+        ExecResult r = shellStream0(script, root, timeoutSec, sink);
+        Dbg.log("FS.SHELL", "流式结果 code=" + r.code + " err=" + Dbg.clip(r.err, 300));
+        return r;
+    }
+
+    private static ExecResult shellStream0(String script, boolean root, int timeoutSec, LineSink sink) {
         if (!root) {
             return execStream(new String[]{"sh", "-c", "exec 2>&1; " + script}, timeoutSec, sink);
         }
         synchronized (ROOT_LOCK) {
             RootSession s = rootSession;
             if (s == null || s.dead) {
-                ExecResult r = new ExecResult();
-                r.code = -1;
-                r.err = "Root 会话未就绪：请重启应用，或到「设置 → Root 权限」重新开启以授权";
-                return r;
+                if (!ensureRootSession(15_000L)) {
+                    ExecResult r = new ExecResult();
+                    r.code = -1;
+                    r.err = "Root 会话未就绪：请重启应用，或到「设置 → Root 权限」重新开启以授权";
+                    return r;
+                }
+                s = rootSession;
             }
             return s.runStream(script, timeoutSec <= 0 ? 120000 : (long) timeoutSec * 1000, sink);
         }
@@ -286,6 +384,8 @@ public final class Fs {
         BufferedWriter writer;
         final LinkedBlockingQueue<String> queue = new LinkedBlockingQueue<String>();
         volatile boolean dead = false;
+        /** 已被外部强制中断（停止 / 关闭窗口）：run()/runStream() 读循环检测到即立即返回，释放调用方的会话锁。 */
+        volatile boolean aborted = false;
 
         /** cmd 为 su 启动命令，例如 "su" 或 "su -mm"（全局挂载命名空间）。 */
         static RootSession open(String cmd) throws Exception {
@@ -347,32 +447,41 @@ public final class Fs {
             }
 
             StringBuilder sb = new StringBuilder();
+            cancelRequested = false;   // 每条命令开始时清除上一轮的取消请求
             long deadline = System.currentTimeMillis() + timeoutMs;
             while (true) {
+                // abort()（停止 / 关闭窗口）已置位：立即返回，释放调用方持有的会话锁，
+                // 避免 onDestroy 在 UI 线程等锁造成卡死；EOF 哨兵同时唤醒 queue.poll。
+                if (aborted) { r.code = -1; r.err = "已取消"; return r; }
+                if (cancelRequested) {
+                    r.code = -1;
+                    r.err = "已取消";
+                    Dbg.log("FS.ROOT", "会话命令收到取消请求，销毁当前会话");
+                    killSelf();
+                    return r;
+                }
                 long left = deadline - System.currentTimeMillis();
                 if (left <= 0) {
                     r.code = -1;
                     r.err = "命令超时（" + (timeoutMs / 1000) + " 秒），Root 会话无响应";
-                    // 卡死的 su 进程已不可信：直接销毁会话，释放主界面可能正在等待的
-                    // ROOT_LOCK，避免主界面无限阻塞；后续命令会拿到「会话未就绪」并提示重新授权。
-                    dead = true;
-                    closeLocked();
+                    // 卡死的 su 进程已不可信：销毁本会话，避免超时命令迟到的结束标记
+                    // 与后续命令错位（旧实现只 return，曾导致输出串台、清理也超时）。
+                    Dbg.log("FS.ROOT", "会话命令超时，销毁当前会话");
+                    killSelf();
                     return r;
                 }
                 String line;
                 try {
-                    line = queue.poll(left, TimeUnit.MILLISECONDS);
+                    // 分段等待：便于及时响应取消，又不改变整体超时语义
+                    line = queue.poll(Math.min(left, 250L), TimeUnit.MILLISECONDS);
                 } catch (InterruptedException ie) {
                     r.err = "已中断";
                     return r;
                 }
-                if (line == null) {
-                    r.code = -1;
-                    r.err = "等待 Root 会话响应超时（授权弹窗未确认？）";
-                    return r;
-                }
+                if (line == null) continue;   // 尚未到截止时间，继续等（会重新检查取消）
                 if (EOF.equals(line)) {
                     dead = true;
+                    if (aborted) { r.code = -1; r.err = "已取消"; return r; }
                     // 命令已有正常输出被实时回传，说明命令确实执行过；
                     // 此刻会话结束多为 shell 正常退出，按执行成功处理，避免误报。
                     if (sb.length() > 0) {
@@ -419,32 +528,41 @@ public final class Fs {
             }
 
             StringBuilder sb = new StringBuilder();
+            cancelRequested = false;   // 每条命令开始时清除上一轮的取消请求
             long deadline = System.currentTimeMillis() + timeoutMs;
             while (true) {
+                // abort()（停止 / 关闭窗口）已置位：立即返回，释放调用方持有的会话锁，
+                // 避免 onDestroy 在 UI 线程等锁造成卡死；EOF 哨兵同时唤醒 queue.poll。
+                if (aborted) { r.code = -1; r.err = "已取消"; return r; }
+                if (cancelRequested) {
+                    r.code = -1;
+                    r.err = "已取消";
+                    Dbg.log("FS.ROOT", "会话命令收到取消请求，销毁当前会话");
+                    killSelf();
+                    return r;
+                }
                 long left = deadline - System.currentTimeMillis();
                 if (left <= 0) {
                     r.code = -1;
                     r.err = "命令超时（" + (timeoutMs / 1000) + " 秒），Root 会话无响应";
-                    // 卡死的 su 进程已不可信：直接销毁会话，释放主界面可能正在等待的
-                    // ROOT_LOCK，避免主界面无限阻塞；后续命令会拿到「会话未就绪」并提示重新授权。
-                    dead = true;
-                    closeLocked();
+                    // 卡死的 su 进程已不可信：销毁本会话，避免超时命令迟到的结束标记
+                    // 与后续命令错位（旧实现只 return，曾导致输出串台、清理也超时）。
+                    Dbg.log("FS.ROOT", "会话命令超时，销毁当前会话");
+                    killSelf();
                     return r;
                 }
                 String line;
                 try {
-                    line = queue.poll(left, TimeUnit.MILLISECONDS);
+                    // 分段等待：便于及时响应取消，又不改变整体超时语义
+                    line = queue.poll(Math.min(left, 250L), TimeUnit.MILLISECONDS);
                 } catch (InterruptedException ie) {
                     r.err = "已中断";
                     return r;
                 }
-                if (line == null) {
-                    r.code = -1;
-                    r.err = "等待 Root 会话响应超时（授权弹窗未确认？）";
-                    return r;
-                }
+                if (line == null) continue;   // 尚未到截止时间，继续等（会重新检查取消）
                 if (EOF.equals(line)) {
                     dead = true;
+                    if (aborted) { r.code = -1; r.err = "已取消"; return r; }
                     // 命令已有正常输出被实时回传，说明命令确实执行过；
                     // 此刻会话结束多为 shell 正常退出，按执行成功处理，避免误报。
                     if (sb.length() > 0) {
@@ -469,6 +587,28 @@ public final class Fs {
                 sb.append(line).append('\n');
                 if (sink != null) sink.line(line);
             }
+        }
+
+        /**
+         * 强制中断：不依赖任何会话锁。置 aborted 标志并向队列投递 EOF 哨兵，
+         * 让阻塞在 run()/runStream()（它们持有调用方的会话锁）里的读循环立即返回、释放锁；
+         * 同时销毁 su 进程。用于「停止」/窗口销毁：若先去抢会话锁，UI 线程会被长期持锁的
+         * stream() 卡死（命令未结束锁不释放），「停止」也会失效。
+         */
+        void abort() {
+            aborted = true;
+            dead = true;
+            Dbg.log("FS.ROOT", "OutputSession.abort：投递 EOF 强制唤醒阻塞中的读循环");
+            queue.offer(EOF);   // 先投哨兵唤醒读循环，再销毁进程（顺序保证 poll 立即返回）
+            try { writer.close(); } catch (Exception ignored) {}
+            try { p.destroy(); } catch (Exception ignored) {}
+        }
+
+        /** 销毁当前会话自身：不触碰 Fs.rootSession 引用，避免误伤结果窗口的独立会话。 */
+        void killSelf() {
+            dead = true;
+            try { writer.close(); } catch (Exception ignored) {}
+            try { p.destroy(); } catch (Exception ignored) {}
         }
 
         void close() {
@@ -558,7 +698,8 @@ public final class Fs {
      */
     public static final class OutputSession {
         private final Object lock = new Object();
-        private RootSession s;
+        /** volatile：kill() 需在「不抢锁」的前提下先读到当前会话引用以强制中断。 */
+        private volatile RootSession s;
         private final NsInfo ns = new NsInfo();
 
         /** 建立（或复用）本窗口的 su 会话；已就绪直接返回 true。强制 su -mm。 */
@@ -621,13 +762,17 @@ public final class Fs {
             synchronized (lock) { return s != null && !s.dead; }
         }
 
-        /** 强制关闭本会话（「停止」按钮 / 窗口销毁时调用）。 */
+        /**
+         * 强制关闭本会话（「停止」按钮 / 窗口销毁时调用）。
+         * 关键：先在「锁外」abort() 底层 su 进程。因为 stream() 会在 synchronized(lock) 内
+         * 阻塞等命令结束、长期持锁；若先抢锁，onDestroy（UI 线程）会被卡死，「停止」也拿不到锁而无效。
+         * abort() 投递 EOF 哨兵后，读循环立即返回并释放锁，随后这里再进锁清理引用（锁已空闲）。
+         */
         public void kill() {
+            RootSession cur = s;             // volatile 读，无需锁
+            if (cur != null) cur.abort();    // 锁外强制中断，唤醒阻塞中的 stream()
             synchronized (lock) {
-                if (s != null) {
-                    try { s.close(); } catch (Exception ignored) {}
-                    s = null;
-                }
+                s = null;
             }
         }
     }
@@ -635,7 +780,10 @@ public final class Fs {
     // ---------------- 列目录 ----------------
 
     public static ListResult list(String path) {
-        return rootMode ? listRoot(path) : listNormal(path);
+        ListResult r = rootMode ? listRoot(path) : listNormal(path);
+        Dbg.log("FS.LIST", "path=" + path + " root=" + rootMode + " 条目=" + r.items.size()
+                + (r.error == null ? "" : " 错误=" + Dbg.clip(r.error, 300)));
+        return r;
     }
 
     private static ListResult listNormal(String path) {
@@ -762,6 +910,7 @@ public final class Fs {
     // ---------------- 文件操作 ----------------
 
     public static String mkdir(String path) {
+        Dbg.log("FS.OP", "mkdir " + path + " root=" + rootMode);
         if (rootMode) {
             ExecResult r = shell("mkdir -p " + Util.sq(rootPath(path)), true);
             return r.ok() ? null : err(r);
@@ -775,6 +924,7 @@ public final class Fs {
      * （Root 模式用 ": > path" 重定向创建，若先不检查会把同名文件清成 0 字节）。
      */
     public static String createFile(String path) {
+        Dbg.log("FS.OP", "createFile " + path + " root=" + rootMode);
         if (path == null || path.length() == 0) return "文件名不合法";
         if (rootMode) {
             if (exists(path)) return "文件已存在：" + Util.base(path);
@@ -792,8 +942,14 @@ public final class Fs {
     }
 
     public static String delete(String path) {
+        return delete(path, 30_000L);
+    }
+
+    /** 可指定超时：清理大目录（上万个文件）时用 BULK_TIMEOUT_MS。 */
+    public static String delete(String path, long timeoutMs) {
+        Dbg.log("FS.OP", "delete " + path + " root=" + rootMode + " timeout=" + timeoutMs);
         if (rootMode) {
-            ExecResult r = shell("rm -rf " + Util.sq(rootPath(path)), true);
+            ExecResult r = shell("rm -rf " + Util.sq(rootPath(path)), true, timeoutMs);
             return r.ok() ? null : err(r);
         }
         return delRec(new File(path)) ? null : "删除失败（权限不足）";
@@ -808,16 +964,31 @@ public final class Fs {
     }
 
     public static String rename(String src, String dst) {
+        return rename(src, dst, 30_000L);
+    }
+
+    /** 可指定超时：同分区大目录搬移是瞬时 mv，跨分区退化成复制时给足超时。 */
+    public static String rename(String src, String dst, long timeoutMs) {
+        Dbg.log("FS.OP", "rename " + src + " -> " + dst + " root=" + rootMode
+                + " timeout=" + timeoutMs);
         if (rootMode) {
-            ExecResult r = shell("mv -f " + Util.sq(rootPath(src)) + " " + Util.sq(rootPath(dst)), true);
+            ExecResult r = shell("mv -f " + Util.sq(rootPath(src)) + " "
+                    + Util.sq(rootPath(dst)), true, timeoutMs);
             return r.ok() ? null : err(r);
         }
         return new File(src).renameTo(new File(dst)) ? null : "重命名失败（权限不足或目标已存在）";
     }
 
     public static String copy(String src, String dst) {
+        return copy(src, dst, 30_000L);
+    }
+
+    /** 可指定超时：复制大目录（上万个文件）时用 BULK_TIMEOUT_MS。 */
+    public static String copy(String src, String dst, long timeoutMs) {
+        Dbg.log("FS.OP", "copy " + src + " -> " + dst + " root=" + rootMode + " timeout=" + timeoutMs);
         if (rootMode) {
-            ExecResult r = shell("cp -r " + Util.sq(rootPath(src)) + " " + Util.sq(rootPath(dst)), true);
+            ExecResult r = shell("cp -r " + Util.sq(rootPath(src)) + " "
+                    + Util.sq(rootPath(dst)), true, timeoutMs);
             return r.ok() ? null : err(r);
         }
         try { copyRec(new File(src), new File(dst)); return null; }

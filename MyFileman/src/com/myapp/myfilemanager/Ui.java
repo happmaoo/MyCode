@@ -49,9 +49,20 @@ public final class Ui {
 
     /** 按字体档位 0小 / 1中 / 2大 取字号（sp）。 */
     public static float sp(int level, float s, float m, float l) {
-        if (level <= 0) return s;
-        if (level == 1) return m;
-        return l;
+        float v = (level <= 0) ? s : (level == 1) ? m : l;
+        return v * FONT_SCALE;
+    }
+
+    /** 全局字体缩放（1 = 不缩放）。用户在设置页输入界面字体大小 X（sp）后，
+     *  所有 Ui.sp 取得的字号都乘 X/14 —— 三档小/中/大仍决定相对层次，输入值控制整体大小。 */
+    public static float FONT_SCALE = 1f;
+    /** 基准字号：设置里输入 14 即为系统默认比例。 */
+    public static final float FONT_BASE_SP = 14f;
+
+    /** 从设置加载全局字体缩放；应在构建任何界面之前调用（同 loadAccent）。 */
+    public static void loadFontScale(Context c) {
+        int v = Prefs.uiFontSp(c);
+        FONT_SCALE = (v > 0) ? v / FONT_BASE_SP : 1f;
     }
 
     /** 一行水平细分隔线。 */
