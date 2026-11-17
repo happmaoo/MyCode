@@ -1,0 +1,1165 @@
+# 自动亮度 app 修复补丁
+# 由原始源码对比修复版生成，路径形如 a/app/src/main/... 可用 git apply / patch -p1 查看
+
+--- a/app/src/main/java/com/myapp/autobrightness/MainActivity.java
++++ b/app/src/main/java/com/myapp/autobrightness/MainActivity.java
+@@ -10,7 +10,6 @@
+ import android.net.Uri;
+ import android.os.Build;
+ import android.os.Bundle;
+-import android.os.Handler;
+ import android.provider.Settings;
+ import android.util.Log;
+ import android.view.View;
+@@ -20,233 +19,230 @@
+ import android.widget.Toast;
+ 
+ public class MainActivity extends AppCompatActivity {
++
++    private static final String TAG = "MainActivity";
++    private static final String PREFS_NAME = "app_config";
++    private static final String KEY_CONFIG = "config";
++    private static final String KEY_ENABLE = "enable";
++    private static final String ACTION_LIGHT_UPDATE = "com.myapp.LIGHT_LEVEL_UPDATE";
++    private static final String EXTRA_CONFIG = "arg-config";
++
++    private static final String DEFAULT_CONFIG = "lmd:3/2\n0 50\n20 250";
++
+     private TextView lightLevelTextView;
++    private EditText editText;
++    private CheckBox checkbox;
+ 
+-    SharedPreferences sharedPref;
+-    SharedPreferences.Editor editor;
+-    Boolean enableapp;
++    private SharedPreferences sharedPref;
+ 
+-    private BroadcastReceiver lightLevelReceiver = new BroadcastReceiver() {
++    /**
++     * 程序自己调用 setChecked() 时置位，用来区分“用户点击”和“代码/系统回填状态”，
++     * 否则回填动作会走一遍启用/停用逻辑，把持久化的开关值改掉。
++     */
++    private boolean settingCheckedSilently = false;
++
++    /** 广播是否已注册。注册/注销严格配对，避免重复注册或 IllegalArgument 异常 */
++    private boolean lightReceiverRegistered = false;
++
++    private final BroadcastReceiver lightLevelReceiver = new BroadcastReceiver() {
+         @Override
+         public void onReceive(Context context, Intent intent) {
+-
++            if (lightLevelTextView == null) {
++                return;
++            }
+             // 获取当前的屏幕亮度
+             int currentBrightness = 0;
+             try {
+-                currentBrightness = Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS);
++                currentBrightness = Settings.System.getInt(getContentResolver(),
++                        Settings.System.SCREEN_BRIGHTNESS);
+             } catch (Settings.SettingNotFoundException e) {
+-                e.printStackTrace();
++                Log.w(TAG, "读取当前亮度失败", e);
+             }
+-
+             // 从广播中获取光照强度数据
+             float lightLevel = intent.getFloatExtra("lightLevel", -1);
+-            lightLevelTextView.setText("光线传感器: " + lightLevel + " lux" + "\n亮度: " +currentBrightness);
++            lightLevelTextView.setText("光线传感器: " + lightLevel + " lux" + "\n亮度: " + currentBrightness);
+         }
+     };
+ 
+-
+     @Override
+     protected void onCreate(Bundle savedInstanceState) {
+         super.onCreate(savedInstanceState);
+         setContentView(R.layout.activity_main);
+ 
++        sharedPref = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+ 
+-        // 检查系统是否允许更改设置
+-        if (Settings.System.canWrite(this)) {
+-
+-        } else {
+-            Toast.makeText(this, "错误, 请在app权限里允许 修改系统设置.", Toast.LENGTH_LONG).show();
+-        }
+-
+-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+-            if (!Settings.System.canWrite(this)) {
+-                // 如果没有权限，引导用户去设置页面
+-                Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+-                intent.setData(Uri.parse("package:" + getPackageName()));
+-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+-                startActivity(intent);
+-                Toast.makeText(this, "请开启修改系统设置权限", Toast.LENGTH_LONG).show();
+-            }
+-        }
+-
+-        // 初始化SharedPreferences
+-        sharedPref = getSharedPreferences("app_config", MODE_PRIVATE);
+-        editor = sharedPref.edit();
+-
+-        String config = sharedPref.getString("config", null);
+-        //EditText editText = findViewById(R.id.editTextTextMultiLine);
+-        //editText.setText(config);
++        checkbox = findViewById(R.id.checkBox);
++        editText = findViewById(R.id.editTextTextMultiLine);
++        lightLevelTextView = findViewById(R.id.text);
+ 
+-        // 首次运行写入配置文件
+-        if (config == null) {
+-            editor.putString("config", "lmd:3/2\n0 50\n20 250");
+-            editor.putBoolean("enable", false);
+-            editor.apply();
+-            config = sharedPref.getString("config", null);
+-        }
++        // 开关的勾选状态只认 SharedPreferences 这一个来源。
++        // 关掉 View 的状态保存，防止系统在 Activity 重建时把旧的勾选状态回填回来，
++        // 再经 OnCheckedChangeListener 反过来覆盖掉持久化的真实值。
++        checkbox.setSaveEnabled(false);
+ 
++        ensureDefaultConfig();
+ 
+-        CheckBox checkbox = findViewById(R.id.checkBox);
++        editText.setText(sharedPref.getString(KEY_CONFIG, ""));
+ 
+-        EditText editText = findViewById(R.id.editTextTextMultiLine);
+-        editText.setText(config);
++        boolean enabled = sharedPref.getBoolean(KEY_ENABLE, false);
++        setCheckBoxSilently(enabled);
+ 
++        checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
++            if (settingCheckedSilently) {
++                return;
++            }
++            // 值没变（例如状态回填）就不要重写配置、更不要起停服务
++            if (isChecked == sharedPref.getBoolean(KEY_ENABLE, false)) {
++                return;
++            }
++            applyEnabled(isChecked);
++        });
+ 
++        checkWriteSettingsPermission();
++    }
+ 
++    /** 首次运行写入默认配置 */
++    private void ensureDefaultConfig() {
++        if (!sharedPref.contains(KEY_CONFIG)) {
++            sharedPref.edit()
++                    .putString(KEY_CONFIG, DEFAULT_CONFIG)
++                    .putBoolean(KEY_ENABLE, false)
++                    .apply();
++        }
++    }
+ 
++    /** 静默设置勾选状态：不触发业务逻辑 */
++    private void setCheckBoxSilently(boolean checked) {
++        if (checkbox.isChecked() == checked) {
++            return;
++        }
++        settingCheckedSilently = true;
++        checkbox.setChecked(checked);
++        settingCheckedSilently = false;
++    }
+ 
++    /** 用户通过开关启用/停用 */
++    private void applyEnabled(boolean enabled) {
++        // 同步写盘：勾完立刻按返回（甚至进程被系统回收）也不会丢状态
++        sharedPref.edit().putBoolean(KEY_ENABLE, enabled).commit();
++
++        Toast.makeText(this, enabled ? "已启用." : "已停用.", Toast.LENGTH_SHORT).show();
++
++        if (enabled) {
++            startBrightnessService(sharedPref.getString(KEY_CONFIG, ""));
++            registerLightReceiver();
++        } else {
++            stopService(new Intent(this, autobrightness.class));
++            unregisterLightReceiver();
++            if (lightLevelTextView != null) {
++                lightLevelTextView.setText("");
++            }
++        }
++    }
+ 
++    /** 启动（或把新配置推给）前台服务 */
++    private void startBrightnessService(String config) {
+         Intent serviceIntent = new Intent(this, autobrightness.class);
+-        serviceIntent.putExtra("arg-config", config);
+-
+-
+-
+-/*
+-        Intent broadcastIntent = new Intent("com.myapp.ACTION");
+-        broadcastIntent.putExtra("arg1", "run");
+-        sendBroadcast(broadcastIntent);
+-
+- */
+-
+-
+-        lightLevelTextView = findViewById(R.id.text);
+-
+-        // 注册广播接收器
+-        IntentFilter filter2 = new IntentFilter("com.myapp.LIGHT_LEVEL_UPDATE");
+-        //registerReceiver(lightLevelReceiver, filter2);
+-
+-
+-        enableapp = sharedPref.getBoolean("enable", false);
+-
+-        if(enableapp){
+-
+-            checkbox.setChecked(true);
+-            // 针对 API 26 及更高版本，使用 startForegroundService
+-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
++        serviceIntent.putExtra(EXTRA_CONFIG, config);
++        try {
++            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                 startForegroundService(serviceIntent);
+             } else {
+                 startService(serviceIntent);
+             }
+-            registerReceiver(lightLevelReceiver, filter2);
+-
+-        }else{
+-            checkbox.setChecked(false);
++        } catch (Exception e) {
++            // Android 12+ 后台启动前台服务受限时可能抛异常，不能让它把 app 拖崩
++            Log.e(TAG, "启动服务失败", e);
++            Toast.makeText(this, "启动服务失败，请把本应用加入后台白名单", Toast.LENGTH_LONG).show();
+         }
++    }
+ 
++    private void registerLightReceiver() {
++        if (lightReceiverRegistered) {
++            return;
++        }
++        registerReceiver(lightLevelReceiver, new IntentFilter(ACTION_LIGHT_UPDATE));
++        lightReceiverRegistered = true;
++    }
+ 
+-        // checkBox
+-        checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+-            if (isChecked) {
+-                editor.putBoolean("enable", true);
+-                editor.apply();
+-                Toast.makeText(MainActivity.this, "已启用.", Toast.LENGTH_SHORT).show();
+-
+-                // 针对 API 26 及更高版本，使用 startForegroundService
+-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+-                    startForegroundService(serviceIntent);
+-                } else {
+-                    startService(serviceIntent);
+-                }
+-                registerReceiver(lightLevelReceiver, filter2);
+-
+-
+-            }else{
+-                editor.putBoolean("enable", false);
+-                editor.apply();
+-                Toast.makeText(MainActivity.this, "已停用.", Toast.LENGTH_SHORT).show();
+-
+-                stopService(serviceIntent);
+-                unregisterReceiver(lightLevelReceiver);
+-            }
+-        });
+-
++    private void unregisterLightReceiver() {
++        if (!lightReceiverRegistered) {
++            return;
++        }
++        try {
++            unregisterReceiver(lightLevelReceiver);
++        } catch (IllegalArgumentException e) {
++            // 已经注销过了，无视即可
++        }
++        lightReceiverRegistered = false;
++    }
+ 
++    /** 检查“修改系统设置”权限，没有就引导用户去开 */
++    private void checkWriteSettingsPermission() {
++        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
++            return;
++        }
++        if (Settings.System.canWrite(this)) {
++            return;
++        }
++        Toast.makeText(this, "请开启“修改系统设置”权限，否则无法调节亮度", Toast.LENGTH_LONG).show();
++        try {
++            Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
++                    Uri.parse("package:" + getPackageName()));
++            startActivity(intent);
++        } catch (Exception e) {
++            Log.e(TAG, "打开权限设置页失败", e);
++        }
+     }
+ 
+     public void save(View view) {
+ 
+-        //editTextTextMultiLine
+-        EditText editText = findViewById(R.id.editTextTextMultiLine);
+-        String inputText = editText.getText().toString();
+-        editor.putString("config", inputText);
+-        editor.apply(); // 使用apply异步保存，commit同步保存
++        String inputText = editText.getText().toString().trim();
++        sharedPref.edit().putString(KEY_CONFIG, inputText).commit();
+         Toast.makeText(this, "保存完成.", Toast.LENGTH_LONG).show();
+ 
+-
+-        CheckBox checkbox = findViewById(R.id.checkBox);
+-
+-
+-        if(checkbox.isChecked()){
+-
+-
+-        // 先停止服务
+-        Intent serviceIntent = new Intent(MainActivity.this, autobrightness.class);
+-        serviceIntent.putExtra("arg1", "stop");
+-        stopService(serviceIntent);
+-        unregisterReceiver(lightLevelReceiver);
+-
+-        IntentFilter filter = new IntentFilter();
+-        filter.addAction(Intent.ACTION_SCREEN_OFF); // 监听屏幕关闭
+-        filter.addAction(Intent.ACTION_SCREEN_ON);  // 监听屏幕开启
+-
+-
+-        try {
+-            Thread.sleep(500);
+-        } catch (InterruptedException e) {
+-            e.printStackTrace();
++        if (inputText.isEmpty()) {
++            Toast.makeText(this, "配置为空，将不再自动调节亮度", Toast.LENGTH_LONG).show();
++        } else if (!inputText.matches("(?s).*lmd\\s*:.*")) {
++            Toast.makeText(this, "配置缺少 lmd:灵敏度/过渡秒数 这一行，可能无法生效", Toast.LENGTH_LONG).show();
+         }
+ 
+-        String config = sharedPref.getString("config", null);
+-        serviceIntent.putExtra("arg-config", config);
+-
+-        // 针对 API 26 及更高版本，使用 startForegroundService
+-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+-            startForegroundService(serviceIntent);
+-        } else {
+-            startService(serviceIntent);
++        // 直接带着新配置再发一次启动指令即可，服务会重新解析配置。
++        // 不再 stopService + 睡 500ms + startService（那是主线程阻塞和状态错乱的根源）。
++        if (sharedPref.getBoolean(KEY_ENABLE, false)) {
++            startBrightnessService(inputText);
+         }
+-        IntentFilter filter2 = new IntentFilter("com.myapp.LIGHT_LEVEL_UPDATE");
+-        registerReceiver(lightLevelReceiver, filter2);
+-        }
+-
+-
+-
+     }
+ 
+-
+-
+     @Override
+-    protected void onResume() {
+-        super.onResume();
+-        Log.d("TAG", "MainActivity, onResume");
+-        //Intent serviceIntent = new Intent(this, MyForegroundService.class);
+-        //serviceIntent.putExtra("arg1", "run");
+-        //startService(serviceIntent);
+-
+-        // 重新获取最新的开关状态
+-        boolean isEnabled = sharedPref.getBoolean("enable", false);
+-        if(enableapp) {// 注册广播接收器
+-            IntentFilter filter2 = new IntentFilter("com.myapp.LIGHT_LEVEL_UPDATE");
+-            registerReceiver(lightLevelReceiver, filter2);
++    protected void onStart() {
++        super.onStart();
++        Log.d(TAG, "onStart");
++
++        // 每次回到前台都以持久化状态为准，避免 UI 和真实状态不一致
++        boolean enabled = sharedPref.getBoolean(KEY_ENABLE, false);
++        setCheckBoxSilently(enabled);
++
++        if (enabled) {
++            // 开关是“开”就保证服务真的在跑（被系统清掉后能自愈）
++            startBrightnessService(sharedPref.getString(KEY_CONFIG, ""));
++            registerLightReceiver();
++        } else {
++            unregisterLightReceiver();
+         }
+     }
+ 
+     @Override
+-    protected void onPause() {
+-        super.onPause();
+-        Log.d("TAG", "MainActivity, onPause");
+-        try {
+-            unregisterReceiver(lightLevelReceiver);
+-        } catch (IllegalArgumentException e) {
+-            // 已经注销过了，无视即可
+-
+-        }
+-        //Intent serviceIntent = new Intent(this, MyForegroundService.class);
+-        //stopService(serviceIntent);
++    protected void onStop() {
++        super.onStop();
++        Log.d(TAG, "onStop");
++        // 停到后台就不再收广播，注册/注销一一对应
++        unregisterLightReceiver();
+     }
+ 
+     @Override
+     protected void onDestroy() {
+         super.onDestroy();
++        unregisterLightReceiver();
+     }
+-}
+\ No newline at end of file
++}
+--- a/app/src/main/java/com/myapp/autobrightness/autobrightness.java
++++ b/app/src/main/java/com/myapp/autobrightness/autobrightness.java
+@@ -1,6 +1,5 @@
+ package com.myapp.autobrightness;
+ 
+-import android.animation.ValueAnimator;
+ import android.app.Notification;
+ import android.app.NotificationChannel;
+ import android.app.NotificationManager;
+@@ -10,141 +9,207 @@
+ import android.content.Context;
+ import android.content.Intent;
+ import android.content.IntentFilter;
++import android.content.SharedPreferences;
+ import android.os.Build;
+ import android.os.Handler;
+ import android.os.IBinder;
++import android.os.Looper;
+ import android.hardware.Sensor;
+ import android.hardware.SensorEvent;
+ import android.hardware.SensorEventListener;
+ import android.hardware.SensorManager;
+-import android.os.Looper;
++import android.provider.Settings;
+ import android.util.Log;
++
++import androidx.core.app.NotificationCompat;
++
+ import java.util.ArrayList;
+-import java.util.Collections; // 记得导入排序工具
++import java.util.Collections;
+ import java.util.List;
+ import java.util.regex.Matcher;
+ import java.util.regex.Pattern;
+-import android.provider.Settings;
+-import androidx.core.app.NotificationCompat;
+ 
+ public class autobrightness extends Service {
+ 
++    private static final String TAG = "AutoBrightness";
+     private static final String CHANNEL_ID = "AutoBrightnessService";
++    private static final String PREFS_NAME = "app_config";
++    private static final String KEY_CONFIG = "config";
++    private static final String KEY_ENABLE = "enable";
++    private static final String EXTRA_CONFIG = "arg-config";
++
++    private static final int NOTIFICATION_ID = 1;
++    /** 大多数机型的亮度设置范围是 0-255；这里只做下限保护，上限由系统裁剪 */
++    private static final int DEFAULT_BRIGHTNESS = 125;
++    /** 传感器事件最小处理间隔，避免高频回调 */
++    private static final long MIN_PROCESS_INTERVAL_MS = 500;
++    private static final int TOTAL_STEPS = 25;
++
+     private SensorManager sensorManager;
+     private Sensor lightSensor;
+     private SensorEventListener lightSensorListener;
++    private boolean sensorRegistered = false;
+ 
+-
+-
+-    // --- 成员变量声明 (解决 Cannot resolve symbol 错误) ---
+-    private List<int[]> cachedConfigData = new ArrayList<>();
++    // --- 配置 ---
++    private final List<int[]> cachedConfigData = new ArrayList<>();
+     private int configLmd = 3;
+     private int configDuration = 2000;
++
+     private long lastProcessingTime = 0;
+-    private ValueAnimator currentAnimator;
++
++    private Handler brightnessHandler = new Handler(Looper.getMainLooper());
++    private Runnable brightnessRunnable;
+ 
+     private float lightLevel;
+     private int consecutiveCount = 0;
++    /** 正在累计的候选目标亮度，只有它连续出现 configLmd 次才会真正调整 */
++    private int pendingTarget = Integer.MIN_VALUE;
+     private int lastTargetBrightness = -1;
+     private boolean firstStart = true;
+ 
+-
+-    private Handler brightnessHandler = new Handler(Looper.getMainLooper());
+-    private Runnable brightnessRunnable;
+-    private int currentStep = 0;
+-    private static final int TOTAL_STEPS = 25; // 步数越多越平滑，25步通常足够
+-
+     @Override
+     public void onCreate() {
+         super.onCreate();
+         createNotificationChannel();
+ 
+-
+         IntentFilter filter = new IntentFilter();
+-        filter.addAction(Intent.ACTION_SCREEN_OFF);
+-        filter.addAction(Intent.ACTION_SCREEN_ON);
++        filter.addAction(Intent.ACTION_SCREEN_OFF); // 监听屏幕关闭
++        filter.addAction(Intent.ACTION_SCREEN_ON);   // 监听屏幕开启
+         registerReceiver(screenStateReceiver, filter);
+     }
+ 
+-    // --- 改进的解析逻辑：支持排序，确保匹配准确 ---
++    /** 解析配置：逐行容错，单行写错只跳过该行，不会让整份配置作废 */
+     private void parseConfig(String config) {
+-        if (config == null || config.isEmpty()) return;
++        cachedConfigData.clear();
++        if (config == null || config.trim().isEmpty()) {
++            Log.w(TAG, "配置为空，不做亮度调节");
++            return;
++        }
+         try {
+-            cachedConfigData.clear();
+-            Pattern pattern = Pattern.compile("lmd:\\s*(\\d+)/(\\d+)([\\s\\S]*)");
+-            Matcher matcher = pattern.matcher(config);
+-
+-            if (matcher.find()) {
+-                configLmd = Integer.parseInt(matcher.group(1).trim());
+-                configDuration = Integer.parseInt(matcher.group(2).trim()) * 1000;
+-                String mainBody = matcher.group(3).trim();
+-
+-                String[] lines = mainBody.split("\\n");
+-                for (String line : lines) {
+-                    String[] numbers = line.trim().split("\\s+");
+-                    if (numbers.length >= 2) {
+-                        int mylight = Integer.parseInt(numbers[0]);
+-                        int mybrightness = Integer.parseInt(numbers[1]);
+-                        cachedConfigData.add(new int[]{mylight, mybrightness});
++            Matcher matcher = Pattern.compile("lmd:\\s*(\\d+)\\s*/\\s*(\\d+)([\\s\\S]*)").matcher(config);
++            if (!matcher.find()) {
++                Log.e(TAG, "配置缺少 lmd:灵敏度/过渡秒数，解析失败");
++                return;
++            }
++            configLmd = Math.max(1, Integer.parseInt(matcher.group(1).trim()));
++            // 第二个数字是过渡时长（秒），单位换算成毫秒
++            configDuration = Math.max(1, Integer.parseInt(matcher.group(2).trim())) * 1000;
++
++            String[] lines = matcher.group(3).trim().split("\\n");
++            for (String line : lines) {
++                String[] numbers = line.trim().split("\\s+");
++                if (numbers.length < 2) {
++                    continue;
++                }
++                try {
++                    int myLight = Integer.parseInt(numbers[0].trim());
++                    int myBrightness = Integer.parseInt(numbers[1].trim());
++                    if (myBrightness < 0) {
++                        continue;
+                     }
++                    cachedConfigData.add(new int[]{Math.max(0, myLight), myBrightness});
++                } catch (NumberFormatException e) {
++                    Log.w(TAG, "跳过无法解析的配置行: " + line);
+                 }
+-                // 关键：按光照强度从小到大排序，防止输入乱序导致逻辑失效
+-                Collections.sort(cachedConfigData, (a, b) -> Integer.compare(a[0], b[0]));
+             }
++            // 按光照强度从小到大排序，防止输入乱序导致逻辑失效
++            Collections.sort(cachedConfigData, (a, b) -> Integer.compare(a[0], b[0]));
++            Log.d(TAG, "配置解析完成，规则 " + cachedConfigData.size() + " 条，灵敏度 " + configLmd
++                    + "，过渡 " + configDuration + "ms");
+         } catch (Exception e) {
+-            Log.e("CONFIG", "解析失败: " + e.getMessage());
++            Log.e(TAG, "解析失败: " + e.getMessage());
+         }
+     }
+ 
+     @Override
+     public int onStartCommand(Intent intent, int flags, int startId) {
++        SharedPreferences pref = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
++
++        // 1. 先把前台通知挂上。被 startForegroundService() 拉起后必须在 5 秒内
++        //    调用 startForeground()，否则系统会抛 RemoteServiceException 把 app 干掉，
++        //    所以这一步要放在所有提前 return 之前
+         if (firstStart) {
+             Intent notificationIntent = new Intent(this, MainActivity.class);
+             PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent,
+-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0);
++                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
++                            ? PendingIntent.FLAG_IMMUTABLE : 0);
+ 
+             Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+                     .setContentTitle("AutoBrightness")
+                     .setContentText("自动亮度已开启")
+                     .setSmallIcon(R.drawable.ic_stat_name)
+                     .setContentIntent(pendingIntent)
++                    .setOngoing(true)
+                     .build();
+ 
+-            startForeground(1, notification);
++            startForeground(NOTIFICATION_ID, notification);
+             firstStart = false;
+         }
+ 
+-        if (intent != null && intent.getStringExtra("arg-config") != null) {
+-            parseConfig(intent.getStringExtra("arg-config"));
++        // 2. 开关已经关掉时被系统拉起来（粘性重启 / 开机广播），直接退出，
++        //    否则会出现“开关是关的，服务却在跑”的假开启状态
++        if (!pref.getBoolean(KEY_ENABLE, false)) {
++            Log.d(TAG, "开关已关闭，服务退出");
++            stopSelf();
++            return START_NOT_STICKY;
++        }
++
++        // 3. 拿配置：优先用 intent 里的，进程被回收后粘性重启拿不到 intent，
++        //    就退回 SharedPreferences，保证重启后依然能按配置工作
++        String config = (intent != null) ? intent.getStringExtra(EXTRA_CONFIG) : null;
++        if (config == null) {
++            config = pref.getString(KEY_CONFIG, "");
++        }
++
++        parseConfig(config);
++
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(this)) {
++            // 没有写系统设置权限，调节一定失败，直接报出来而不是静默失败
++            Log.e(TAG, "缺少 WRITE_SETTINGS 权限，无法调节亮度");
+         }
+ 
+         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+-        lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
++        lightSensor = sensorManager == null ? null : sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
+ 
+-        lightSensorListener = new SensorEventListener() {
++        if (lightSensor == null) {
++            Log.e(TAG, "设备没有光线传感器，服务退出");
++            stopSelf();
++            return START_NOT_STICKY;
++        }
+ 
++        startSensorListening();
++        // 用 REDELIVER：系统重启服务时会把本次 intent（含配置）重新投递过来
++        return START_REDELIVER_INTENT;
++    }
++
++    /** 只创建一次监听器；重复 startService 时复用，避免监听器越挂越多 */
++    private void ensureListener() {
++        if (lightSensorListener != null) {
++            return;
++        }
++        lightSensorListener = new SensorEventListener() {
+ 
+             @Override
+             public void onSensorChanged(SensorEvent event) {
+                 long currentTime = System.currentTimeMillis();
+-                if (currentTime - lastProcessingTime < 500) return;
++                if (currentTime - lastProcessingTime < MIN_PROCESS_INTERVAL_MS) {
++                    return;
++                }
+                 lastProcessingTime = currentTime;
+ 
+                 lightLevel = event.values[0];
+-                //Log.i("TAG", "onSensorChanged: lightLevel"+lightLevel);
+ 
+-                // 发送广播到 UI (保持原样)
++                // 发送广播到 UI
+                 Intent broadcastIntent = new Intent("com.myapp.LIGHT_LEVEL_UPDATE");
+                 broadcastIntent.putExtra("lightLevel", lightLevel);
+                 sendBroadcast(broadcastIntent);
+ 
++                if (cachedConfigData.isEmpty()) {
++                    return;
++                }
+ 
+-
+-
+-                // --- 匹配逻辑优化：支持跨区间计数 & 极速响应 0 ---
++                // 1. 寻找当前光照对应的目标亮度（从高到低遍历）
+                 int currentTarget = -1;
+-
+-                // 1. 寻找当前光照对应的目标亮度 (从高到低遍历)
+                 for (int i = cachedConfigData.size() - 1; i >= 0; i--) {
+                     int[] rule = cachedConfigData.get(i);
+                     if (lightLevel >= rule[0]) {
+@@ -152,143 +217,169 @@
+                         break;
+                     }
+                 }
++                if (currentTarget == -1) {
++                    return;
++                }
+ 
+-                // 2. 执行判定逻辑
+-                if (currentTarget != -1) {
+-
+-                    // 特殊处理：如果光感值为0，立即调整亮度，不参与计数逻辑
+-                    if (lightLevel == 0) {
+-                        if (currentTarget != lastTargetBrightness) {
+-                            setScreenBrightnessSmoothly(currentTarget);
+-                            consecutiveCount = 0; // 重置计数，因为已经调整过了
+-                        }
+-                        return; // 直接返回，不再执行后续计数判断
+-                    }
+-
+-                    // 常规处理：如果目标亮度发生了变化
++                // 2. 光感为 0 时立即调整，不参与计数逻辑
++                if (lightLevel <= 0f) {
+                     if (currentTarget != lastTargetBrightness) {
+-                        consecutiveCount++;
+-
+-                        // 达到连续计数阈值，执行调整
+-                        if (consecutiveCount >= configLmd) {
+-                            setScreenBrightnessSmoothly(currentTarget);
+-                            consecutiveCount = 0; // 调整完毕，重置计数
+-                        }
+-                    } else {
+-                        // 如果环境亮度回到了当前档位，说明环境已稳定，重置计数
+-                        consecutiveCount = 0;
++                        setScreenBrightnessSmoothly(currentTarget);
+                     }
++                    consecutiveCount = 0;
++                    pendingTarget = Integer.MIN_VALUE;
++                    return;
++                }
++
++                // 3. 常规处理：要求“同一个目标”连续出现 configLmd 次才调整，
++                //    原先只统计“目标与当前亮度不同”的次数，光线抖动几次就会跳档
++                if (currentTarget == lastTargetBrightness) {
++                    consecutiveCount = 0;
++                    pendingTarget = Integer.MIN_VALUE;
++                    return;
++                }
++                if (currentTarget == pendingTarget) {
++                    consecutiveCount++;
++                } else {
++                    pendingTarget = currentTarget;
++                    consecutiveCount = 1;
++                }
++                if (consecutiveCount >= configLmd) {
++                    setScreenBrightnessSmoothly(currentTarget);
++                    consecutiveCount = 0;
++                    pendingTarget = Integer.MIN_VALUE;
+                 }
+             }
+ 
+             @Override
+-            public void onAccuracyChanged(Sensor sensor, int accuracy) {}
++            public void onAccuracyChanged(Sensor sensor, int accuracy) {
++            }
+         };
++    }
+ 
+-        sensorManager.registerListener(lightSensorListener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);
+-        return START_STICKY;
++    private void startSensorListening() {
++        if (sensorManager == null || lightSensor == null) {
++            return;
++        }
++        ensureListener();
++        if (sensorRegistered) {
++            // 先注销旧的，保证全局只有一个注册，不会重复回调
++            sensorManager.unregisterListener(lightSensorListener);
++        }
++        sensorRegistered = sensorManager.registerListener(lightSensorListener, lightSensor,
++                SensorManager.SENSOR_DELAY_NORMAL);
++    }
++
++    private void stopSensorListening() {
++        if (sensorManager != null && lightSensorListener != null && sensorRegistered) {
++            sensorManager.unregisterListener(lightSensorListener);
++        }
++        sensorRegistered = false;
+     }
+ 
+     private void setScreenBrightnessSmoothly(int targetBrightness) {
+-        if (targetBrightness == lastTargetBrightness) return;
++        if (targetBrightness == lastTargetBrightness) {
++            return;
++        }
+ 
+         // 停止之前的任务
+         if (brightnessRunnable != null) {
+             brightnessHandler.removeCallbacks(brightnessRunnable);
++            brightnessRunnable = null;
+         }
+ 
+         lastTargetBrightness = targetBrightness;
+         final int startBrightness = getCurrentBrightness();
+-        currentStep = 0;
+-
+-        // 计算每一步的时间间隔 (总时长 / 总步数)
+-        final long stepDelay = configDuration / TOTAL_STEPS;
++        final int finalTarget = Math.max(0, targetBrightness);
++        final long stepDelay = Math.max(1, configDuration / TOTAL_STEPS);
+ 
+         brightnessRunnable = new Runnable() {
++            private int step = 0;
++
+             @Override
+             public void run() {
+-                currentStep++;
++                step++;
+ 
+-                // 计算当前步应该达到的亮度值 (线性插值)
+-                float fraction = (float) currentStep / TOTAL_STEPS;
+-                int nextVal = (int) (startBrightness + (targetBrightness - startBrightness) * fraction);
++                // 线性插值
++                float fraction = (float) step / TOTAL_STEPS;
++                int nextVal = (int) (startBrightness + (finalTarget - startBrightness) * fraction);
++                nextVal = Math.max(0, nextVal);
+ 
+                 try {
+-                    // 确保在调节前是手动模式，防止 MIUI 自动亮度冲突
+-                    if (currentStep == 1) {
++                    // 第一步先切成手动模式，防止 MIUI 自动亮度冲突
++                    if (step == 1) {
+                         Settings.System.putInt(getContentResolver(),
+                                 Settings.System.SCREEN_BRIGHTNESS_MODE,
+                                 Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+                     }
+-
+                     Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, nextVal);
+-                    // Log.i("TAG", "后台调节进度: " + currentStep + "/" + TOTAL_STEPS + " 值: " + nextVal);
+                 } catch (Exception e) {
+-                    Log.e("TAG", "写入亮度失败", e);
++                    Log.e(TAG, "写入亮度失败", e);
++                    return;
+                 }
+ 
+-                // 如果还没达到总步数，继续跑下一步
+-                if (currentStep < TOTAL_STEPS) {
++                if (step < TOTAL_STEPS) {
+                     brightnessHandler.postDelayed(this, stepDelay);
+                 }
+             }
+         };
+ 
+-        // 立即开始执行
+         brightnessHandler.post(brightnessRunnable);
+     }
+ 
+     private int getCurrentBrightness() {
+         try {
+-            //Log.i("TAG", "---------getCurrentBrightness:-------- ");
+             return Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS);
+         } catch (Settings.SettingNotFoundException e) {
+-            return 125;
++            return DEFAULT_BRIGHTNESS;
+         }
+     }
+ 
+     @Override
+     public void onDestroy() {
+-
+-        unregisterReceiver(screenStateReceiver);
+-        if (sensorManager != null) {
+-            sensorManager.unregisterListener(lightSensorListener);
++        // 停掉没跑完的亮度渐变，避免服务退出后还在写系统亮度
++        if (brightnessRunnable != null) {
++            brightnessHandler.removeCallbacks(brightnessRunnable);
++            brightnessRunnable = null;
+         }
+-
+-
+-
++        stopSensorListening();
++        try {
++            unregisterReceiver(screenStateReceiver);
++        } catch (IllegalArgumentException e) {
++            Log.w(TAG, "屏幕状态广播已注销", e);
++        }
++        stopForeground(true);
+         super.onDestroy();
+     }
+ 
+     @Override
+-    public IBinder onBind(Intent intent) { return null; }
++    public IBinder onBind(Intent intent) {
++        return null;
++    }
+ 
+     private void createNotificationChannel() {
+         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+             NotificationChannel serviceChannel = new NotificationChannel(CHANNEL_ID,
+                     "AutoBrightnessService", NotificationManager.IMPORTANCE_LOW);
+             NotificationManager manager = getSystemService(NotificationManager.class);
+-            if (manager != null) manager.createNotificationChannel(serviceChannel);
++            if (manager != null) {
++                manager.createNotificationChannel(serviceChannel);
++            }
+         }
+     }
+ 
+-
+     private final BroadcastReceiver screenStateReceiver = new BroadcastReceiver() {
+         @Override
+         public void onReceive(Context context, Intent intent) {
+             if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
+                 // 屏幕关闭：注销传感器监听，节省耗电
+-                if (sensorManager != null) {
+-                    sensorManager.unregisterListener(lightSensorListener);
+-                    Log.d("AutoBrightness", "屏幕关闭，停止采样");
+-                }
++                stopSensorListening();
++                Log.d(TAG, "屏幕关闭，停止采样");
+             } else if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
+                 // 屏幕开启：重新注册传感器监听
+-                if (sensorManager != null && lightSensor != null) {
+-                    sensorManager.registerListener(lightSensorListener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);
+-                    Log.d("AutoBrightness", "屏幕开启，恢复采样");
+-                }
++                startSensorListening();
++                Log.d(TAG, "屏幕开启，恢复采样");
+             }
+         }
+     };
+-}
+\ No newline at end of file
++}
+--- a/app/src/main/java/com/myapp/autobrightness/BootReceiver.java
++++ b/app/src/main/java/com/myapp/autobrightness/BootReceiver.java
+@@ -4,41 +4,46 @@
+ import android.content.Context;
+ import android.content.Intent;
+ import android.content.SharedPreferences;
+-import android.os.Handler;
+-import android.os.Looper;
++import android.os.Build;
+ import android.util.Log;
+ 
+ public class BootReceiver extends BroadcastReceiver {
+ 
++    private static final String TAG = "BootReceiver";
++
+     @Override
+     public void onReceive(Context context, Intent intent) {
+-        if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
+-
+-            // 这个自启动很奇怪，重启前app如果正在运行则重启后app能开机启动，否则无法开机启动。
+-
+-            Log.d("myapp", "ACTION_BOOT_COMPLETED");
+-            // 初始化 SharedPreferences
+-            SharedPreferences sharedPref = context.getSharedPreferences("app_config", Context.MODE_PRIVATE);
+-            String config = sharedPref.getString("config", null);
+-
+-            // 启动应用的主活动或服务
+-            Intent serviceIntent = new Intent(context, autobrightness.class);
+-            serviceIntent.putExtra("arg-config", config);
+-
+-
++        String action = intent == null ? null : intent.getAction();
++        // 开机广播，以及应用被覆盖安装后（升级完服务不会自动恢复）都要检查一次
++        if (!Intent.ACTION_BOOT_COMPLETED.equals(action)
++                && !Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
++            return;
++        }
++        Log.d(TAG, "收到广播: " + action);
+ 
+-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
++        SharedPreferences sharedPref = context.getSharedPreferences("app_config", Context.MODE_PRIVATE);
+ 
+-                // 针对 API 26 及更高版本，使用 startForegroundService
+-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+-                    context.startForegroundService(serviceIntent);
+-                } else {
+-                    context.startService(serviceIntent);
+-                }
++        // 用户没启用就什么都不做，否则会出现“明明关掉了，重启手机又自动生效”
++        if (!sharedPref.getBoolean("enable", false)) {
++            Log.d(TAG, "开关未启用，不启动服务");
++            return;
++        }
+ 
++        String config = sharedPref.getString("config", "");
+ 
+-            }, 5000); // 延迟5秒
++        Intent serviceIntent = new Intent(context, autobrightness.class);
++        serviceIntent.putExtra("arg-config", config);
+ 
++        // 直接在 onReceive 里启动。原来用 Handler.postDelayed(5s)：onReceive 返回后
++        // 进程随时可能被回收，那段延迟代码根本不保证会执行。
++        try {
++            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++                context.startForegroundService(serviceIntent);
++            } else {
++                context.startService(serviceIntent);
++            }
++        } catch (Exception e) {
++            Log.e(TAG, "开机启动服务失败", e);
+         }
+     }
+ }
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -3,13 +3,11 @@
+     xmlns:tools="http://schemas.android.com/tools"
+     package="com.myapp.autobrightness">
+ 
+-
+     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
++    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+     <uses-permission android:name="android.permission.WRITE_SETTINGS"
+         tools:ignore="ProtectedPermissions" />
+     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+-
+-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+ 
+     <application
+@@ -19,7 +17,10 @@
+         android:roundIcon="@mipmap/ic_launcher_round"
+         android:supportsRtl="true"
+         android:theme="@style/AppTheme">
+-        <activity android:name="com.myapp.autobrightness.MainActivity">
++
++        <activity
++            android:name="com.myapp.autobrightness.MainActivity"
++            android:exported="true">
+             <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+ 
+@@ -33,15 +34,16 @@
+             android:exported="false"
+             android:foregroundServiceType="dataSync" />
+ 
+-
+-
+-        <receiver android:name="com.myapp.autobrightness.BootReceiver" android:enabled="true" android:exported="false">
++        <receiver
++            android:name="com.myapp.autobrightness.BootReceiver"
++            android:enabled="true"
++            android:exported="false">
+             <intent-filter>
+                 <action android:name="android.intent.action.BOOT_COMPLETED" />
++                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+             </intent-filter>
+         </receiver>
+ 
+-
+     </application>
+ 
+-</manifest>
+\ No newline at end of file
++</manifest>
+--- a/app/src/main/res/layout/activity_main.xml
++++ b/app/src/main/res/layout/activity_main.xml
+@@ -9,6 +9,7 @@
+     android:padding="16dp"
+     tools:context=".MainActivity">
+ 
++    <!-- 上半部分自适应高度，下面的说明文字占用剩余空间并单独滚动 -->
+     <LinearLayout
+         android:layout_width="match_parent"
+         android:layout_height="wrap_content"
+@@ -29,19 +30,21 @@
+                 android:layout_width="0dp"
+                 android:layout_height="wrap_content"
+                 android:layout_weight="1"
+-                android:paddingLeft="10dp"
+-                android:orientation="vertical">
++                android:orientation="vertical"
++                android:paddingStart="10dp"
++                android:paddingLeft="10dp">
++
+                 <CheckBox
+                     android:id="@+id/checkBox"
+                     android:layout_width="wrap_content"
+                     android:layout_height="wrap_content"
+                     android:text="启用" />
++
+                 <TextView
+                     android:id="@+id/text"
+                     android:layout_width="match_parent"
+                     android:layout_height="wrap_content"
+-                    android:text=""
+-                    android:textColor="#000000"
++                    android:textColor="?android:attr/textColorPrimary"
+                     android:textSize="20sp" />
+ 
+                 <EditText
+@@ -51,10 +54,10 @@
+                     android:ems="10"
+                     android:gravity="start|top"
+                     android:hint="请输入内容"
+-                    android:inputType="textMultiLine" />
++                    android:inputType="textMultiLine"
++                    android:minLines="3" />
+             </LinearLayout>
+ 
+-
+         </LinearLayout>
+ 
+         <LinearLayout
+@@ -72,20 +75,21 @@
+                 android:textAllCaps="false" />
+         </LinearLayout>
+ 
+-        <ScrollView
+-            android:layout_width="match_parent"
+-            android:layout_height="match_parent">
++    </LinearLayout>
+ 
+-            <TextView
+-                android:id="@+id/textView2"
+-                android:layout_width="match_parent"
+-                android:layout_height="wrap_content"
+-                android:paddingTop="10dp"
+-                android:textSize="14dp"
+-                android:textIsSelectable="true"
+-                android:text="@string/sample_string" />
+-        </ScrollView>
++    <ScrollView
++        android:layout_width="match_parent"
++        android:layout_height="0dp"
++        android:layout_weight="1">
+ 
+-    </LinearLayout>
++        <TextView
++            android:id="@+id/textView2"
++            android:layout_width="match_parent"
++            android:layout_height="wrap_content"
++            android:paddingTop="10dp"
++            android:text="@string/sample_string"
++            android:textIsSelectable="true"
++            android:textSize="14sp" />
++    </ScrollView>
+ 
+-</LinearLayout>
+\ No newline at end of file
++</LinearLayout>
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1,12 +1,28 @@
+ <resources>
+     <string name="app_name">autobrightness</string>
+-    <string name="sample_string">"🐱 首次运行请赋予修改系统设置权限，并关闭系统自动亮度调节。
+-本app测试机为红米note9 5G,安卓10，请调整删除合适的参数为止。
++    <string name="sample_string">"🐱 首次运行请赋予“修改系统设置”权限，并关闭系统自动亮度调节。
++本 app 测试机为红米 note9 5G、安卓 10，请自行调整到合适的参数为止。
++
++配置格式：
++第 1 行固定为 lmd:灵敏度/过渡秒数
++后面每行是“光照阈值 目标亮度”，中间用空格分开，可以写多行。
++
++示例：
+ lmd:3/2
+ 0 50
+-0 200
+-lmd的第一个数字表示灵敏度为3(建议1-5之间)，为1则对光线反应最灵敏，第二个2表示屏幕亮度平缓转换的时间2秒，下面的几行数字表示光线>0 则设置屏幕亮度50,支持添加多行,小米MIUI请在app属性里设置省电策略为无限制。并加防后台锁定清理锁，如果参数设置乱套建议清除app数据.
++20 250
++
++说明：
++lmd 第一个数字是灵敏度（建议 1-5），为 1 时对光线反应最灵敏；
++第二个数字是亮度过渡时间（秒），上例为 2 秒平滑过渡；
++下面每行表示“环境光大于等于该阈值时，屏幕亮度设为右边的值”，
++上例即：光线 >= 0 用亮度 50，光线 >= 20 用亮度 250。
++亮度取值范围通常是 0-255（部分机型上限不同，请按自己设备调整）。
++设置好参数后点 Save 才会生效。
++
++小米/红米 MIUI 请在应用设置里把省电策略设为“无限制”，并加入后台锁定清理白名单。
++参数设置乱套时，可以清除 app 数据恢复默认配置。
+ 
+-检查更新或发现更多我开发的实用小APP请到:
++检查更新或发现更多我开发的实用小 APP 请到:
+ https://github.com/happmaoo/MyCode (选择复制网址)"</string>
+ </resources>
