@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?android:attr/windowBackground">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorPrimary"
+        android:elevation="4dp"
+        app:title="@string/action_settings"
+        app:navigationIcon="?attr/homeAsUpIndicator" />
+
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1" android:fillViewport="true">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:padding="20dp">
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/set_device_name" android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <EditText android:id="@+id/set_name" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                android:hint="@string/set_device_name_hint" android:inputType="text"
+                android:maxLines="1" android:textSize="14sp"
+                android:importantForAutofill="no" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" android:text="@string/set_name_note"
+                android:textSize="12sp" />
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:layout_marginTop="18dp" android:background="@color/divider" />
+
+            <!-- 自动连接的设备名：APP 打开后自动搜索并连接 -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="14dp" android:text="@string/set_auto_connect"
+                android:textSize="15sp" android:textStyle="bold" />
+
+            <EditText android:id="@+id/set_auto_connect_name" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                android:hint="@string/set_auto_connect_hint" android:inputType="text"
+                android:maxLines="1" android:textSize="14sp"
+                android:importantForAutofill="no" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" android:text="@string/set_auto_connect_note"
+                android:textSize="12sp" />
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:layout_marginTop="18dp" android:background="@color/divider" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/set_auto_accept"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="14dp" android:text="@string/set_auto_accept"
+                android:textSize="15sp" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/set_auto_accept_note" android:textSize="12sp" />
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:layout_marginTop="18dp" android:background="@color/divider" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="14dp" android:text="@string/set_folder"
+                android:textSize="15sp" android:textStyle="bold" />
+
+            <TextView android:id="@+id/set_folder_value" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                android:text="@string/set_folder_default" android:textSize="12sp" />
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:layout_marginTop="10dp">
+                <Button android:id="@+id/btn_pick_folder" android:layout_width="0dp"
+                    android:layout_height="40dp" android:layout_weight="1"
+                    android:text="@string/btn_pick_folder" android:textSize="13sp" />
+                <Button android:id="@+id/btn_reset_folder" android:layout_width="0dp"
+                    android:layout_height="40dp" android:layout_weight="1"
+                    android:layout_marginStart="8dp" android:text="@string/btn_reset_folder"
+                    android:textSize="13sp" style="?android:attr/borderlessButtonStyle" />
+            </LinearLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:layout_marginTop="18dp" android:background="@color/divider" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/set_prefer_go"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="14dp" android:text="@string/set_prefer_go"
+                android:textSize="15sp" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/set_prefer_go_note" android:textSize="12sp" />
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:layout_marginTop="18dp" android:background="@color/divider" />
+
+            <!-- Root: 主动申请权限 + 自动开启 Wi-Fi -->
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/set_root_wifi"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="14dp" android:text="@string/set_root_wifi"
+                android:textSize="15sp" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/set_root_wifi_note" android:textSize="12sp" />
+
+            <TextView android:id="@+id/set_root_status" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                android:text="@string/set_root_status_unknown" android:textSize="12sp" />
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:layout_marginTop="18dp" android:background="@color/divider" />
+
+            <!-- 运行时保持唤醒（WakeLock） -->
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/set_wake_lock"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="14dp" android:text="@string/set_wake_lock"
+                android:textSize="15sp" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/set_wake_lock_note" android:textSize="12sp" />
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:layout_marginTop="18dp" android:background="@color/divider" />
+
+            <!-- 断开后自动连接：仅非手动断开时自动重连 -->
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/set_reconnect"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="14dp" android:text="@string/set_reconnect"
+                android:textSize="15sp" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/set_reconnect_note" android:textSize="12sp" />
+
+            <Button android:id="@+id/btn_save" android:layout_width="match_parent"
+                android:layout_height="44dp" android:layout_marginTop="24dp"
+                android:text="@string/set_save" android:textSize="15sp" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

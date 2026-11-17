@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 仅保留中性灰阶用于卡片背景与分隔线；
+     强调色、按钮色、文字色全部由 Theme.Material.Light（AppCompat.Light）系统默认提供。 -->
+<resources>
+    <color name="surface">#FFFFFFFF</color>
+    <color name="divider">#FFE0E0E0</color>
+    <color name="text_primary">#FF212121</color>
+    <color name="text_secondary">#FF757575</color>
+</resources>

@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MyWifidirect</string>
+    <string name="action_settings">设置</string>
+    <string name="action_refresh">重新搜索</string>
+    <string name="action_about">关于</string>
+    <string name="action_exit">退出 APP</string>
+
+    <string name="lbl_status">状态</string>
+    <string name="lbl_p2p_state">Wi-Fi Direct</string>
+    <string name="lbl_my_name">本机名称</string>
+    <string name="lbl_connection">连接</string>
+    <string name="lbl_peers">附近设备</string>
+    <string name="lbl_transfer">传输</string>
+    <string name="lbl_log">传输日志</string>
+
+    <string name="btn_discover">搜索设备</string>
+    <string name="btn_stop_discover">停止搜索</string>
+    <string name="btn_send">发送文件…</string>
+    <string name="btn_disconnect">断开连接</string>
+    <string name="btn_enable_wifi">开启 Wi-Fi</string>
+    <string name="btn_connect">连接</string>
+
+    <string name="state_on">已开启</string>
+    <string name="state_off">未开启（请打开系统 Wi-Fi）</string>
+    <string name="state_unsupported">设备不支持 Wi-Fi Direct</string>
+    <string name="state_discovering">正在搜索附近设备…</string>
+    <string name="state_not_connected">未连接</string>
+    <string name="state_connected_go">已连接 · 本机是组长（接收端）</string>
+    <string name="state_connected_client">已连接 · 组长 %1$s</string>
+    <string name="state_no_peers">未发现设备，请确保两台设备都开启了 Wi-Fi 并停留在搜索页</string>
+
+    <string name="msg_perm_needed">需要「附近的设备 / 定位」权限才能搜索 Wi-Fi Direct 设备</string>
+    <string name="msg_perm_denied">权限被拒绝，无法搜索设备；仍可作为接收端等待连接</string>
+    <string name="msg_wifi_off">请先开启系统 Wi-Fi（Android 10+ 应用无法直接开启）</string>
+    <string name="msg_connect">正在连接 %1$s…</string>
+    <string name="msg_connected">连接建立</string>
+    <string name="msg_disconnected">连接已断开</string>
+    <string name="msg_discover_ok">开始搜索</string>
+    <string name="msg_discover_fail">搜索失败（%1$d），请检查 Wi-Fi 与权限</string>
+    <!-- 后台搜索被系统限制时的准确提示（非 Wi-Fi/权限问题） -->
+    <string name="msg_discover_bg_retry">后台扫描被系统限制，%1$d/%2$d 稍后自动重试…</string>
+    <string name="msg_discover_bg_retry_now">后台重试搜索…</string>
+    <string name="msg_discover_bg_stop">后台扫描多次受限，已暂停搜索（回到界面后可重新搜索）</string>
+    <string name="msg_connect_fail">连接失败（%1$d），可重试或忽略系统邀请对话框</string>
+    <string name="msg_need_connection">请先连接一台设备再发送文件</string>
+    <string name="msg_no_target">无法确定发送目标：本机为组长且未解析到对端 IP，请在设置中关闭「优先作为组长」后重新连接</string>
+    <string name="msg_pick_file">选择要发送的文件</string>
+    <string name="msg_server_ready">接收服务已启动（端口 %1$d），等待对端发送</string>
+    <string name="msg_server_stopped">接收服务已停止</string>
+    <string name="msg_incoming">收到传输请求：%1$s（%2$s）来自 %3$s</string>
+    <string name="msg_auto_accept">自动接收已开启，直接保存</string>
+    <string name="msg_auto_accept_background">界面不在前台，已自动接收并保存</string>
+    <string name="msg_engine_start">后台引擎已启动，退到后台后搜索/连接/接收照常进行</string>
+    <string name="msg_rejected">已拒绝接收</string>
+    <string name="msg_peer_rejected">对方拒绝了接收</string>
+    <string name="msg_saved">已保存到 %1$s</string>
+    <string name="msg_send_done">发送完成</string>
+    <string name="msg_receive_done">接收完成</string>
+    <string name="msg_transfer_fail">传输失败：%1$s</string>
+    <string name="msg_name_ok">设备名称已同步到系统 Wi-Fi P2P</string>
+    <string name="msg_name_fail">系统拒绝修改 P2P 设备名（Android 10+ 限制），本机名称仍用于显示与传输标识</string>
+
+    <string name="dlg_incoming_title">收到文件</string>
+    <string name="dlg_incoming_msg">%1$s\n大小：%2$s\n来自：%3$s\n\n是否接收并保存到默认文件夹？</string>
+    <string name="lbl_accept">接收</string>
+    <string name="lbl_reject">拒绝</string>
+
+    <string name="set_device_name">设备名称</string>
+    <string name="set_device_name_hint">用于本机显示与传输标识</string>
+    <string name="set_name_note">Android 10 及以上系统限制第三方应用修改 Wi-Fi P2P 广播名；若系统拒绝，此名称仍会作为本机显示名和发送方标识使用。</string>
+    <string name="set_auto_connect">自动连接的设备名</string>
+    <string name="set_auto_connect_hint">填写对方设备名或 MAC，留空关闭</string>
+    <string name="set_auto_connect_note">APP 打开后自动开始搜索，发现同名设备即自动发起连接。支持设备名（忽略大小写）或 MAC 地址；连接时系统仍会弹出邀请确认框。</string>
+    <string name="msg_auto_connect_start">自动连接：目标「%1$s」，将持续搜索直到连接成功…</string>
+    <string name="msg_auto_connect_retry">自动连接：第 %1$d 次搜索，继续寻找「%2$s」…</string>
+    <string name="msg_auto_search_start">APP 启动：开始持续搜索设备（10 分钟内未连接将自动退出）…</string>
+    <string name="msg_auto_search_retry">自动搜索：第 %1$d 次，持续搜索中…</string>
+    <string name="msg_auto_connect_found">自动连接：发现「%1$s」，正在连接…</string>
+    <string name="msg_auto_connect_cancel">自动搜索/连接已取消（手动操作）</string>
+    <string name="set_auto_accept">自动接收</string>
+    <string name="set_auto_accept_note">开启后收到文件直接保存到默认文件夹，不弹确认框</string>
+    <string name="set_folder">默认接收文件夹</string>
+    <string name="set_folder_default">应用私有目录（无需权限）</string>
+    <string name="set_folder_custom">已选择：%1$s</string>
+    <string name="btn_pick_folder">选择文件夹…</string>
+    <string name="btn_reset_folder">恢复默认</string>
+    <string name="set_prefer_go">优先作为组长（接收端）</string>
+    <string name="set_prefer_go_note">组长运行接收服务；关闭后本机更容易成为发送端</string>
+    <string name="set_root_wifi">使用 Root 自动开启 Wi-Fi</string>
+    <string name="set_root_wifi_note">开启后，检测到系统 Wi-Fi 关闭时自动通过 Root（svc wifi enable）打开。首次使用会主动弹出 Root 授权对话框，请在 Magisk / KernelSU 中点「允许」。</string>
+    <string name="set_root_status">当前状态：%1$s</string>
+    <string name="set_root_status_unknown">尚未申请</string>
+    <string name="set_root_status_granted">已获得 Root 权限</string>
+    <string name="set_root_status_denied">未获得（可重新申请）</string>
+
+    <!-- 运行时唤醒锁 WakeLock -->
+    <string name="set_wake_lock">运行时保持唤醒（WakeLock）</string>
+    <string name="set_wake_lock_note">开启后，APP 运行期间持有部分唤醒锁（PARTIAL_WAKE_LOCK），即使屏幕关闭也保持 CPU 运行，避免后台搜索与文件传输被系统休眠打断。会增加耗电，不用时可关闭。</string>
+    <string name="msg_wake_lock_on">已启用唤醒锁，CPU 保持运行</string>
+    <string name="msg_wake_lock_off">已释放唤醒锁</string>
+
+    <!-- 断开后自动连接（仅非手动断开） -->
+    <string name="set_reconnect">断开后自动连接</string>
+    <string name="set_reconnect_note">开启后，若连接被对方或系统意外中断（非手动点击「断开连接」），APP 会自动重新搜索并连接上次的目标设备。手动断开不会触发。</string>
+    <string name="msg_reconnect_start">连接意外中断，正在自动重新连接「%1$s」…</string>
+    <string name="msg_reconnect_retry">自动重连：第 %1$d/%2$d 次搜索…</string>
+    <string name="msg_reconnect_stop">自动重连 %1$d 次仍未成功，已停止（可手动搜索连接）</string>
+    <string name="msg_reconnect_no_target">连接意外中断，但未记录上次连接目标，无法自动重连</string>
+
+    <string name="msg_root_requesting">正在申请 Root 权限，请在弹出的授权对话框中允许…</string>
+    <string name="msg_root_granted">已获得 Root 权限</string>
+    <string name="msg_root_denied">未获得 Root 权限，请重新申请</string>
+    <string name="msg_root_wifi_auto">检测到 Wi-Fi 未开启，正在申请 Root 并开启…</string>
+    <string name="msg_root_wifi_manual">正在通过 Root 开启 Wi-Fi…</string>
+    <string name="msg_root_wifi_ok">已通过 Root 开启 Wi-Fi</string>
+    <string name="msg_root_wifi_fail">Root 开启失败</string>
+    <string name="msg_root_wifi_no_root">未检测到 Root 权限，请检查授权</string>
+    <string name="set_save">保存设置</string>
+    <string name="msg_settings_saved">设置已保存</string>
+    <string name="msg_folder_picked">已设置接收文件夹</string>
+    <string name="msg_folder_fail">无法使用该文件夹，请重新选择</string>
+    <string name="msg_folder_reset">已恢复默认接收目录</string>
+
+    <string name="notif_channel">文件传输</string>
+    <string name="notif_channel_desc">Wi-Fi Direct 接收服务与传输进度</string>
+    <string name="notif_done">上次传输：%1$s</string>
+    <!-- 通知栏动态状态 -->
+    <string name="notif_title_fmt">WiFi Direct (%1$s)</string>
+    <string name="notif_state_idle">就绪</string>
+    <string name="notif_state_searching">搜索中</string>
+    <string name="notif_state_connected">已连接</string>
+    <string name="notif_transferring">%1$s · %2$d%%</string>
+    <string name="notif_p2p_off">Wi-Fi Direct 未开启，请打开系统 Wi-Fi</string>
+    <string name="notif_log_empty">暂无日志</string>
+
+    <string name="about_text">WiFi Direct 传文件\n\n· 基于 Wi-Fi P2P（WifiP2pManager）设备发现与直连\n· TCP Socket 传输，自带文件头校验与 ACK 握手\n· 前台服务常驻接收，支持自动接收与手动确认\n· 默认接收文件夹可指向任意 SAF 目录树\n\n连接建立后，组长（GO）运行接收服务，另一端发送文件。</string>
+
+    <string name="lbl_ok">确定</string>
+    <string name="lbl_cancel">取消</string>
+    <string name="status_idle">就绪</string>
+    <string name="progress_done_fmt">「%1$s」已完成</string>
+
+    <!-- 系统分享：自动发送到已连接设备 -->
+    <string name="msg_share_received">收到系统分享的 %1$d 个文件</string>
+    <string name="msg_share_fail">分享文件读取失败，未加入发送队列</string>
+    <string name="msg_share_stage_fail">缓存分享文件失败：%1$s</string>
+    <string name="msg_share_limit">文件夹内文件过多，仅发送前 %1$d 个</string>
+    <string name="msg_share_dir_fail">读取文件夹内容失败，可能不受支持：%1$s</string>
+    <string name="msg_share_wait">已暂存 %1$d 个文件，等待连接建立后自动发送</string>
+    <string name="msg_share_auto">自动发送 %1$d 个文件到 %2$s…</string>
+
+    <!-- 10 分钟未连接自动退出 -->
+    <string name="msg_idle_hint">10 分钟内未连接设备将自动退出</string>
+    <string name="msg_idle_exit">已 10 分钟未连接设备，APP 自动退出</string>
+    <string name="msg_idle_cancel">已建立连接，取消自动退出</string>
+    <string name="msg_wifi_auto_off_start">退出前检测：Wi-Fi 未连接任何网络，正在通过 Root 关闭…</string>
+    <string name="msg_wifi_auto_off_ok">已自动关闭 Wi-Fi</string>
+    <string name="msg_wifi_auto_off_fail">未自动关闭 Wi-Fi</string>
+    <string name="msg_wifi_keep_on">Wi-Fi 已连接网络，保持开启</string>
+    <string name="msg_exit_app">正在退出 APP…</string>
+</resources>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 完全沿用 Android 7.1 / Theme.Material.Light 的系统默认外观（AppCompat.Light 后代）。
+         不覆盖 colorAccent / colorPrimary / 文字色等任何主题属性：
+         按钮、开关、进度条、对话框、EditText 一律呈现系统默认样式与默认配色。 -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar" />
+</resources>

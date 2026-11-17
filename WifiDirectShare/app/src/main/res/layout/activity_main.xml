@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?android:attr/windowBackground">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorPrimary"
+        android:elevation="4dp"
+        app:title="@string/app_name" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <!-- 顶部：左=状态卡片，右=三个操作按钮竖排 -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <!-- status card (left) -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:background="@color/surface"
+                    android:elevation="2dp"
+                    android:padding="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/lbl_status"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:layout_marginTop="10dp">
+                        <TextView android:layout_width="72dp" android:layout_height="wrap_content"
+                            android:text="@string/lbl_p2p_state" android:textSize="12sp" />
+                        <TextView android:id="@+id/tv_p2p_state" android:layout_width="0dp"
+                            android:layout_height="wrap_content" android:layout_weight="1"
+                            android:text="@string/status_idle" android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:layout_marginTop="8dp">
+                        <TextView android:layout_width="72dp" android:layout_height="wrap_content"
+                            android:text="@string/lbl_my_name" android:textSize="12sp" />
+                        <TextView android:id="@+id/tv_my_name" android:layout_width="0dp"
+                            android:layout_height="wrap_content" android:layout_weight="1"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:layout_marginTop="8dp">
+                        <TextView android:layout_width="72dp" android:layout_height="wrap_content"
+                            android:text="@string/lbl_connection" android:textSize="12sp" />
+                        <TextView android:id="@+id/tv_connection" android:layout_width="0dp"
+                            android:layout_height="wrap_content" android:layout_weight="1"
+                            android:text="@string/state_not_connected" android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <!-- 传输进度：紧贴「连接」行下方 -->
+                    <ProgressBar android:id="@+id/progress" style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent" android:layout_height="8dp"
+                        android:layout_marginTop="12dp" android:max="100" android:progress="0" />
+
+                    <TextView android:id="@+id/tv_progress" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:layout_marginTop="4dp"
+                        android:text="@string/status_idle" android:textSize="12sp" />
+
+                    <Button
+                        android:id="@+id/btn_enable_wifi"
+                        android:layout_width="wrap_content"
+                        android:layout_height="34dp"
+                        android:layout_marginTop="10dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:text="@string/btn_enable_wifi"
+                        android:textSize="12sp"
+                        android:visibility="gone" />
+                </LinearLayout>
+
+                <!-- action buttons (right, stacked vertically) -->
+                <LinearLayout android:layout_width="132dp" android:layout_height="match_parent"
+                    android:orientation="vertical" android:layout_marginStart="10dp">
+                    <Button android:id="@+id/btn_discover" android:layout_width="match_parent"
+                        android:layout_height="44dp" android:text="@string/btn_discover"
+                        android:textSize="13sp" android:minWidth="0dp" />
+                    <Button android:id="@+id/btn_send" android:layout_width="match_parent"
+                        android:layout_height="44dp" android:layout_marginTop="8dp"
+                        android:text="@string/btn_send" android:textSize="13sp" android:minWidth="0dp"
+                        android:enabled="false" />
+                    <Button android:id="@+id/btn_disconnect" android:layout_width="match_parent"
+                        android:layout_height="44dp" android:layout_marginTop="8dp"
+                        android:text="@string/btn_disconnect" android:textSize="13sp" android:minWidth="0dp"
+                        android:enabled="false" style="?android:attr/borderlessButtonStyle" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- peers -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="16dp" android:text="@string/lbl_peers"
+                android:textSize="14sp" android:textStyle="bold" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/peer_list"
+                android:layout_width="match_parent"
+                android:layout_height="170dp"
+                android:layout_marginTop="8dp"
+                android:background="@color/surface"
+                android:elevation="1dp" />
+
+            <TextView android:id="@+id/tv_no_peers" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="6dp"
+                android:text="@string/state_no_peers" android:textSize="12sp"
+                android:visibility="gone" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="16dp" android:text="@string/lbl_log"
+                android:textSize="14sp" android:textStyle="bold" />
+
+            <TextView android:id="@+id/tv_log" android:layout_width="match_parent"
+                android:layout_height="180dp"
+                android:layout_marginTop="8dp" android:padding="10dp"
+                android:background="@color/surface" android:elevation="1dp"
+                android:typeface="monospace" android:textSize="11sp"
+                android:gravity="top|start"
+                android:scrollbars="vertical"
+                android:scrollbarStyle="insideOverlay"
+                android:scrollbarSize="4dp"
+                android:textIsSelectable="true"
+                android:focusable="true"
+                android:longClickable="true" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
