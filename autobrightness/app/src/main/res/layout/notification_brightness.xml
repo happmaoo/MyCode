@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="14dp"
+    android:paddingTop="1dp"
+    android:paddingEnd="8dp"
+    android:paddingBottom="1dp">
+
+    <ImageView
+        android:id="@+id/notif_icon"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:contentDescription="@null"
+        android:src="@drawable/ic_notif_glyph_black" />
+
+    <TextView
+        android:id="@+id/notif_state"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="自动亮度已开启"
+        android:textColor="#FF1A1A1A"
+        android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/notif_toggle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_notif_btn_light"
+        android:paddingStart="12dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="4dp"
+        android:text="停用"
+        android:textColor="#FF00796B"
+        android:textSize="12sp" />
+
+</LinearLayout>

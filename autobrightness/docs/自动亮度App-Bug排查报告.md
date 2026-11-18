@@ -165,7 +165,28 @@ checkbox.setOnCheckedChangeListener((v, isChecked) -> {
 
 ## 五、还可以继续做（本次未动）
 
-- 通知栏加一个"停止"动作按钮，不用进 App 就能关；
 - 亮度配置支持按百分比（0-100）填写，内部再按机型最大值换算，换机不用改参数；
 - 服务里对 `SCREEN_BRIGHTNESS_MODE` 的改动，在停用时恢复用户原来的自动亮度设置；
 - `autobrightness` 类重命名为 `AutobrightnessService`，并同步 manifest。
+
+---
+
+## 六、追加功能：通知栏启用/停用按钮
+
+前台通知带一个动作按钮，`PendingIntent.getService` 直接把 `ACTION_TOGGLE` 发给服务：
+
+| 状态 | 通知文案 | 按钮 |
+| --- | --- | --- |
+| 开启 | 自动亮度已开启 | 停用 |
+| 暂停 | 自动亮度已暂停 | 启用 |
+
+实现要点：
+
+- 开关的唯一真值仍是 `enable`，界面复选框和通知按钮都只写这个值；服务里注册
+  `OnSharedPreferenceChangeListener`，统一在 `onEnableChanged()` 里挂/摘传感器、刷新通知，
+  避免两处各写一套起停逻辑再次不同步；
+- 停用是"暂停"：保留前台服务和通知（否则无法再从通知栏打开），但注销传感器、
+  `cancelBrightnessAnimation()` 掐掉没跑完的渐变；`startSensorListening()` /
+  `setScreenBrightnessSmoothing()` 里都补了开关判断，防止屏幕点亮、残留回调绕过暂停状态；
+- 停用状态下被系统回收时不会被粘性重启（用 `START_FLAG_REDELIVERY` 判断，`stopSelf()`），
+  重启手机也不会自启（`BootReceiver` 先查开关）。

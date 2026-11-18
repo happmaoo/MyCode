@@ -44,6 +44,27 @@ public class MainActivity extends AppCompatActivity {
     /** 广播是否已注册。注册/注销严格配对，避免重复注册或 IllegalArgument 异常 */
     private boolean lightReceiverRegistered = false;
 
+    /** 通知栏按钮改开关时，界面上的复选框要跟着变，不需要用户手动刷 */
+    private final SharedPreferences.OnSharedPreferenceChangeListener prefListener =
+            new SharedPreferences.OnSharedPreferenceChangeListener() {
+                @Override
+                public void onSharedPreferenceChanged(SharedPreferences sp, String key) {
+                    if (!KEY_ENABLE.equals(key)) {
+                        return;
+                    }
+                    boolean enabled = sp.getBoolean(KEY_ENABLE, false);
+                    setCheckBoxSilently(enabled);
+                    if (enabled) {
+                        registerLightReceiver();
+                    } else {
+                        unregisterLightReceiver();
+                        if (lightLevelTextView != null) {
+                            lightLevelTextView.setText("");
+                        }
+                    }
+                }
+            };
+
     private final BroadcastReceiver lightLevelReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -132,7 +153,8 @@ public class MainActivity extends AppCompatActivity {
             startBrightnessService(sharedPref.getString(KEY_CONFIG, ""));
             registerLightReceiver();
         } else {
-            stopService(new Intent(this, autobrightness.class));
+            // 不 stopService：服务里注册了 prefs 监听，会自己切到“暂停”状态，
+            // 通知栏那条通知保留下来（否则就没法从通知栏再打开了）
             unregisterLightReceiver();
             if (lightLevelTextView != null) {
                 lightLevelTextView.setText("");
@@ -219,6 +241,8 @@ public class MainActivity extends AppCompatActivity {
         super.onStart();
         Log.d(TAG, "onStart");
 
+        sharedPref.registerOnSharedPreferenceChangeListener(prefListener);
+
         // 每次回到前台都以持久化状态为准，避免 UI 和真实状态不一致
         boolean enabled = sharedPref.getBoolean(KEY_ENABLE, false);
         setCheckBoxSilently(enabled);
@@ -236,6 +260,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onStop() {
         super.onStop();
         Log.d(TAG, "onStop");
+        sharedPref.unregisterOnSharedPreferenceChangeListener(prefListener);
         // 停到后台就不再收广播，注册/注销一一对应
         unregisterLightReceiver();
     }
@@ -243,6 +268,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        sharedPref.unregisterOnSharedPreferenceChangeListener(prefListener);
         unregisterLightReceiver();
     }
 }

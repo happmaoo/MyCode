@@ -6,14 +6,18 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
+import android.content.res.Configuration;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.database.ContentObserver;
 import android.os.Build;
+import android.widget.RemoteViews;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -22,6 +26,7 @@ import android.provider.Settings;
 import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,6 +42,8 @@ public class autobrightness extends Service {
     private static final String KEY_CONFIG = "config";
     private static final String KEY_ENABLE = "enable";
     private static final String EXTRA_CONFIG = "arg-config";
+    /** 通知栏按钮点击后发给服务的 action：翻转启用/停用 */
+    private static final String ACTION_TOGGLE = "com.myapp.autobrightness.ACTION_TOGGLE";
 
     private static final int NOTIFICATION_ID = 1;
     /** 大多数机型的亮度设置范围是 0-255；这里只做下限保护，上限由系统裁剪 */
@@ -67,6 +74,27 @@ public class autobrightness extends Service {
     private int lastTargetBrightness = -1;
     private boolean firstStart = true;
 
+    /** 我们自己上一次写进系统的亮度值 / 时间，用来区分"用户手动调的" */
+    private int lastOwnWriteValue = -1;
+    private long lastOwnWriteTime = 0;
+    /** 用户手动调过亮度：临时暂停自动调节，下一次亮屏时恢复 */
+    private boolean manualBrightness = false;
+    private ContentObserver brightnessObserver;
+
+    /**
+     * 监听开关变化：界面上的复选框、通知栏按钮改的都是同一个 prefs 值，
+     * 服务这边统一在这里响应，避免两处各写一套起停逻辑而不同步。
+     */
+    private final SharedPreferences.OnSharedPreferenceChangeListener prefListener =
+            new SharedPreferences.OnSharedPreferenceChangeListener() {
+                @Override
+                public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+                    if (KEY_ENABLE.equals(key)) {
+                        onEnableChanged();
+                    }
+                }
+            };
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -76,6 +104,24 @@ public class autobrightness extends Service {
         filter.addAction(Intent.ACTION_SCREEN_OFF); // 监听屏幕关闭
         filter.addAction(Intent.ACTION_SCREEN_ON);   // 监听屏幕开启
         registerReceiver(screenStateReceiver, filter);
+
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .registerOnSharedPreferenceChangeListener(prefListener);
+
+        // 监听系统亮度值变化：用来发现"用户自己拉了亮度条"
+        brightnessObserver = new ContentObserver(brightnessHandler) {
+            @Override
+            public void onChange(boolean selfChange) {
+                onBrightnessSettingChanged();
+            }
+        };
+        try {
+            getContentResolver().registerContentObserver(
+                    Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS),
+                    false, brightnessObserver);
+        } catch (Exception e) {
+            Log.w(TAG, "注册亮度监听失败", e);
+        }
     }
 
     /** 解析配置：逐行容错，单行写错只跳过该行，不会让整份配置作废 */
@@ -125,36 +171,31 @@ public class autobrightness extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         SharedPreferences pref = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
 
+        // 0. 通知栏按钮：翻转启用/停用。写入 prefs 后由 prefListener 立刻生效，
+        //    这样无论从通知栏还是从界面开关改的，服务行为都一致
+        if (intent != null && ACTION_TOGGLE.equals(intent.getAction())) {
+            boolean target = !pref.getBoolean(KEY_ENABLE, false);
+            pref.edit().putBoolean(KEY_ENABLE, target).commit();
+            Log.d(TAG, "通知栏切换开关 -> " + (target ? "启用" : "停用"));
+        }
+
+        boolean enabled = pref.getBoolean(KEY_ENABLE, false);
+
         // 1. 先把前台通知挂上。被 startForegroundService() 拉起后必须在 5 秒内
         //    调用 startForeground()，否则系统会抛 RemoteServiceException 把 app 干掉，
         //    所以这一步要放在所有提前 return 之前
-        if (firstStart) {
-            Intent notificationIntent = new Intent(this, MainActivity.class);
-            PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent,
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                            ? PendingIntent.FLAG_IMMUTABLE : 0);
+        postNotification(enabled);
 
-            Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setContentTitle("AutoBrightness")
-                    .setContentText("自动亮度已开启")
-                    .setSmallIcon(R.drawable.ic_stat_name)
-                    .setContentIntent(pendingIntent)
-                    .setOngoing(true)
-                    .build();
-
-            startForeground(NOTIFICATION_ID, notification);
-            firstStart = false;
-        }
-
-        // 2. 开关已经关掉时被系统拉起来（粘性重启 / 开机广播），直接退出，
-        //    否则会出现“开关是关的，服务却在跑”的假开启状态
-        if (!pref.getBoolean(KEY_ENABLE, false)) {
-            Log.d(TAG, "开关已关闭，服务退出");
+        // 2. 进程被系统回收后自动重启时，如果用户是“停用”状态，不要再复活，
+        //    否则“已暂停”的通知会莫名其妙自己冒出来
+        boolean systemRestart = intent == null || (flags & START_FLAG_REDELIVERY) != 0;
+        if (systemRestart && !enabled) {
+            Log.d(TAG, "停用状态下被系统重启，服务退出");
             stopSelf();
             return START_NOT_STICKY;
         }
 
-        // 3. 拿配置：优先用 intent 里的，进程被回收后粘性重启拿不到 intent，
+        // 3. 拿配置：优先用 intent 里的，进程被回收后重启拿不到 intent，
         //    就退回 SharedPreferences，保证重启后依然能按配置工作
         String config = (intent != null) ? intent.getStringExtra(EXTRA_CONFIG) : null;
         if (config == null) {
@@ -177,9 +218,148 @@ public class autobrightness extends Service {
             return START_NOT_STICKY;
         }
 
-        startSensorListening();
+        // 4. 按开关状态挂/摘传感器（通知上面已经刷过）
+        applyEnabledState();
         // 用 REDELIVER：系统重启服务时会把本次 intent（含配置）重新投递过来
         return START_REDELIVER_INTENT;
+    }
+
+    /** 只按 prefs 里的开关状态切换采样，不发通知 */
+    private void applyEnabledState() {
+        boolean enabled = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(KEY_ENABLE, false);
+        if (enabled) {
+            startSensorListening();
+        } else {
+            stopSensorListening();
+            cancelBrightnessAnimation();
+        }
+    }
+
+    /** 开关被改动（界面开关 / 通知栏按钮）后的统一处理 */
+    private void onEnableChanged() {
+        boolean enabled = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(KEY_ENABLE, false);
+        if (enabled) {
+            // 用户主动打开开关，视为恢复自动调节
+            manualBrightness = false;
+        }
+        applyEnabledState();
+        postNotification(getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(KEY_ENABLE, false));
+    }
+
+    /**
+     * 系统亮度被改动时调用。剔除掉我们自己写的那些变化，剩下的就是用户手动调的：
+     * 临时暂停自动调节，通知文案改成"已暂停（手动亮度）"，下一次亮屏再恢复。
+     */
+    private void onBrightnessSettingChanged() {
+        boolean enabled = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(KEY_ENABLE, false);
+        if (!enabled || manualBrightness) {
+            return;
+        }
+        // 刚写过系统亮度（渐变动画期间），这次变化是自己造成的，忽略
+        if (SystemClock.uptimeMillis() - lastOwnWriteTime < 2000) {
+            return;
+        }
+        int current = getCurrentBrightness();
+        if (current < 0 || current == lastOwnWriteValue) {
+            return;
+        }
+        manualBrightness = true;
+        cancelBrightnessAnimation();
+        postNotification(true);
+        Log.d(TAG, "检测到手动调节亮度（当前 " + current + "），临时暂停自动调节");
+    }
+
+    /** 亮屏后恢复自动调节 */
+    private void clearManualBrightness() {
+        if (!manualBrightness) {
+            return;
+        }
+        manualBrightness = false;
+        postNotification(getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(KEY_ENABLE, false));
+        Log.d(TAG, "亮屏，恢复自动调节");
+    }
+
+    /** 停用时把没跑完的亮度渐变掐掉，避免“已停用”还在偷偷改亮度 */
+    private void cancelBrightnessAnimation() {
+        if (brightnessRunnable != null) {
+            brightnessHandler.removeCallbacks(brightnessRunnable);
+            brightnessRunnable = null;
+        }
+        lastTargetBrightness = -1;
+        consecutiveCount = 0;
+        pendingTarget = Integer.MIN_VALUE;
+    }
+
+    private void postNotification(boolean enabled) {
+        Notification notification = buildNotification(enabled);
+        if (firstStart) {
+            startForeground(NOTIFICATION_ID, notification);
+            firstStart = false;
+        } else {
+            NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification);
+        }
+    }
+
+    private Notification buildNotification(boolean enabled) {
+        Intent openIntent = new Intent(this, MainActivity.class);
+        PendingIntent openPendingIntent = PendingIntent.getActivity(this, 0, openIntent,
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                        ? PendingIntent.FLAG_IMMUTABLE : 0);
+
+        // 通知栏按钮：点击翻转开关
+        Intent toggleIntent = new Intent(this, autobrightness.class);
+        toggleIntent.setAction(ACTION_TOGGLE);
+        PendingIntent togglePendingIntent = PendingIntent.getService(this, 10, toggleIntent,
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                        ? PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+                        : PendingIntent.FLAG_UPDATE_CURRENT);
+
+        // 用自定义布局把"停用/启用"按钮放到右边
+        boolean dark = (getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+
+        RemoteViews content = new RemoteViews(getPackageName(), R.layout.notification_brightness);
+        String appName = getString(R.string.app_name);
+        String stateText;
+        if (!enabled) {
+            stateText = appName + " · 已暂停";
+        } else if (manualBrightness) {
+            stateText = appName + " · 已暂停（手动亮度）";
+        } else {
+            stateText = appName + " · 已开启";
+        }
+        content.setTextViewText(R.id.notif_state, stateText);
+        content.setTextViewText(R.id.notif_toggle, enabled ? "停用" : "启用");
+
+        int titleColor = dark ? 0xFFFFFFFF : 0xFF1A1A1A;
+        int buttonColor = dark ? 0xFF80CBC4 : 0xFF00796B;
+        content.setTextColor(R.id.notif_state, titleColor);
+        content.setTextColor(R.id.notif_toggle, buttonColor);
+
+        content.setImageViewResource(R.id.notif_icon,
+                dark ? R.drawable.ic_notif_glyph_white : R.drawable.ic_notif_glyph_black);
+        content.setInt(R.id.notif_toggle, "setBackgroundResource",
+                dark ? R.drawable.bg_notif_btn_dark : R.drawable.bg_notif_btn_light);
+
+        content.setOnClickPendingIntent(R.id.notif_toggle, togglePendingIntent);
+        content.setOnClickPendingIntent(R.id.notif_state, openPendingIntent);
+
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle(appName)
+                .setContentText(stateText)
+                .setSmallIcon(R.drawable.ic_stat_name)
+                .setContentIntent(openPendingIntent)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setShowWhen(false)
+                .setCustomContentView(content)
+                .setCustomBigContentView(content)
+                .build();
     }
 
     /** 只创建一次监听器；重复 startService 时复用，避免监听器越挂越多 */
@@ -261,6 +441,10 @@ public class autobrightness extends Service {
         if (sensorManager == null || lightSensor == null) {
             return;
         }
+        // 停用状态下不要采样（例如屏幕点亮时这条路径也会进来）
+        if (!getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getBoolean(KEY_ENABLE, false)) {
+            return;
+        }
         ensureListener();
         if (sensorRegistered) {
             // 先注销旧的，保证全局只有一个注册，不会重复回调
@@ -278,7 +462,14 @@ public class autobrightness extends Service {
     }
 
     private void setScreenBrightnessSmoothly(int targetBrightness) {
+        if (manualBrightness) {
+            return; // 用户手动调过亮度，先不要抢
+        }
         if (targetBrightness == lastTargetBrightness) {
+            return;
+        }
+        // 停用状态下不再写系统亮度
+        if (!getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getBoolean(KEY_ENABLE, false)) {
             return;
         }
 
@@ -313,6 +504,8 @@ public class autobrightness extends Service {
                                 Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
                     }
                     Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, nextVal);
+                    lastOwnWriteValue = nextVal;
+                    lastOwnWriteTime = SystemClock.uptimeMillis();
                 } catch (Exception e) {
                     Log.e(TAG, "写入亮度失败", e);
                     return;
@@ -344,9 +537,19 @@ public class autobrightness extends Service {
         }
         stopSensorListening();
         try {
+            if (brightnessObserver != null) {
+                getContentResolver().unregisterContentObserver(brightnessObserver);
+                brightnessObserver = null;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "注销亮度监听失败", e);
+        }
+        try {
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .unregisterOnSharedPreferenceChangeListener(prefListener);
             unregisterReceiver(screenStateReceiver);
         } catch (IllegalArgumentException e) {
-            Log.w(TAG, "屏幕状态广播已注销", e);
+            Log.w(TAG, "广播/监听已注销", e);
         }
         stopForeground(true);
         super.onDestroy();
@@ -376,7 +579,8 @@ public class autobrightness extends Service {
                 stopSensorListening();
                 Log.d(TAG, "屏幕关闭，停止采样");
             } else if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
-                // 屏幕开启：重新注册传感器监听
+                // 屏幕开启：先把"手动亮度"的临时暂停解除，再恢复采样
+                clearManualBrightness();
                 startSensorListening();
                 Log.d(TAG, "屏幕开启，恢复采样");
             }

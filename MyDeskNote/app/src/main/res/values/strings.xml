@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">MyDeskNote</string>
+    <string name="empty_hint">还没有任何项目\n\n写点什么，选个日期时间吧</string>
+    <string name="action_date">日期</string>
+    <string name="action_time">时间</string>
+    <string name="action_add">添加</string>
+    <string name="label_widget_size">小工具字号</string>
+    <string name="label_enable_time">定时显示</string>
+    <string name="action_clear_expired">清空已过期</string>
 </resources>
