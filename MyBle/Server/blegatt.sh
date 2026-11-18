@@ -1,8 +1,7 @@
 #!/system/bin/sh
 
 : <<'COMMENT'
-
- 用法以 BLEGattd.java 内为准
+ 用法以 BLEGattd.java 内为准（sh blegatt.sh --help）
 
 --name 
 --adv-mode 广播模式:low_power(≈1s) / balanced(≈250ms) / low_latency(≈100ms)。两写法等价
@@ -14,6 +13,8 @@
 --max-out
 --cmd-timeout
 --tx-pace
+--adv-keepalive-probe 600   广播轻探测间隔（秒）：只再 start 一次，仍活着回 ALREADY_STARTED 不换地址，被清掉则当场恢复
+--adv-keepalive-force 1800  广播强制重开间隔（秒）：stop+start，兜住"协议栈认为在发、控制器实际没发"
 
 -----------------------我的红米n9 5安卓12要带参数--split-servers 的说明------------------------------
 无论安卓几都可能有这个问题，如果客户端连不上，或者连上后无法读取数据就去掉或者添加--split-servers参数.
@@ -48,4 +49,6 @@ exec app_process /system/bin BLEGattd \
   --battery-notify 60 \
   --split-servers \
   --psk "$PSK" \
+  --adv-keepalive-probe 600 \
+  --adv-keepalive-force 1800 \
   "$@"
