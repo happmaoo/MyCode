@@ -8,8 +8,9 @@
     android:padding="16dp"
     tools:context=".MainActivity">
 
-    <!-- 新增项目区域 -->
+    <!-- 新增项目区域（进入编辑时临时收起，给列表腾出键盘上方的高度） -->
     <LinearLayout
+        android:id="@+id/panel_add"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@drawable/bg_card"

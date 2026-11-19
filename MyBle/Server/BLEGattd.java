@@ -51,7 +51,7 @@ public class BLEGattd {
     static final String TAG = "blegatt";
 
     // ---- 版本号（BUILD_DATE 由构建脚本在编译时注入；未注入则运行时按当前日期生成）----
-    static final String BUILD_DATE = "__BUILD_DATE__";
+    static final String BUILD_DATE = "202611180707";
     static String serverVersion() {
         // 优先读 jar 内 /VERSION 资源：该资源由构建脚本写入，运行时直接从 jar 文件读取，
         // 不经过 ART 对 dex 的缓存，因此替换 jar 后版本一定是最新的（根治"替换 jar 仍显示旧版本"的问题）。
@@ -2060,6 +2060,7 @@ public class BLEGattd {
                 case "--max-out": maxOutBytes = Integer.parseInt(args[++i]); break;
                 case "--cmd-timeout": cmdTimeoutSec = Integer.parseInt(args[++i]); break;
                 case "--tx-pace": txPaceMs = Integer.parseInt(args[++i]); break;
+                case "--pace": paceMs = Integer.parseInt(args[++i]); break;
                 case "--adv-keepalive-probe": advProbeSec = Integer.parseInt(args[++i]); break;
                 case "--adv-keepalive-force": advForceSec = Integer.parseInt(args[++i]); break;
                 default: break;
@@ -2092,6 +2093,7 @@ public class BLEGattd {
                 + "  --max-out <bytes>    命令输出上限（默认 10240=10KB，超出截断）\n"
                 + "  --cmd-timeout <sec>  单条命令最长执行时间（默认 10）\n"
                 + "  --tx-pace <ms>       传输帧最小间隔下限（默认 40，连发易被协议栈丢包）\n"
+                + "  --pace <ms>          NOTIFY 匀速节奏片间隔（默认 50，配合 --tx-pace 一起调小可提速）\n"
                 + "  --adv-keepalive-probe <s> 广播轻探测周期秒（默认 600，0=关）：不stop再start，活着回ALREADY_STARTED不换RPA\n"
                 + "  --adv-keepalive-force <s> 广播强制重开周期秒（默认 1800，0=关）：stop+start兜长待机假活\n"
                 + "\n其余参数均使用内置默认值（服务 UUID 8e7a1f01…，广播自带 180f 电池服务 UUID）。\n"

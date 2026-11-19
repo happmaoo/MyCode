@@ -49,6 +49,8 @@ exec app_process /system/bin BLEGattd \
   --battery-notify 60 \
   --split-servers \
   --psk "$PSK" \
+  --tx-pace 12 \
+  --pace 15 \
   --adv-keepalive-probe 600 \
   --adv-keepalive-force 1800 \
   "$@"
