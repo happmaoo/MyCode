@@ -26,10 +26,10 @@ https://github.com/happmaoo/MyCode/tree/main/autobrightness/app/release
 简洁，省资源，没有联网啥乱七八糟的权限。  
 https://github.com/happmaoo/MyCode/tree/main/clockwidget/app/release
 
-## MyBleServer 和 MyBleClient 用于主机和备用机的蓝牙监测app (已经不维护，最新版在 MyBle 蓝牙ble工具里)
-可以在备用机上连接主力机的蓝牙数据网络，用在备用机没有网络连接的情况下，用wifi共享太费电了，还可以查看主力机的电池电量等情况。  
-https://github.com/happmaoo/MyCode/tree/main/MyBleServer/app/release
-https://github.com/happmaoo/MyCode/tree/main/MyBleClient/app/build/outputs/apk/debug/  
+## MyBle 蓝牙ble工具
+内含多个程序和APP 用于蓝牙ble和蓝牙pan 蓝牙共享网络连接
+不得不说有了ai就是厉害，代码都不用写了。
+https://github.com/happmaoo/MyCode/tree/main/MyBle 
 
 ## MyFM 红米Note4x 的收音机APP
 红米Note4x和lineageOS自带的收音机不好用，自己写的代码，需要root，我的机子是 lineageOS 15.1 安卓8.1版本，可能其他高版本不能使用请自己测试。  
@@ -46,10 +46,7 @@ https://github.com/happmaoo/MyCode/tree/main/MyAudioRecorder/app/release
 ## MyMQTT 可用于物联网卡小服务器APP控制
 MyMQTT 物联网卡小服务器,可用ipv6连接服务器控制设备  
 
-## MyBle 蓝牙ble工具
-内含多个程序和APP 用于蓝牙ble和蓝牙pan 蓝牙共享网络连接
-不得不说有了ai就是厉害，代码都不用写了。
-https://github.com/happmaoo/MyCode/tree/main/MyBle
+
 
 # 测试用的项目:
 blescan ble扫描代码  
