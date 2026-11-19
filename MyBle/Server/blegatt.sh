@@ -13,8 +13,7 @@
 --max-out
 --cmd-timeout
 --tx-pace
---adv-keepalive-probe 600   广播轻探测间隔（秒）：只再 start 一次，仍活着回 ALREADY_STARTED 不换地址，被清掉则当场恢复
---adv-keepalive-force 1800  广播强制重开间隔（秒）：stop+start，兜住"协议栈认为在发、控制器实际没发"
+--adv-keepalive-force -1  广播强制重开间隔
 
 -----------------------我的红米n9 5安卓12要带参数--split-servers 的说明------------------------------
 无论安卓几都可能有这个问题，如果客户端连不上，或者连上后无法读取数据就去掉或者添加--split-servers参数.
@@ -39,7 +38,7 @@ done
 
 
 PSK="pwd"
-ADV_FORCE_HOURS=${ADV_FORCE_HOURS:-1}   # 广播保活强制重开周期，单位小时，支持小数；0=关闭
+ADV_FORCE_HOURS=${ADV_FORCE_HOURS:-5}   # 广播保活强制重开周期，单位小时，支持小数；0=关闭
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 export CLASSPATH="$DIR/blegatt.jar"
