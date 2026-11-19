@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#FFFFFF"
+    android:padding="6dp">
+
+    <!-- 顶部：自动换行复选框 + 字号 +/- + Copy / Clear（主界面风格，右侧对齐） -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <CheckBox
+            android:id="@+id/cb_wrap"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="自动换行"
+            android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/btn_font_down"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="A-" />
+
+        <Button
+            android:id="@+id/btn_font_up"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="A+" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/btn_shell_copy"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Copy" />
+
+        <Button
+            android:id="@+id/btn_shell_clear"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Clear" />
+    </LinearLayout>
+
+    <!-- 中间：最大区域，ScrollView(纵向) + HorizontalScrollView(横向) + TextView 渲染日志。
+         自动换行开启时 TextView 占满宽度折行；关闭时横向可滚动查看长行。 -->
+    <HorizontalScrollView
+        android:id="@+id/hsv_shell_out"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <ScrollView
+            android:id="@+id/sv_shell_out"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true">
+
+            <TextView
+                android:id="@+id/tv_shell_out"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="4dp"
+                android:fontFamily="monospace"
+                android:textSize="12sp"
+                android:textColor="#000000"
+                android:textColorHint="#888888"
+                android:background="#FFFFFF"
+                android:scrollbars="vertical"
+                android:textIsSelectable="true" />
+        </ScrollView>
+    </HorizontalScrollView>
+
+    <!-- 底部：多行命令输入框 -->
+    <EditText
+        android:id="@+id/et_shell_cmd"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minLines="3"
+        android:gravity="top"
+        android:background="#F5F5F5"
+        android:textColor="#000000"
+        android:textColorHint="#888888"
+        android:fontFamily="monospace"
+        android:inputType="textMultiLine|textNoSuggestions"
+        android:hint="bash command"
+        android:textSize="13sp" />
+
+    <!-- 底部操作行：模板 + Send -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingTop="4dp">
+
+        <Button
+            android:id="@+id/btn_shell_tpl"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="模板" />
+
+        <Button
+            android:id="@+id/btn_shell_send"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Send" />
+    </LinearLayout>
+
+</LinearLayout>

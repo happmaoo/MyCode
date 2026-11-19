@@ -38,8 +38,8 @@ done
 
 
 
-
 PSK="pwd"
+ADV_FORCE_HOURS=${ADV_FORCE_HOURS:-1}   # 广播保活强制重开周期，单位小时，支持小数；0=关闭
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 export CLASSPATH="$DIR/blegatt.jar"
@@ -49,8 +49,8 @@ exec app_process /system/bin BLEGattd \
   --battery-notify 60 \
   --split-servers \
   --psk "$PSK" \
-  --tx-pace 12 \
   --pace 15 \
-  --adv-keepalive-probe 600 \
-  --adv-keepalive-force 1800 \
+  --tx-pace 15 \
+  --debug \
+  --adv-keepalive-force "$ADV_FORCE_HOURS" \
   "$@"

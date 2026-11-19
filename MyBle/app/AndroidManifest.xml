@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.myapp.mybleclient"
+    android:versionCode="1"
+    android:versionName="2.2.000000000000">
+
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <!-- 6.0~11 的 BLE 扫描需要定位权限；targetSdk=30 可沿用旧权限模型，避开 12 的 SCAN/CONNECT -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- 可选的熄屏保活：连接期间持有 CPU 唤醒锁（设置页开关控制） -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- 调试日志落盘：Android 9 及以下直写公共 Download 需要；Android 10+ 走 MediaStore 无需此权限 -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="true" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="MyBleClient"
+        android:theme="@android:style/Theme.Material.Light">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="stateHidden|adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".BleService"
+            android:exported="false"
+            android:stopWithTask="false" />
+
+        <activity
+            android:name=".Settings"
+            android:exported="false"
+            android:label="Settings" />
+
+        <activity
+            android:name=".ShellActivity"
+            android:exported="false"
+            android:label="Shell"
+            android:windowSoftInputMode="stateHidden|adjustResize" />
+
+        <!-- 系统「分享到/发送到」入口：其他 App 分享文件时可直接送到已连接的服务端 -->
+        <activity
+            android:name=".ShareActivity"
+            android:exported="true"
+            android:label="发送到BLE服务端"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -51,7 +51,7 @@ public class BLEGattd {
     static final String TAG = "blegatt";
 
     // ---- 版本号（BUILD_DATE 由构建脚本在编译时注入；未注入则运行时按当前日期生成）----
-    static final String BUILD_DATE = "202611180707";
+    static final String BUILD_DATE = "__BUILD_DATE__";
     static String serverVersion() {
         // 优先读 jar 内 /VERSION 资源：该资源由构建脚本写入，运行时直接从 jar 文件读取，
         // 不经过 ART 对 dex 的缓存，因此替换 jar 后版本一定是最新的（根治"替换 jar 仍显示旧版本"的问题）。
@@ -134,14 +134,13 @@ public class BLEGattd {
     // 发现速度会慢零点几秒，但射频常开的功耗大头直接砍掉；要快可用 --adv-mode/--tx 调回
     static int advMode = AdvertiseSettings.ADVERTISE_MODE_LOW_POWER;
     static int advTx = AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM;
-    static boolean keepAdv = false;   // true=连接后继续广播（旧行为）；默认连上即停广播省电
+    static boolean keepAdv = true;    // 默认连接后继续广播：反复 stop/start 会让栈进入"假活"（扫得到但连不上），常开最稳；如需省电可改回 false
     static boolean subDump = false;   // true=pushBattery 时打印订阅表诊断（诊断用，平时关）
     static int advTimeoutSec = 0;
-
-    // ---- 广播保活（长待机后“协议栈认为在发、控制器其实没发”会导致对端搜不到广播，
-    //      而进程/蓝牙都还在）：probe=轻探测 ALREADY_STARTED 不换 RPA；force=真 stop+start 兜底 ----
-    static int advProbeSec = 600;     // 轻探测周期(秒)，0=关闭
-    static int advForceSec = 1800;    // 强制重开周期(秒)，0=关闭
+    // 广播保活：强制重开周期(秒)，0=关闭。>0 时每 N 秒 stop+start 一次广播，兜
+    // "framework 认为在发、控制器实际没发"的长待机假活；每次重开会换一次 RPA。
+    // 命令行 --adv-keepalive-force <小时> 可覆盖（单位是小时，内部 ×3600 转秒；建议 1~2，别低于 0.25）
+    static int advForceSec = 0;
 
     // ---- 运行态 ----
     static BluetoothAdapter adapter;
@@ -190,6 +189,10 @@ public class BLEGattd {
     static final Deque<String> events = new ArrayDeque<>();
     static AdvertiseCallback advCallback;
     static volatile boolean advActive = false;
+    // --debug：把 log() 同步追加到 Download/blegatt.log（app_process 直跑有 sdcard 权限）。
+    static boolean debugLog = false;
+    static java.io.Writer debugWriter = null;
+    static final Object DEBUG_LOCK = new Object();
     static volatile int lastAdvError = 0;
 
     public static void main(String[] args) throws Exception {
@@ -243,7 +246,7 @@ public class BLEGattd {
                             + " (" + advErrName(lastAdvError) + ")");
                 }
                 startRefresh();
-                startAdvKeepalive();      // 广播保活：轻探测 + 强制重开（长待机后广播假活自愈）
+                startAdvKeepalive();   // 广播保活：空闲时定期强制重开，兜长待机假活
                 startBatteryPoller();
                 startDrainTicker();
             }
@@ -326,26 +329,7 @@ public class BLEGattd {
                         try { adapter.enable(); }
                         catch (Throwable e) { log("adapter.enable() 异常: " + e); }
                     } catch (Throwable e) {
-                        // adapter 句柄失效（蓝牙栈重启导致）不再只打日志，否则就是死路：
-                        // 重新取 adapter → 重建 GATT → 重启广播，把"栈重启过但状态显示 ON"的情况补上。
-                        log("btMonitor 异常: " + e + " → 尝试重新获取蓝牙栈句柄并重建");
-                        try {
-                            BluetoothAdapter fresh = BluetoothAdapter.getDefaultAdapter();
-                            if (fresh != null) adapter = fresh;
-                            final boolean nowOn = (adapter != null && adapter.isEnabled());
-                            if (nowOn) {
-                                mainHandler.post(new Runnable() {
-                                    @Override public void run() {
-                                        try {
-                                            if (rebuildGatt()) { startAdvertising(null); log("栈句柄失效已自愈：GATT 重建 + 广播重启"); }
-                                        } catch (Throwable t) { log("栈自愈重建异常: " + t); }
-                                    }
-                                });
-                            }
-                        } catch (Throwable t2) {
-                            log("栈句柄重取失败: " + t2);
-                        }
-                        sleep(3000);
+                        log("btMonitor 异常: " + e);
                     }
                 }
             }
@@ -534,16 +518,18 @@ public class BLEGattd {
     static final class GattCb extends BluetoothGattServerCallback {
         @Override
         public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
-            String k = device.getAddress();
+            final String k = device.getAddress();
             if (newState == BluetoothProfile.STATE_CONNECTED) {
+                // 无条件重置会话：双实例/迟到回调多清几次完全无害，
+                // 但因 connHandled 竞态被 return 跳过重置才致命（快速重连卡 step=0 的根因之一）。
+                resetSession(k);
                 connected.put(k, device);
                 authed.remove(k);
                 nonceByAddr.remove(k);
                 if (!connHandled.add(k)) {
-                    log("重复 CONNECTED " + k + "（split-servers 下两个 server 实例各收一次，忽略）");
+                    log("重复 CONNECTED " + k + "（split-servers 下两个 server 实例各收一次；会话已确保重置）");
                     return;
                 }
-                resetSession(k);   // 关键：清掉上一轮遗留的"在途"标志/队列/CCCD
                 event("connect " + k);
                 log("CONNECTED " + k + " status=" + status + "（会话状态已重置）");
                 // 省电大头：连接建立后广播已无意义（一个外设一次只服务一个主设备），
@@ -566,22 +552,31 @@ public class BLEGattd {
                     log("重复 DISCONNECTED " + k + "（忽略）");
                     return;
                 }
-                connected.remove(k);
-                authed.remove(k);
-                nonceByAddr.remove(k);
-                resetSession(k);   // 队列/在途/序号/CCCD 全部归零
-                event("disconnect " + k);
-                log("DISCONNECTED " + k + " status=" + status);
-                // 断开后自动重启广播，等客户端重连；载荷用当前最新值
-                if (!keepAdv && advertiser != null && !advertiseOnly) {
-                    mainHandler.post(new Runnable() {
-                        @Override public void run() {
+                // 延迟清理会话：快速断开重连时，旧连接迟到的第二次 DISCONNECTED 与新连接的
+                // CONNECTED 会交错。若此处立即 resetSession，可能落在新连接初始化窗口里，
+                // 把刚订阅的 CCCD/鉴权状态清掉，导致客户端卡 step=0。延迟 1.2s 后再复查：
+                // 期间若该地址重新 CONNECTED（connHandled 又含 k），说明是新会话，取消清理。
+                final int finStatus = status;
+                mainHandler.postDelayed(new Runnable() {
+                    @Override public void run() {
+                        if (connHandled.contains(k)) {
+                            log("DISCONNECTED 延迟清理取消：" + k + " 已重新连接（新会话）");
+                            return;
+                        }
+                        connected.remove(k);
+                        authed.remove(k);
+                        nonceByAddr.remove(k);
+                        resetSession(k);   // 队列/在途/序号/CCCD 全部归零
+                        event("disconnect " + k);
+                        log("DISCONNECTED " + k + " status=" + finStatus + "（延迟清理已完成）");
+                        // 断开后自动重启广播，等客户端重连；载荷用当前最新值
+                        if (!keepAdv && advertiser != null && !advertiseOnly) {
                             log("对端断开，重启广播等待重连");
                             try { startAdvertising(null); }
                             catch (Throwable t) { log("重启广播失败: " + t); }
                         }
-                    });
-                }
+                    }
+                }, 1200);
             }
         }
 
@@ -1136,9 +1131,7 @@ public class BLEGattd {
                 .build();
 
         if (advCallback != null && advActive) {
-            // 栈重启后旧句柄可能失效，stop 抛异常也不能挡住后面的 start
-            try { advertiser.stopAdvertising(advCallback); }
-            catch (Throwable t) { log("stopAdvertising 异常（忽略，继续 start）: " + t); }
+            advertiser.stopAdvertising(advCallback);
             advActive = false;
             sleep(300);
         }
@@ -1151,145 +1144,66 @@ public class BLEGattd {
                 if (done != null) done.countDown();
             }
             @Override public void onStartFailure(int errorCode) {
-                // code 3 = ALREADY_STARTED：广播其实仍在发（轻探测/重复 start 会命中），
-                // 绝不能当成失败把 advActive 打成 false，否则会把“活着”误判成“死了”。
-                if (errorCode == 3) {
-                    advActive = true;
-                    log("PROBE_ALIVE 广播仍在发（ALREADY_STARTED，视为存活）");
-                } else {
-                    advActive = false;
-                    lastAdvError = errorCode;
-                    log("ADVERTISE_FAIL code=" + errorCode + " (" + advErrName(errorCode) + ")");
-                }
+                advActive = false;
+                lastAdvError = errorCode;
+                log("ADVERTISE_FAIL code=" + errorCode + " (" + advErrName(errorCode) + ")");
                 if (done != null) done.countDown();
             }
         };
-        startAdvWith(settings, data, sr, advCallback);
-    }
-
-    /**
-     * 真正下发 startAdvertising。抽出来供 start/probe/force 复用，
-     * 且每轮调用前重取一次 advertiser 句柄（见 startAdvWith）。
-     */
-    static void startAdvWith(AdvertiseSettings settings, AdvertiseData data,
-                             AdPlan sr, AdvertiseCallback cb) {
-        // 心跳/保活每轮重取 advertiser：蓝牙栈内部重启后旧句柄会失效，重取可自愈
-        refreshAdvertiser();
-        BluetoothLeAdvertiser av = advertiser;
-        if (av == null) { log("startAdvWith: advertiser==null，跳过"); return; }
-        try {
-            if (sr == null) {
-                av.startAdvertising(settings, data, cb);
-            } else {
-                av.startAdvertising(settings, data,
-                        buildData(false, false, false, sr.mfg), cb);
-            }
-        } catch (Throwable t) {
-            log("startAdvertising 异常: " + t);
-        }
-    }
-
-    /** 每轮重取 advertiser 句柄：栈重启后 getBluetoothLeAdvertiser() 可能返回新对象 */
-    static void refreshAdvertiser() {
-        try {
-            if (adapter == null) adapter = BluetoothAdapter.getDefaultAdapter();
-            if (adapter == null) return;
-            BluetoothLeAdvertiser a = adapter.getBluetoothLeAdvertiser();
-            if (a != null && a != advertiser) {
-                advertiser = a;
-                log("广播句柄已刷新（栈可能重启过）");
-            }
-        } catch (Throwable t) {
-            log("重取 advertiser 异常: " + t);
+        if (sr == null) {
+            advertiser.startAdvertising(settings, data, advCallback);
+        } else {
+            advertiser.startAdvertising(settings, data,
+                    buildData(false, false, false, sr.mfg), advCallback);
         }
     }
 
     /**
-     * 广播保活线程：
-     *  1) 轻探测(--adv-keepalive-probe)：不 stop，直接再 start 一次。
-     *     活着 → 框架回 ALREADY_STARTED(3)，回调里当“存活”，不换 RPA、无空档；
-     *     已被清掉 → 本次 start 当场恢复广播。
-     *  2) 强制重开(--adv-keepalive-force)：stop+start，兜“协议栈认为在发、控制器其实没发”。
-     * 已连接且按设计停广播时（keepAdv=false）跳过，不打扰连接态。
+     * 广播强制重开看门狗：每 advForceSec 秒 stop+start 一次，兜长待机后的"假活"
+     * （framework 认为广播在发，但控制器实际没发，表现为扫得到却连不上/扫不到）。
+     *
+     * 只在没有客户端连接时执行：连接中 force 会换 RPA，破坏客户端"记住 MAC 直连"，
+     * 而且 keepAdv=true 下广播本来就常开、无假活风险，没必要打扰。
+     * 空窗期（断开后）才是需要保活的场景。
      */
     static void startAdvKeepalive() {
-        if (advProbeSec <= 0 && advForceSec <= 0) {
-            log("广播保活关闭（probe/force 均为 0）"); return;
+        if (advForceSec <= 0) {
+            log("广播保活看门狗关闭（--adv-keepalive-force 未设或为 0）");
+            return;
         }
-        log("广播保活启动: probe=" + advProbeSec + "s force=" + advForceSec + "s");
+        log("广播保活看门狗启动: 每 " + (advForceSec / 3600.0) + " 小时(" + advForceSec
+                + "s) 强制重开一次（仅空闲时）");
         Thread t = new Thread(new Runnable() {
-            long lastProbe = System.currentTimeMillis();
-            long lastForce = System.currentTimeMillis();
             @Override public void run() {
                 while (true) {
-                    sleep(1000);
-                    long now = System.currentTimeMillis();
-                    // 连接态且按设计停广播：不动它，避免打扰连接（断开会自动重启广播）
-                    boolean connectedIdle = !keepAdv && !connected.isEmpty();
-                    if (connectedIdle) { lastProbe = now; lastForce = now; continue; }
-
-                    if (advProbeSec > 0 && now - lastProbe >= advProbeSec * 1000L) {
-                        lastProbe = now;
+                    sleep(advForceSec * 1000L);
+                    try {
+                        // 连接中跳过：既不打扰链路，也不换 RPA 破坏客户端 MAC 直连
+                        if (!connected.isEmpty()) {
+                            log("keepalive：有客户端连接，跳过本轮强制重开");
+                            continue;
+                        }
+                        if (advertiseOnly) continue;   // 纯广播模式本就常开，无需重开
+                        log("keepalive：强制重开广播（stop + start，长待机假活自愈）");
                         mainHandler.post(new Runnable() {
-                            @Override public void run() { advKeepaliveProbe(); }
+                            @Override public void run() {
+                                try {
+                                    // 主线程再确认一次：跨线程读集合有延迟，宁可多查一次
+                                    if (!connected.isEmpty()) return;
+                                    startAdvertising(null);   // 内部已含 stop 旧广播
+                                } catch (Throwable e) {
+                                    log("keepalive force 异常（已捕获）: " + e);
+                                }
+                            }
                         });
-                    }
-                    if (advForceSec > 0 && now - lastForce >= advForceSec * 1000L) {
-                        lastForce = now;
-                        mainHandler.post(new Runnable() {
-                            @Override public void run() { advKeepaliveForce(); }
-                        });
+                    } catch (Throwable e) {
+                        log("keepalive 线程异常（已捕获）: " + e);
                     }
                 }
             }
         }, "adv-keepalive");
         t.setDaemon(true);
         t.start();
-    }
-
-    /** 轻探测：不 stop，用当前参数再 start 一次；探测专用回调把 ALREADY_STARTED 当存活 */
-    static void advKeepaliveProbe() {
-        if (!aliveAdvertising()) return;
-        log("keepalive：轻探测广播（不 stop）");
-        AdPlan adv = planAd(includeNameInAdv, includeTxPower,
-                includeServiceUuidInAdv && advSvcUuid != null,
-                payloadFor(advText, mfgData), "AD");
-        final AdPlan sr = (srText == null) ? null
-                : planAd(false, false, false, payloadFor(srText, null), "SCAN-RESP");
-        final AdvertiseData data = buildData(adv.name, adv.tx, adv.uuid, adv.mfg);
-        final AdvertiseSettings settings = new AdvertiseSettings.Builder()
-                .setAdvertiseMode(advMode).setConnectable(connectable)
-                .setTxPowerLevel(advTx).setTimeout(advTimeoutSec).build();
-        AdvertiseCallback probeCb = new AdvertiseCallback() {
-            @Override public void onStartSuccess(AdvertiseSettings s) {
-                advActive = true;
-                log("PROBE_ALIVE 广播仍在发（探测 start 成功）");
-            }
-            @Override public void onStartFailure(int code) {
-                if (code == 3) {           // ALREADY_STARTED = 活着
-                    advActive = true;
-                    log("PROBE_ALIVE 广播仍在发（ALREADY_STARTED）");
-                } else {
-                    advActive = false;
-                    lastAdvError = code;
-                    log("PROBE 广播已停 code=" + code + " (" + advErrName(code) + ")，下次 force 会重开");
-                }
-            }
-        };
-        startAdvWith(settings, data, sr, probeCb);
-    }
-
-    /** 强制重开：真的 stop+start，兜“栈认为在发、控制器没发”的长待机假活 */
-    static void advKeepaliveForce() {
-        log("keepalive：强制重开广播（stop + start）");
-        // 复用 startAdvertising 的 stop+start 流程（它开头会 stop 旧的）
-        startAdvertising(null);
-    }
-
-    /** 探测/强开前的基础可用性判断 */
-    static boolean aliveAdvertising() {
-        if (advertiseOnly) return true;         // 纯广播模式没有连接态概念
-        return connected.isEmpty() || keepAdv;  // 有连接且按设计停广播时跳过
     }
 
     static String advErrName(int c) {
@@ -2050,19 +1964,18 @@ public class BLEGattd {
         for (int i = 0; i < args.length; i++) {
             String a = args[i];
             switch (a) {
+                case "--debug": debugLog = true; break;
                 case "--name": advName = args[++i]; nameExplicit = true; break;
                 case "--adv-mode": advMode = parseAdvMode(args[++i]); break;
                 case "--tx": advTx = parseAdvTx(args[++i]); break;
                 case "--battery-notify": batteryNotifySec = Integer.parseInt(args[++i]); break;
+                case "--adv-keepalive-force": advForceSec = (int) (Double.parseDouble(args[++i]) * 3600); break;
                 case "--split-servers": splitServers = true; break;
                 case "--psk": psk = args[++i]; break;
                 case "--on-connect": onConnectCmd = args[++i]; break;
                 case "--max-out": maxOutBytes = Integer.parseInt(args[++i]); break;
                 case "--cmd-timeout": cmdTimeoutSec = Integer.parseInt(args[++i]); break;
                 case "--tx-pace": txPaceMs = Integer.parseInt(args[++i]); break;
-                case "--pace": paceMs = Integer.parseInt(args[++i]); break;
-                case "--adv-keepalive-probe": advProbeSec = Integer.parseInt(args[++i]); break;
-                case "--adv-keepalive-force": advForceSec = Integer.parseInt(args[++i]); break;
                 default: break;
             }
         }
@@ -2078,7 +1991,29 @@ public class BLEGattd {
                 .format(new java.util.Date());
     }
 
-    static void log(String m) { System.out.println("[" + nowHms() + "] " + m); System.out.flush(); }
+    static void log(String m) {
+        String line = "[" + nowHms() + "] " + m;
+        System.out.println(line); System.out.flush();
+        if (!debugLog) return;
+        // 调试日志落盘：任何异常都静默，绝不影响 BLE 主流程。
+        synchronized (DEBUG_LOCK) {
+            try {
+                if (debugWriter == null) {
+                    java.io.File dir = new java.io.File("/sdcard/Download");
+                    if (!dir.exists()) dir.mkdirs();
+                    java.io.File f = new java.io.File(dir, "blegatt.log");
+                    boolean fresh = !f.exists() || f.length() == 0;
+                    debugWriter = new java.io.BufferedWriter(new java.io.FileWriter(f, true));
+                    if (fresh) debugWriter.write("=== blegatt debug log " + nowHms() + " ===\n");
+                }
+                debugWriter.write(line); debugWriter.write("\n"); debugWriter.flush();
+            } catch (Throwable t) {
+                // 写日志失败不影响运行；下次再尝试（例如权限/目录临时不可用）
+                try { if (debugWriter != null) { debugWriter.close(); } } catch (Throwable ignored) { }
+                debugWriter = null;
+            }
+        }
+    }
 
     static void usage() {
         System.out.println("blegatt — 非 APK 的 Android BLE 广播 + GATT server（app_process 直跑）\n"
@@ -2087,15 +2022,15 @@ public class BLEGattd {
                 + "  --adv-mode <m>       广播模式 low_power(≈1s)|balanced(≈250ms)|low_latency(≈100ms)，默认 low_power 省电\n"
                 + "  --tx <t>             发射功率 ultra_low|low|medium|high（默认 medium）\n"
                 + "  --battery-notify <s> Battery Level 轮询秒数，变化才通知（默认 60，0=关闭）\n"
+                + "  --adv-keepalive-force <小时> 广播保活：每 N 小时强制 stop+start 一次，兜长待机\"假活\"\n"
+                + "                       支持小数，如 1=1小时、0.5=半小时；0=关闭(默认)；建议 1~2，仅空闲时执行；每次重开换一次 RPA\n"
                 + "  --split-servers      Battery 用独立 GATT server 实例（排查用）\n"
                 + "  --psk <key>          预共享密钥：命令通道强制挑战-响应（订阅 RES 后回 HMAC(psk,nonce) 才能写 CMD）\n"
                 + "  --on-connect <cmd>   客户端一连上就自动执行该命令，结果排队等它订阅通知\n"
                 + "  --max-out <bytes>    命令输出上限（默认 10240=10KB，超出截断）\n"
                 + "  --cmd-timeout <sec>  单条命令最长执行时间（默认 10）\n"
                 + "  --tx-pace <ms>       传输帧最小间隔下限（默认 40，连发易被协议栈丢包）\n"
-                + "  --pace <ms>          NOTIFY 匀速节奏片间隔（默认 50，配合 --tx-pace 一起调小可提速）\n"
-                + "  --adv-keepalive-probe <s> 广播轻探测周期秒（默认 600，0=关）：不stop再start，活着回ALREADY_STARTED不换RPA\n"
-                + "  --adv-keepalive-force <s> 广播强制重开周期秒（默认 1800，0=关）：stop+start兜长待机假活\n"
+                + "  --debug              把 log() 同步写入 Download/blegatt.log（排查用，默认关）\n"
                 + "\n其余参数均使用内置默认值（服务 UUID 8e7a1f01…，广播自带 180f 电池服务 UUID）。\n"
                 + "\n命令通道用法（nRF Connect）：\n"
                 + "  1) 连上后先订阅 RES(notify) 特征，否则结果发不出来；\n"

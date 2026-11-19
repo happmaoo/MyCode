@@ -1,0 +1,761 @@
+package com.rolex.blecmd;
+
+import android.app.Activity;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
+import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanFilter;
+import android.bluetooth.le.ScanResult;
+import android.bluetooth.le.ScanSettings;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.location.LocationManager;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import java.nio.charset.Charset;
+import java.text.SimpleDateFormat;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Deque;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+
+/**
+ * Rolex BLE 命令客户端。
+ * 扫描(按广播名) -> 连接 -> 发现服务 -> 请求 MTU -> 读/订阅 Battery Level
+ * -> 订阅 RES -> 自动写 AUTH -> 向 CMD 写命令 -> 收 RES 分片并拼接。
+ *
+ * 界面三条通道职责分离：Info 只放状态机；电量与 RSSI 独占一行；
+ * 事件与命令输出统一进 Result 日志流（可复制、不被覆盖）。
+ */
+public class MainActivity extends Activity {
+
+    static final UUID SVC_CMD = UUID.fromString("8e7a1f01-2b3c-4d5e-6f70-8192a3b4c5d6");
+    static final UUID CH_CMD  = UUID.fromString("8e7a1f03-2b3c-4d5e-6f70-8192a3b4c5d6");
+    static final UUID CH_RES  = UUID.fromString("8e7a1f04-2b3c-4d5e-6f70-8192a3b4c5d6");
+    static final UUID CH_AUTH = UUID.fromString("8e7a1f05-2b3c-4d5e-6f70-8192a3b4c5d6");
+    static final UUID SVC_BAS = UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb");
+    static final UUID CH_BATT = UUID.fromString("00001a19-0000-1000-8000-00805f9b34fb");
+    static final UUID CCCD    = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
+    static final Charset UTF8 = Charset.forName("UTF-8");
+
+    EditText etServer, etKey, etCmd;
+    TextView tvInfo, tvBatt, tvResult;
+    ScrollView svResult;
+    Button btnConnect;
+
+    BluetoothAdapter adapter;
+    BluetoothManager btManager;
+    BluetoothGatt gatt;
+    BluetoothDevice curDevice;
+    BluetoothGattCharacteristic cBatt, cCmd, cRes, cAuth;
+
+    final Handler ui = new Handler(Looper.getMainLooper());
+    final SimpleDateFormat ts = new SimpleDateFormat("HH:mm:ss", Locale.US);
+    final Deque<W> wq = new ArrayDeque<W>();
+    boolean writing = false;
+    final StringBuilder rx = new StringBuilder();
+
+    int step = 0;              // 0 未开始 1 读电量 2 订阅电量 3 订阅RES 4 鉴权 9 就绪
+    int lastBattery = -1;
+    int lastRssi = 0;
+    long lastRssiOkAt = 0;
+    int rssiBusy = 0;
+    int hbTicks = 0;
+    int lastRssiSec = -1;
+    boolean linkUp = false;
+    boolean connecting = false;
+    boolean waitingResult = false;
+    String want = "";
+    String mtuText = "";
+
+    /** 一条待写的 (特征, 内容)：AUTH 与 CMD 共用写队列但目标不同 */
+    static final class W {
+        final BluetoothGattCharacteristic ch;
+        final byte[] v;
+        W(BluetoothGattCharacteristic ch, byte[] v) { this.ch = ch; this.v = v; }
+    }
+
+    // ------------------------------------------------------------------ 定时器
+
+    final Runnable scanTimeout = new Runnable() {
+        @Override public void run() {
+            if (connecting || linkUp) return;
+            stopScan();
+            info("没扫到：" + want + "（确认服务端在跑、广播名一致）");
+            setBtn("Connect", true);
+        }
+    };
+
+    /** 初始化看门狗：15 秒走不到就绪就释放连接（外设被重启时客户端会卡在发现服务） */
+    final Runnable readyTimeout = new Runnable() {
+        @Override public void run() {
+            if (step >= 9 || gatt == null) return;
+            info("初始化超时（卡在步骤 " + step + "）—— 已释放连接，请重新 Connect");
+            logEvent("初始化超时 step=" + step + "：某个 ATT 请求没回调，或外设进程被重启过");
+            hardClose();
+        }
+    };
+
+    /** 半片兜底：4 秒没等到后续片，把已收到的半包显示出来 */
+    final Runnable chunkTimeout = new Runnable() {
+        @Override public void run() {
+            if (rx.length() == 0) return;
+            String half = rx.toString();
+            rx.setLength(0);
+            appendResult(half + "\n⚠ 分片不完整（4s 内没等到后续片，已显示半包）");
+            info(linkUp ? "就绪（上一结果不完整）" : "已断开");
+        }
+    };
+
+    /** 零片兜底：Run 之后 3.5 秒一片都没收到也要说清楚，不能静默 */
+    final Runnable noChunkTimeout = new Runnable() {
+        @Override public void run() {
+            if (!waitingResult || rx.length() > 0) return;
+            waitingResult = false;
+            appendResult("⚠ 3.5s 内没收到任何通知片：服务端未发出，或订阅/链路状态已失效"
+                    + "（服务端日志会写明 PUMP 跳过的原因）");
+            info(linkUp ? "就绪（无结果返回）" : "已断开");
+        }
+    };
+
+    /**
+     * 单一心跳：任何分支都必须在 finally 里自我续期，杜绝"提前 return 导致定时器静默死亡"。
+     * 职责：按需 readRemoteRssi、刷新电量/信号行、链路新鲜度看门狗。
+     */
+    final Runnable heartbeat = new Runnable() {
+        @Override public void run() {
+            int iv = Math.max(1, P.rssiSec(MainActivity.this));
+            try {
+                hbTicks++;
+                if (gatt == null) return;
+                if (!linkAlive()) {
+                    info("链路已断开（协议栈未报告 GATT 连接）—— 请重连");
+                    logEvent("心跳 #" + hbTicks + "：linkAlive=false → 释放并复位按钮");
+                    hardClose();
+                    if (P.autoConnect(MainActivity.this)) ui.postDelayed(autoConnectTask, 3000);
+                    return;
+                }
+                long silent = System.currentTimeMillis() - lastRssiOkAt;
+                if (lastRssiOkAt == 0 || silent > 20000) {
+                    info("链路疑似已失效（RSSI 静默 " + (silent / 1000) + "s）—— 已释放，请重连");
+                    logEvent("心跳 #" + hbTicks + "：RSSI 静默 " + (silent / 1000)
+                            + "s，readRemoteRssi 被拒 " + rssiBusy + " 次 → 释放");
+                    hardClose();
+                    if (P.autoConnect(MainActivity.this)) ui.postDelayed(autoConnectTask, 3000);
+                    return;
+                }
+                boolean ok = false;
+                try { ok = gatt.readRemoteRssi(); } catch (Throwable ignored) { }
+                if (!ok) {
+                    rssiBusy++;
+                    if (rssiBusy == 1 || rssiBusy % 10 == 0) {
+                        logEvent("readRemoteRssi 被拒 " + rssiBusy + " 次（链路上有其它操作在途）");
+                    }
+                }
+                refreshBattLine();
+            } catch (Throwable t) {
+                logEvent("心跳异常：" + t);
+            } finally {
+                ui.postDelayed(this, iv * 1000L);      // 唯一续期点，永不漏
+            }
+        }
+    };
+
+    final Runnable autoConnectTask = new Runnable() {
+        @Override public void run() { if (gatt == null && !linkUp) onConnectClicked(); }
+    };
+
+    final Runnable retryDrain = new Runnable() {
+        @Override public void run() { drain(); }
+    };
+
+    // ---------------------------------------------------------------- 生命周期
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.main);
+
+        etServer = (EditText) findViewById(R.id.et_server);
+        etKey    = (EditText) findViewById(R.id.et_key);
+        etCmd    = (EditText) findViewById(R.id.et_cmd);
+        tvInfo   = (TextView) findViewById(R.id.tv_info);
+        tvBatt   = (TextView) findViewById(R.id.tv_batt);
+        tvResult = (TextView) findViewById(R.id.tv_result);
+        svResult = (ScrollView) findViewById(R.id.sv_result);
+        btnConnect = (Button) findViewById(R.id.btn_connect);
+
+        btManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        adapter = (btManager == null) ? null : btManager.getAdapter();
+        if (adapter == null) info("本机不支持蓝牙，或蓝牙服务不可用");
+
+        // 输入来自持久化设置；APK 内不内置任何密钥
+        etServer.setText(P.server(this));
+        etKey.setText(P.psk(this));
+
+        btnConnect.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { onConnectClicked(); }
+        });
+        findViewById(R.id.btn_disconnect).setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { doDisconnect(); }
+        });
+        findViewById(R.id.btn_run).setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { onRunClicked(); }
+        });
+        findViewById(R.id.btn_copy).setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { copyResult(); }
+        });
+        findViewById(R.id.btn_clear).setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { tvResult.setText(""); }
+        });
+
+        lastRssiSec = P.rssiSec(this);
+        if (P.autoConnect(this)) {
+            logEvent("已开启自动连接，1 秒后扫描：" + P.server(this));
+            ui.postDelayed(autoConnectTask, 1000);
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        int sec = P.rssiSec(this);
+        if (sec != lastRssiSec) {
+            lastRssiSec = sec;
+            logEvent("RSSI 轮询间隔改为 " + sec + "s");
+            if (gatt != null) {
+                ui.removeCallbacks(heartbeat);
+                ui.postDelayed(heartbeat, 500);
+            }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        ui.removeCallbacks(scanTimeout);
+        ui.removeCallbacks(readyTimeout);
+        ui.removeCallbacks(chunkTimeout);
+        ui.removeCallbacks(noChunkTimeout);
+        ui.removeCallbacks(heartbeat);
+        ui.removeCallbacks(autoConnectTask);
+        ui.removeCallbacks(retryDrain);
+        stopScan();
+        if (gatt != null) {
+            try { gatt.disconnect(); gatt.close(); } catch (Throwable ignored) { }
+        }
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        menu.add(0, 1, 0, "设置");
+        menu.add(0, 2, 1, "断开并释放");
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == 1) {
+            startActivity(new Intent(this, com.rolex.blecmd.Settings.class));
+            return true;
+        }
+        if (item.getItemId() == 2) {
+            hardClose();
+            return true;
+        }
+        return false;
+    }
+
+    // ---------------------------------------------------------------- 扫描连接
+
+    void onConnectClicked() {
+        want = etServer.getText().toString().trim();
+        if (want.length() == 0) { toast("请输入广播名"); return; }
+        P.saveServerPsk(this, want, etKey.getText().toString().trim());
+        if (adapter == null || !adapter.isEnabled()) { info("蓝牙未开启，请先打开蓝牙"); return; }
+        if (Build.VERSION.SDK_INT >= 23
+                && checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION,
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION}, 1);
+            info("已申请定位权限（BLE 扫描必需），允许后再点 Connect");
+            return;
+        }
+        startScan();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
+            info("定位权限已授予，再点一次 Connect");
+        }
+    }
+
+    void startScan() {
+        setBtn("扫描中…", false);
+        connecting = false;
+        if (!locationOn()) info("提示：定位服务未开，Android 7.x 上可能扫不到结果");
+        final BluetoothLeScanner sc = adapter.getBluetoothLeScanner();
+        if (sc == null) { info("拿不到 BLE 扫描器"); setBtn("Connect", true); return; }
+        List<ScanFilter> fs = new ArrayList<ScanFilter>();
+        fs.add(new ScanFilter.Builder().setDeviceName(want).build());
+        ScanSettings st = new ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
+        info("扫描：" + want + " …");
+        try {
+            sc.startScan(fs, st, scanCb);
+            ui.postDelayed(scanTimeout, 12000);
+        } catch (SecurityException e) {
+            info("缺少权限，无法扫描：" + e.getMessage());
+            setBtn("Connect", true);
+        }
+    }
+
+    void stopScan() {
+        try {
+            if (adapter == null) return;
+            BluetoothLeScanner sc = adapter.getBluetoothLeScanner();
+            if (sc != null) sc.stopScan(scanCb);
+        } catch (Throwable ignored) { }
+    }
+
+    boolean locationOn() {
+        LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        if (lm == null) return true;
+        try {
+            return lm.isProviderEnabled(LocationManager.GPS_PROVIDER)
+                    || lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+        } catch (Throwable t) { return true; }
+    }
+
+    final ScanCallback scanCb = new ScanCallback() {
+        @Override public void onScanResult(int callbackType, ScanResult result) {
+            BluetoothDevice d = result.getDevice();
+            String name = safeName(d, result);
+            if (name == null || !name.equalsIgnoreCase(want)) return;
+            connecting = true;
+            ui.removeCallbacks(scanTimeout);
+            stopScan();
+            connect(d, result.getRssi());
+        }
+
+        @Override public void onScanFailed(int errorCode) {
+            info("扫描失败 code=" + errorCode + "（多为蓝牙/定位未就绪）");
+            ui.removeCallbacks(scanTimeout);
+            setBtn("Connect", true);
+        }
+    };
+
+    String safeName(BluetoothDevice d, ScanResult r) {
+        try {
+            String n = d.getName();
+            if (n != null) return n;
+        } catch (Throwable ignored) { }
+        try {
+            if (r.getScanRecord() != null) return r.getScanRecord().getDeviceName();
+        } catch (Throwable ignored) { }
+        return null;
+    }
+
+    void connect(BluetoothDevice d, final int rssi) {
+        if (gatt != null) { try { gatt.close(); } catch (Throwable ignored) { } gatt = null; }
+        curDevice = d;
+        resetState();
+        lastRssi = rssi;
+        refreshBattLine();
+        setBtn("连接中…", false);
+        info("连接 " + d.getAddress() + "（RSSI " + rssi + "）…");
+        ui.postDelayed(readyTimeout, 15000);
+        if (Build.VERSION.SDK_INT >= 23) {
+            gatt = d.connectGatt(this, false, gattCb, BluetoothDevice.TRANSPORT_LE);
+        } else {
+            gatt = d.connectGatt(this, false, gattCb);
+        }
+    }
+
+    void doDisconnect() {
+        ui.removeCallbacks(readyTimeout);
+        ui.removeCallbacks(heartbeat);
+        if (gatt != null) {
+            try { gatt.disconnect(); gatt.close(); } catch (Throwable ignored) { }
+            gatt = null;
+        }
+        info("已断开（手动）");
+        hardClose();
+    }
+
+    /** 强制释放：撤定时器、清状态、复位按钮 */
+    void hardClose() {
+        linkUp = false;
+        curDevice = null;
+        ui.removeCallbacks(readyTimeout);
+        ui.removeCallbacks(chunkTimeout);
+        ui.removeCallbacks(noChunkTimeout);
+        ui.removeCallbacks(heartbeat);
+        resetState();
+        setBattIdle();
+        setBtn("Connect", true);
+    }
+
+    void resetState() {
+        cBatt = null; cCmd = null; cRes = null; cAuth = null;
+        wq.clear();
+        writing = false;
+        rx.setLength(0);
+        step = 0;
+        mtuText = "";
+        lastBattery = -1;
+        waitingResult = false;
+    }
+
+    /** 链路存活只问协议栈，不信业务 flag，也不受迟到事件摆布 */
+    boolean linkAlive() {
+        if (gatt == null) return false;
+        try {
+            if (btManager != null && curDevice != null) {
+                return btManager.getConnectionState(curDevice, BluetoothProfile.GATT)
+                        == BluetoothProfile.STATE_CONNECTED;
+            }
+        } catch (Throwable ignored) { }
+        return linkUp;
+    }
+
+    // ------------------------------------------------------------- GATT 客户端
+
+    final BluetoothGattCallback gattCb = new BluetoothGattCallback() {
+        @Override public void onConnectionStateChange(BluetoothGatt g, int status, int newState) {
+            if (g != gatt) { logEvent("忽略旧 gatt 对象的连接事件 state=" + newState); return; }
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                linkUp = true;
+                setBtn("已连接", false);
+                info("已连接，发现服务…");
+                g.discoverServices();
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                if (status != BluetoothGatt.GATT_SUCCESS && status != 19) {
+                    info("连接中断 status=" + status + "（外设可能被重启）");
+                } else {
+                    info("已断开");
+                }
+                ui.removeCallbacks(readyTimeout);
+                ui.removeCallbacks(heartbeat);
+                setBtn("Connect", true);     // 无条件复位
+                try { g.close(); } catch (Throwable ignored) { }
+                gatt = null;
+                curDevice = null;
+                linkUp = false;
+                resetState();
+                setBattIdle();
+                if (P.autoConnect(MainActivity.this)) ui.postDelayed(autoConnectTask, 4000);
+            }
+        }
+
+        @Override public void onServicesDiscovered(BluetoothGatt g, int status) {
+            if (g != gatt) return;
+            BluetoothGattService cmd = null, bas = null;
+            try {
+                cmd = g.getService(SVC_CMD);
+                bas = g.getService(SVC_BAS);
+            } catch (Throwable t) { }
+            if (cmd != null) {
+                cCmd  = cmd.getCharacteristic(CH_CMD);
+                cRes  = cmd.getCharacteristic(CH_RES);
+                cAuth = cmd.getCharacteristic(CH_AUTH);
+            }
+            if (bas != null) cBatt = bas.getCharacteristic(CH_BATT);
+            logEvent("服务发现：BAS=" + (bas != null) + " 1A19=" + (cBatt != null)
+                    + " cmd=" + (cmd != null) + " CMD=" + (cCmd != null)
+                    + " RES=" + (cRes != null) + " AUTH=" + (cAuth != null));
+            if (cCmd == null && cBatt == null) {
+                ui.removeCallbacks(readyTimeout);
+                info("没发现预期特征——确认连的是 Rolex，且服务端已注册服务");
+                return;
+            }
+            g.requestMtu(517);
+        }
+
+        @Override public void onMtuChanged(BluetoothGatt g, int mtu, int status) {
+            if (g != gatt) return;
+            mtuText = "MTU " + mtu;
+            logEvent("MTU 协商完成 " + mtu + "（单片可用 " + Math.max(1, mtu - 4) + " 字节）");
+            step = 1;
+            runStep();
+        }
+
+        @Override public void onCharacteristicRead(BluetoothGatt g,
+                                                   BluetoothGattCharacteristic ch, int status) {
+            if (g != gatt) return;
+            if (CH_BATT.equals(ch.getUuid()) && status == BluetoothGatt.GATT_SUCCESS) {
+                showBattery(ch.getValue());
+            }
+            step = 2;
+            runStep();
+        }
+
+        @Override public void onCharacteristicWrite(BluetoothGatt g,
+                                                    BluetoothGattCharacteristic ch, int status) {
+            if (g != gatt) return;
+            writing = false;
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                info("写失败 status=" + status);
+                logEvent("写 " + shortOf(ch.getUuid()) + " 失败 status=" + status);
+            }
+            drain();
+        }
+
+        @Override public void onDescriptorWrite(BluetoothGatt g, BluetoothGattDescriptor d, int status) {
+            if (g != gatt) return;
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                info("订阅失败 status=" + status);
+                logEvent("订阅 CCCD 失败 status=" + status + "（服务端可能没声明 NOTIFY）");
+            } else {
+                logEvent("订阅成功：" + shortOf(uuidOf(d)));
+            }
+            step = step + 1;
+            runStep();
+        }
+
+        @Override public void onReadRemoteRssi(BluetoothGatt g, int rssi, int status) {
+            if (g != gatt) return;
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                lastRssi = rssi;
+                lastRssiOkAt = System.currentTimeMillis();
+                refreshBattLine();
+            } else {
+                logEvent("readRemoteRssi 返回 status=" + status);
+            }
+        }
+
+        @Override public void onCharacteristicChanged(BluetoothGatt g,
+                                                      BluetoothGattCharacteristic ch) {
+            if (g != gatt) return;
+            byte[] v = ch.getValue();
+            if (v == null || v.length == 0) return;
+            if (CH_BATT.equals(ch.getUuid())) {
+                showBattery(v);
+            } else if (CH_RES.equals(ch.getUuid())) {
+                handleChunk(v);
+            }
+        }
+    };
+
+    static UUID uuidOf(BluetoothGattDescriptor d) {
+        try {
+            BluetoothGattCharacteristic c = d.getCharacteristic();
+            return c == null ? CCCD : c.getUuid();
+        } catch (Throwable t) { return CCCD; }
+    }
+
+    /** 串起来：读电量 -> 订阅电量 -> 订阅 RES -> 写 AUTH */
+    void runStep() {
+        BluetoothGatt g = gatt;
+        if (g == null) return;
+        if (step == 1) { if (cBatt != null) { g.readCharacteristic(cBatt); return; } step = 2; }
+        if (step == 2) { if (cBatt != null && enableNotify(cBatt)) return; step = 3; }
+        if (step == 3) { if (cRes != null && enableNotify(cRes)) return; step = 4; }
+        if (step == 4) {
+            if (cAuth != null) {
+                String key = etKey.getText().toString().trim();
+                logEvent("写 AUTH（密钥 " + key.length() + " 字符）…");
+                wq.add(new W(cAuth, key.getBytes(UTF8)));
+                drain();
+            }
+            step = 9;
+        }
+        if (step == 9) {
+            ui.removeCallbacks(readyTimeout);
+            lastRssiOkAt = System.currentTimeMillis();
+            ui.removeCallbacks(heartbeat);
+            ui.postDelayed(heartbeat, 1000);
+            info("就绪");
+            logEvent("就绪：" + (cBatt != null ? "Battery Level 可读/可订阅；" : "无电池服务；")
+                    + (cCmd != null ? "命令通道可用" : "无命令通道"));
+        }
+    }
+
+    boolean enableNotify(BluetoothGattCharacteristic ch) {
+        if (ch == null || gatt == null) return false;
+        if (!gatt.setCharacteristicNotification(ch, true)) {
+            logEvent("setCharacteristicNotification 失败：" + shortOf(ch.getUuid()));
+            return false;
+        }
+        BluetoothGattDescriptor cd = ch.getDescriptor(CCCD);
+        if (cd == null) {
+            logEvent(shortOf(ch.getUuid()) + " 没有 CCCD，只能读不能通知");
+            return false;
+        }
+        cd.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+        return gatt.writeDescriptor(cd);
+    }
+
+    // ------------------------------------------------------ 电量 / 信号 / 结果
+
+    void showBattery(byte[] v) {
+        if (v == null || v.length == 0) { logEvent("电量返回空"); return; }
+        lastBattery = v[0] & 0xFF;
+        refreshBattLine();
+    }
+
+    void refreshBattLine() {
+        final String line = "电量: " + (lastBattery < 0 ? "—" : lastBattery + "%")
+                + "   信号: " + (lastRssi == 0 ? "—" : lastRssi + " dBm")
+                + "   " + ts.format(new Date());
+        runOnUiThread(new Runnable() {
+            @Override public void run() { tvBatt.setText(line); }
+        });
+    }
+
+    void setBattIdle() {
+        lastBattery = -1;
+        lastRssi = 0;
+        refreshBattLine();
+    }
+
+    /** 服务端分片协议：'+' 还有后续，'-' 末片，'!' 拒绝或错误 */
+    void handleChunk(byte[] v) {
+        waitingResult = false;
+        ui.removeCallbacks(noChunkTimeout);
+        char mark = (char) (v[0] & 0xFF);
+        String s = new String(v, 1, v.length - 1, UTF8);
+        if (mark == '+') {
+            rx.append(s);
+            ui.removeCallbacks(chunkTimeout);
+            ui.postDelayed(chunkTimeout, 4000);
+            info("接收中… 已 " + rx.length() + " 字符");
+        } else if (mark == '-') {
+            ui.removeCallbacks(chunkTimeout);
+            rx.append(s);
+            String whole = rx.toString();
+            rx.setLength(0);
+            appendResult(whole);
+            logEvent("接收完成 " + whole.length() + " 字符（末片）");
+            if ("auth:ok".equals(whole.trim())) rememberKey();
+            if (linkUp) info("就绪");
+        } else if (mark == '!') {
+            ui.removeCallbacks(chunkTimeout);
+            if (rx.length() > 0) { appendResult(rx.toString()); rx.setLength(0); }
+            appendResult("✗ " + s);
+        } else {
+            rx.append(new String(v, UTF8));
+            appendResult(rx.toString());
+            rx.setLength(0);
+        }
+    }
+
+    void onRunClicked() {
+        String c = etCmd.getText().toString().trim();
+        if (c.length() == 0) { toast("命令为空"); return; }
+        if (gatt == null || cCmd == null) { toast("还没连上/没就绪"); return; }
+        appendResult("$ " + c);
+        waitingResult = true;
+        ui.removeCallbacks(noChunkTimeout);
+        ui.postDelayed(noChunkTimeout, 3500);
+        wq.add(new W(cCmd, c.getBytes(UTF8)));
+        drain();
+    }
+
+    void drain() {
+        if (writing || wq.isEmpty() || gatt == null) return;
+        W w = wq.poll();
+        writing = true;
+        w.ch.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+        w.ch.setValue(w.v);
+        if (!gatt.writeCharacteristic(w.ch)) {
+            writing = false;
+            wq.addFirst(w);
+            info("写请求提交失败（上一条还没完成）");
+            logEvent("写 " + shortOf(w.ch.getUuid()) + " 提交失败，400ms 后重试");
+            ui.postDelayed(retryDrain, 400);
+        }
+    }
+
+    void rememberKey() {
+        String k = etKey.getText().toString().trim();
+        if (k.length() == 0) return;
+        P.savePsk(this, k);
+        logEvent("密钥已记住（下次启动自动填入，APK 内不内置密钥）");
+    }
+
+    // ------------------------------------------------------------------ 显示
+
+    void appendResult(final String text) {
+        runOnUiThread(new Runnable() {
+            @Override public void run() {
+                tvResult.append("──── " + ts.format(new Date()) + " ────\n" + text + "\n\n");
+                svResult.post(new Runnable() {
+                    @Override public void run() { svResult.fullScroll(View.FOCUS_DOWN); }
+                });
+            }
+        });
+    }
+
+    void logEvent(final String s) {
+        runOnUiThread(new Runnable() {
+            @Override public void run() {
+                tvResult.append("· " + ts.format(new Date()) + "  " + s + "\n");
+                svResult.post(new Runnable() {
+                    @Override public void run() { svResult.fullScroll(View.FOCUS_DOWN); }
+                });
+            }
+        });
+    }
+
+    void info(final String s) {
+        runOnUiThread(new Runnable() {
+            @Override public void run() { tvInfo.setText(s); }
+        });
+    }
+
+    void setBtn(final String text, final boolean enabled) {
+        runOnUiThread(new Runnable() {
+            @Override public void run() {
+                btnConnect.setText(text);
+                btnConnect.setEnabled(enabled);
+            }
+        });
+    }
+
+    void copyResult() {
+        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (cm == null) return;
+        cm.setPrimaryClip(ClipData.newPlainText("blecmd", tvResult.getText().toString()));
+        toast("已复制");
+    }
+
+    void toast(final String s) {
+        runOnUiThread(new Runnable() {
+            @Override public void run() {
+                Toast.makeText(MainActivity.this, s, Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    static String shortOf(UUID u) {
+        String s = u.toString();
+        return s.length() >= 8 ? s.substring(4, 8) : s;
+    }
+}

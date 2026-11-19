@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
+            android:text="Settings (saved on this device; persists across app close and device reboot)"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Server (advertised name)"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_server"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Rolex"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Key (server --psk)"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_key"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Also remembered automatically after auth"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="RSSI poll interval (seconds, 1~60)"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_rssi"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="3"
+            android:inputType="number"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Zero-chunk timeout (seconds, 0.5~120; wait for the first result chunk after a command; on timeout only warn, no auto-reconnect; 0=off)"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_zero"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="3.5"
+            android:inputType="numberDecimal"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="RSSI silence-death (seconds, 5~300; if readRemoteRssi hasn't responded for this long, the link is deemed dead and released; 0=off)"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_silent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="30"
+            android:inputType="number"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Quick commands (one per line; tap ▾Quick on the main screen to pick; tap an item to send immediately; max 50)"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_quick"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="top"
+            android:hint="id&#10;uname -a&#10;df -h"
+            android:inputType="textMultiLine|textNoSuggestions"
+            android:minLines="3" />
+
+        <CheckBox
+            android:id="@+id/s_wake"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Keep CPU awake while connected (prevents link stall after screen-off; more power use; reconnect to apply)" />
+
+        <CheckBox
+            android:id="@+id/s_auto"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Auto scan &amp; connect on app launch" />
+
+        <CheckBox
+            android:id="@+id/s_debug"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Debug log to Download/mybleclient.log (all BLE events; for troubleshooting)" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Remembered server MAC (connect by address; learned on first connect)"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/s_mac"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text=""
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/s_clear_mac"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Forget MAC" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingTop="12dp">
+
+            <Button
+                android:id="@+id/s_save"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Save" />
+
+            <Button
+                android:id="@+id/s_cancel"
+                style="?android:attr/buttonBarButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Back" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/s_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="12dp"
+            android:text=""
+            android:textColor="#666666"
+            android:textSize="13sp" />
+    </LinearLayout>
+</ScrollView>

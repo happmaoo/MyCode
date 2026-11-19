@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingLeft="6dp"
+    android:paddingRight="6dp"
+    android:paddingTop="0dp"
+    android:paddingBottom="56dp">
+
+    <!-- Server 与 Key 合并为一行 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Server:"
+            android:textSize="15sp" />
+
+        <EditText
+            android:id="@+id/et_server"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.2"
+            android:hint="advertised name"
+            android:imeOptions="actionNext"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true"
+            android:text="Rolex" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="6dp"
+            android:text="Key:"
+            android:textSize="15sp" />
+
+        <EditText
+            android:id="@+id/et_key"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="--psk value"
+            android:imeOptions="actionDone"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btn_connect"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Connect" />
+
+        <Button
+            android:id="@+id/btn_disconnect"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Disconnect" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_info"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minLines="2"
+        android:paddingBottom="2dp"
+        android:paddingTop="6dp"
+        android:text="Not connected"
+        android:textColor="#333333"
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/tv_batt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="6dp"
+        android:text=""
+        android:textColor="#1B7F3B"
+        android:textSize="14sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btn_files"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Files" />
+
+        <Button
+            android:id="@+id/btn_shell"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SH" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/btn_copy"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Copy" />
+
+        <Button
+            android:id="@+id/btn_clear"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Clear" />
+    </LinearLayout>
+
+    <ScrollView
+        android:id="@+id/sv_result"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#F2F2F2">
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="horizontal">
+
+            <TextView
+                android:id="@+id/tv_result"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="none"
+                android:fontFamily="monospace"
+                android:padding="8dp"
+                android:scrollHorizontally="true"
+                android:text=""
+                android:textColor="#000000"
+                android:textIsSelectable="true"
+                android:textSize="12sp" />
+        </HorizontalScrollView>
+    </ScrollView>
+
+    <!-- 命令面板：快捷命令 / 历史记录 双 Tab，点条目即发送；默认收起，点 ⌄命令 展开 -->
+    <LinearLayout
+        android:id="@+id/ll_cmdpad"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FAFAFA"
+        android:orientation="vertical"
+        android:paddingTop="4dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/tab_quick"
+                android:layout_width="0dp"
+                android:layout_height="26dp"
+                android:layout_weight="1"
+                android:background="#E8F0FE"
+                android:minHeight="0dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:text="Quick Commands"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/tab_hist"
+                android:layout_width="0dp"
+                android:layout_height="26dp"
+                android:layout_weight="1"
+                android:background="#FFFFFF"
+                android:minHeight="0dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:text="History"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <ListView
+            android:id="@+id/lv_cmdpad"
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:background="#FFFFFF"
+            android:cacheColorHint="#00000000" />
+    </LinearLayout>
+
+    <!-- Cmd 行：固定在最底部，输入法弹出时 Result 压缩而不被顶走 -->
+    <LinearLayout
+        android:id="@+id/ll_cmdrow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingTop="6dp">
+
+        <EditText
+            android:id="@+id/et_cmd"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="bash command"
+            android:imeOptions="actionGo"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true"
+            android:text="" />
+
+        <Button
+            android:id="@+id/btn_quick"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⌄Cmd" />
+
+        <Button
+            android:id="@+id/btn_run"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Run" />
+    </LinearLayout>
+
+</LinearLayout>
