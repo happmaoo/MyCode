@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MyBtCamC</string>
+    <string name="title_settings">设置</string>
+    <string name="action_settings">设置</string>
+    <string name="action_fullscreen">全屏</string>
+    <string name="enter_fullscreen">全屏</string>
+    <string name="exit_fullscreen">退出全屏</string>
+
+    <string name="btn_connect">连接</string>
+    <string name="status_idle">未连接</string>
+    <string name="btn_disconnect">断开</string>
+    <string name="btn_cancel">取消连接</string>
+
+    <string name="label_resolution">分辨率</string>
+    <string name="label_bitrate">码率</string>
+    <string name="res_640">640x480</string>
+    <string name="res_320">320x240</string>
+    <string name="auto_bitrate">链路拥塞时自动降码率（流畅优先）</string>
+
+    <string-array name="bitrate_entries">
+        <item>1 Mbps</item>
+        <item>500 Kbps</item>
+        <item>300 Kbps</item>
+        <item>200 Kbps</item>
+        <item>100 Kbps</item>
+    </string-array>
+
+    <string name="settings_connection">连接</string>
+    <string name="server_mac">服务端蓝牙地址</string>
+    <string name="server_mac_hint">AA:BB:CC:DD:EE:FF</string>
+    <string name="server_mac_desc">填写服务端已配对设备的蓝牙地址；也可以从已配对列表里挑。</string>
+    <string name="pick_device">从已配对设备选择</string>
+    <string name="auto_connect">打开 APP 自动连接</string>
+    <string name="auto_connect_desc">进入主界面后自动连上这个地址并开始接收画面</string>
+
+    <string name="settings_defaults">默认推流参数</string>
+    <string name="defaults_desc">连接成功后会把这个组合发给服务端；主界面也可以随时切换。</string>
+
+    <string name="save">保存</string>
+    <string name="auto_reconnect">断开后自动连接（最多 10 次）</string>
+    <string name="auto_reconnect_desc">链路断开或连接失败后自动重试；连续成功连接一次后次数清零，用户主动点断开时不重连。</string>
+</resources>

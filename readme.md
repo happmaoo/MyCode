@@ -35,6 +35,10 @@ https://github.com/happmaoo/MyCode/tree/main/MyBle
 ble速度有限
 https://github.com/happmaoo/MyCode/tree/main/MyBleCam
 
+## MyBtCam 蓝牙摄像头
+经典蓝牙协议，支持摄像头切换，开机自启动，分辨率，码率调整。
+https://github.com/happmaoo/MyCode/tree/main/MyBtCam
+
 ## MyFM 红米Note4x 的收音机APP
 红米Note4x和lineageOS自带的收音机不好用，自己写的代码，需要root，我的机子是 lineageOS 15.1 安卓8.1版本，可能其他高版本不能使用请自己测试。  
 https://github.com/happmaoo/MyCode/tree/main/MyFM/app/release

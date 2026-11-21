@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MyBtCamS</string>
+    <string name="title_settings">设置</string>
+    <string name="action_settings">设置</string>
+
+    <string name="state_title">服务状态</string>
+    <string name="state_hint">客户端通过经典蓝牙 SPP 连上后会直接开始推流，本界面可以一直留在后台。</string>
+    <string name="btn_start">启动监听</string>
+    <string name="btn_stop">停止监听</string>
+
+    <string name="settings_run">运行</string>
+    <string name="settings_camera">摄像头</string>
+    <string name="settings_frame">画面</string>
+    <string name="settings_system">系统</string>
+
+    <string name="auto_start">开机自动运行</string>
+    <string name="auto_start_desc">开机后在后台自动开始 SPP 监听（需要先手动打开过一次 APP）</string>
+    <string name="open_ui">客户端连接时显示本界面</string>
+    <string name="open_ui_desc">推流本身不依赖界面，关掉后完全可在后台静默运行</string>
+
+    <string name="camera_auto">自动（优先后置）</string>
+    <string name="camera_back">后置</string>
+    <string name="camera_front">前置</string>
+
+    <string name="rotation_auto">自动（跟随摄像头方向，推荐）</string>
+    <string name="rotation_0">0°（横屏正常）</string>
+    <string name="rotation_90">90°</string>
+    <string name="rotation_180">180°</string>
+    <string name="rotation_270">270°</string>
+    <string name="rotation_desc">默认「自动」：按摄像头传感器方向摆正画面，竖着拿手机时推流就是竖图，客户端会铺满屏幕。画面方向不对时再手动选角度。</string>
+
+    <string name="battery">忽略电池优化</string>
+    <string name="battery_desc">避免系统休眠时杀掉后台监听服务</string>
+    <string name="bluetooth_settings">打开系统蓝牙设置</string>
+
+    <string name="permission_camera_need">需要相机权限才能推流</string>
+</resources>

@@ -1,0 +1,23 @@
+// 根工程：MyBtCam（经典蓝牙 SPP 摄像头传视频）
+// 包含 common（协议库）、server（MyBtCamS）、client（MyBtCamC）
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.5.2'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+tasks.register('clean', Delete) {
+    delete rootProject.layout.buildDirectory
+}
