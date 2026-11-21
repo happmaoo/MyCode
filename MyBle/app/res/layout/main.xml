@@ -99,15 +99,33 @@
 
         <Button
             android:id="@+id/btn_files"
+            style="?android:attr/buttonBarButtonStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Files" />
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:textAllCaps="false"
+            android:text="up" />
+
+        <Button
+            android:id="@+id/btn_down"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:textAllCaps="false"
+            android:text="down" />
 
         <Button
             android:id="@+id/btn_shell"
+            style="?android:attr/buttonBarButtonStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="SH" />
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:textAllCaps="false"
+            android:text="sh" />
 
         <Space
             android:layout_width="0dp"
@@ -134,12 +152,16 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="#F2F2F2">
+        android:background="#F2F2F2"
+        android:focusable="false"
+        android:focusableInTouchMode="false">
 
         <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:scrollbars="horizontal">
+            android:scrollbars="horizontal"
+            android:focusable="false"
+            android:focusableInTouchMode="false">
 
             <TextView
                 android:id="@+id/tv_result"

@@ -23,16 +23,16 @@ OBJ="$B/obj-$STAMP"
 DEXDIR="$B/dex-$STAMP"
 mkdir -p "$OBJ" "$DEXDIR" "$B/gen"
 
-# ---- 版本号注入：manifest versionName=2.0.YYYYMMDDHHMM，versionCode=Unix秒；源码 __BUILD_DATE__ 占位符同上 ----
+# ---- 版本号注入：manifest versionName=2.2.YYYYMMDDHHMM，versionCode=Unix秒；源码 __BUILD_DATE__ 占位符同上 ----
 NOW=$(date '+%Y%m%d%H%M')
 VC=$(date '+%s')
-echo "[*] 版本: 2.0.$NOW (versionCode=$VC)"
-python3 - "$APP/AndroidManifest.xml" "$B/AndroidManifest.xml" "$VC" "2.0.$NOW" <<'PYEOF'
+echo "[*] 版本: 2.2.$NOW (versionCode=$VC)"
+python3 - "$APP/AndroidManifest.xml" "$B/AndroidManifest.xml" "$VC" "2.2.$NOW" <<'PYEOF'
 import sys
 src, dst, vc, vn = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 s = open(src, encoding='utf-8').read()
 s = s.replace('android:versionCode="1"', 'android:versionCode="%s"' % vc)
-s = s.replace('android:versionName="2.0.000000000000"', 'android:versionName="%s"' % vn)
+s = s.replace('android:versionName="2.2.000000000000"', 'android:versionName="%s"' % vn)
 open(dst, 'w', encoding='utf-8').write(s)
 PYEOF
 rm -rf "$B/src"; cp -r "$APP/src" "$B/src"
@@ -78,13 +78,14 @@ PYEOF
 "$BT/zipalign" -f 4 "$B/unsigned.apk" "$B/aligned.apk"
 
 echo "[6/6] 签名 -> /workspace/MyBleClient.apk"
-KS="$B/debug.jks"
+# 必须用覆盖安装用的旧 keystore（jks2 / alias d2），否则签名不匹配、无法无缝升级
+KS=/tmp/blebuild/debug.jks2
+KS_ALIAS=d2
 if [ ! -f "$KS" ]; then
-  "$JDK/keytool" -genkeypair -keystore "$KS" -storetype JKS -alias androiddebugkey \
-    -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
-    -dname "CN=Android Debug,O=Android,C=US" 2>/dev/null
+  echo "!! 缺少覆盖安装 keystore: $KS（找不到就无法无缝覆盖已装版本）"; exit 1
 fi
-"$BT/apksigner" sign --ks "$KS" --ks-pass pass:android --key-pass pass:android \
+"$BT/apksigner" sign --ks "$KS" --ks-key-alias "$KS_ALIAS" \
+  --ks-pass pass:android --key-pass pass:android \
   --out /workspace/MyBleClient.apk "$B/aligned.apk"
-"$BT/apksigner" verify --print-certs /workspace/MyBleClient.apk | head -2
+"$BT/apksigner" verify --print-certs /workspace/MyBleClient.apk | grep -i "SHA-256" | head -1
 ls -lh /workspace/MyBleClient.apk

@@ -107,6 +107,44 @@
             android:inputType="textMultiLine|textNoSuggestions"
             android:minLines="3" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Command to run automatically once the link is ready (empty = none). Runs after auth succeeds; output shows in the terminal."
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_onconnect"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="e.g. uptime"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="External editor for vi (package / activity class). Leave blank to use system picker."
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_editor_pkg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="e.g. com.example.editor"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true" />
+
+        <EditText
+            android:id="@+id/s_editor_cls"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="e.g. com.example.editor.EditorActivity"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true" />
+
         <CheckBox
             android:id="@+id/s_wake"
             android:layout_width="match_parent"
@@ -127,6 +165,14 @@
             android:layout_height="wrap_content"
             android:paddingTop="8dp"
             android:text="Debug log to Download/mybleclient.log (all BLE events; for troubleshooting)" />
+
+        <CheckBox
+            android:id="@+id/s_pipeline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Fast upload pipeline (send several data chunks per connection event; much faster. Turn off to fall back to one-at-a-time if uploads are unstable)" />
+
 
         <TextView
             android:layout_width="match_parent"

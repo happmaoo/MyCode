@@ -35,7 +35,9 @@ while [ $i -lt 20 ]; do                    # 最多等 2 秒让旧进程真正�
     i=$((i+1))
 done
 
-
+# 唤醒启动不卡进程
+/data/data/com.termux/files/usr/bin/termux-wake-lock && sleep 10 && /data/data/com.termux/files/usr/bin/termux-wake-unlock &
+#input keyevent KEYCODE_WAKEUP
 
 PSK="pwd"
 ADV_FORCE_HOURS=${ADV_FORCE_HOURS:-5}   # 广播保活强制重开周期，单位小时，支持小数；0=关闭

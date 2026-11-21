@@ -48,9 +48,26 @@ public class P {
     /** 连接期间持有 CPU 唤醒锁（防熄屏后 ATT 停摆），耗电换稳定，默认关 */
     static boolean keepWake(Context c) { return sp(c).getBoolean("keep_wake", false); }
 
+    /** 上传流水线：允许多个 WRITE_NO_RESPONSE 数据片同时在途（把一个连接事件的空位用起来，明显提速）。
+     *  个别蓝牙栈对连发敏感，若上传不稳可关掉回退到严格单飞。默认开。 */
+    static boolean uploadPipeline(Context c) { return sp(c).getBoolean("upload_pipeline", true); }
+    static void saveUploadPipeline(Context c, boolean on) {
+        sp(c).edit().putBoolean("upload_pipeline", on).apply();
+    }
+
     /** 调试日志落盘：把 BleService 全部日志写到 Download/mybleclient.log，默认关 */
     static boolean debug(Context c) { return sp(c).getBoolean("debug_log", false); }
     static void saveDebug(Context c, boolean on) { sp(c).edit().putBoolean("debug_log", on).apply(); }
+
+    // ------------------------------------------------------------- 外部编辑器（vi 编辑回写）
+
+    /** 外部编辑器组件：包名 + Activity 类名，空则回落到系统 ACTION_EDIT 选择框 */
+    static String editorPkg(Context c) { return sp(c).getString("editor_pkg", ""); }
+    static String editorCls(Context c) { return sp(c).getString("editor_cls", ""); }
+    static void saveEditor(Context c, String pkg, String cls) {
+        sp(c).edit().putString("editor_pkg", pkg == null ? "" : pkg.trim())
+                .putString("editor_cls", cls == null ? "" : cls.trim()).apply();
+    }
 
     // ------------------------------------------------------------- 快捷命令
 
@@ -70,6 +87,17 @@ public class P {
 
     static void saveQuickCmds(Context c, String raw) {
         sp(c).edit().putString("quick_cmds", raw == null ? "" : raw).apply();
+    }
+
+    // ------------------------------------------------------------- 连接后自动执行
+
+    /** 连接完成后自动执行的一条命令（空 = 不执行） */
+    static String onConnectCmd(Context c) {
+        return sp(c).getString("on_connect_cmd", "");
+    }
+
+    static void saveOnConnectCmd(Context c, String cmd) {
+        sp(c).edit().putString("on_connect_cmd", cmd == null ? "" : cmd.trim()).apply();
     }
 
     // ------------------------------------------------------------- 发送历史

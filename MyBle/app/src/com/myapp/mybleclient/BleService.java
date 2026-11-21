@@ -48,6 +48,7 @@ import java.io.InputStream;
 import java.security.MessageDigest;
 import android.net.Uri;
 import android.os.Environment;
+import android.util.Base64;
 
 /**
  * 前台服务 = 唯一的 BLE 连接引擎。
@@ -87,10 +88,16 @@ public class BleService extends Service {
         void onToast(String s);
         /** v3 上传进度：0~100（在状态行展示，不上弹窗） */
         void onProgress(String line);   // 上传进度行（状态行展示，不上弹窗）
-        /** 上传开始/结束：用于把 Files 按钮切换成 Cancel（结束记得复位成 Files） */
+        /** 上传开始/结束：用于把 up 按钮切换成 cancel（结束记得复位成 up） */
         void onUploadState(boolean uploading);
+        /** 下载开始/结束：用于把 down 按钮切换成 cancel（结束记得复位成 down） */
+        void onDownloadState(boolean downloading);
         /** v3 目录列表回传：每行形如 "d 0 <name>" / "f <size> <name>" */
         void onFileList(java.util.ArrayList<String> items);
+        /** vi 编辑：服务端按需下载文件到本地后的回调（path=本地绝对路径, remote=服务端绝对路径, mode=八进制权限, sha=原始校验） */
+        void onEditFileReady(String path, String remote, String mode, String sha);
+        /** 编辑回写完成回调 */
+        void onEditUploaded(boolean ok, String msg);
     }
 
     public class LocalBinder extends Binder {
@@ -125,10 +132,16 @@ public class BleService extends Service {
     long upSent = 0, upTotal = 0;      // 上传进度：已提交字节 / 总字节
     String upName = "";                // 当前上传文件名
     long upStartMs = 0;                // 上传开始时刻（用于计时）
+    // ---- 下载进度（与上传对称，共用状态行 onProgress）----
+    boolean downBusy = false;          // 是否有文件正在下载（用于 T 帧接收时判定进度归属）
+    String downName = "";              // 当前下载文件名（FILD 头解析出后回填）
+    long downTotal = 0;                // 下载文件总字节（FILD 头里的 size）
+    long downStartMs = 0;              // 下载开始时刻（计时用）
     final java.util.ArrayList<Uri> upQueue = new java.util.ArrayList<Uri>();  // 待上传队列（多选）
     final java.util.ArrayList<Uri> pendingShare = new java.util.ArrayList<Uri>();  // 系统分享进来、尚未就绪时暂存，连上后自动上传
     boolean upBusy = false;            // 当前是否有文件正在传
     boolean upCancel = false;          // 上传是否已被用户取消（用于丢弃剩余待发分片）
+    boolean highPrioLocked = false;    // 传输期 HIGH 优先级锁：上传/下载期间屏蔽其它 LOW_POWER/BALANCED 切换，让 HIGH 独占
     int upTotalFiles = 0;              // 本轮总文件数（用于进度里显示 n/total）
     final java.util.ArrayList<String> deferredCmds = new java.util.ArrayList<String>();  // 上传期间被暂停、待全部上传完成后提交的命令
     /** 结果累积用字节缓冲：多字节 UTF-8 字符（如汉字 3 字节）可跨帧，末片到齐后一次性解码 */
@@ -152,11 +165,20 @@ public class BleService extends Service {
     }
     int rvTotal = 0;           // 本传输总片数
     int rvNext = 0;            // 期望的下一个 seq（已连续收到 0..rvNext-1）
-    int rvNacks = 0;           // 本传输已发重传请求次数（上限 10，防止无限循环）
+    int rvNacks = 0;           // 本传输已发重传请求次数（上限 5，防止无限循环）
     byte[] rvDigest = null;    // 期望的 SHA-256（total>1 时服务端会发校验帧）
     boolean rvDigestGot = false;
+    // 乱序重排：晚到的高 seq 先缓存，只请求真正缺的那个序号；避免"收到 11 却期望 0 → 从头 NACK"的重传活锁
+    final java.util.TreeMap<Integer, byte[]> rvPend = new java.util.TreeMap<Integer, byte[]>();
+    int rvNackGuardSeq = -1;   // 最近一次断点 NACK 的 fromSeq（去重节流）
+    long rvNackGuardAt = 0;    // 最近一次断点 NACK 的时刻
+    int rvTimeouts = 0;        // 连续超时次数（超时改为断点续传，超过阈值才放弃）
     boolean streaming = false;  // 命令输出流进行中（回声已打头，正文连续追加，不再每片加头/脚注）
     int streamChars = 0;       // 本次命令已接收的字符数（仅用于结束时的汇总行）
+    String serverCwd = "";     // 持久 shell 每次命令后回报的当前目录（供 vi 解析相对路径）
+    // vi 编辑回写：当前待回写的目标信息（PUTE 头用），null 表示不是编辑回写
+    String editRemotePath = null;   // 服务端绝对路径
+    String editMode = "644";        // 原权限八进制
 
     int step = 0;              // 0 未开始 1 读电量 2 订阅电量 3 订阅RES 4 鉴权 9 就绪
     int lastBattery = -1;
@@ -180,10 +202,12 @@ public class BleService extends Service {
     int probeRounds = 0;           // 已发探活轮次（达 3 即停止，避免无限探测）
     boolean probePending = false;  // 本轮 wake 命令已发出、等待服务端回包 wakeup-ok
     boolean resSubscribed = false;   // RES 的 CCCD 是否订阅成功（没订阅就别发命令）
+    boolean autoCmdDone = false;     // 本次连接是否已执行过"连接后自动命令"
     PowerManager.WakeLock wake;      // 可选：熄屏保活（设置 keep_wake 开启才持有）
     String want = "";
     boolean connectingByMac = false;     // 本轮是否按记住的 MAC 直连（失败时回退按 MAC 扫描匹配）
     String scanMatchMac = null;          // 非空=本轮扫描按 MAC 匹配（不依赖名称）；空=按名称匹配
+    String fallbackMac = null;          // 本轮记住的 MAC：仅当按名称扫不到时才启用（兜底，不优先）
     String notifTitle = "MyBleClient";   // 通知标题：未连接用默认值，连上后改为服务器名
     Set<String> seenDev = new HashSet<String>();   // 扫描期已记录过的设备地址（去重，避免日志刷屏）
     List<String> scanDevLines = new ArrayList<String>();  // 扫描期发现设备的日志行（保序，连上时重新汇入）
@@ -222,6 +246,14 @@ public class BleService extends Service {
                 return;
             }
             info("No match: " + want + "(confirm the server is running and the advertised name matches)");
+            // 名称没扫到：有记住的 MAC 就退回按 MAC 直连（兜底，仅此一次）
+            if (fallbackMac != null) {
+                String fb = fallbackMac;
+                fallbackMac = null;
+                info("Name '" + want + "' not found in 12s; fall back to saved MAC " + fb);
+                connectByMac(fb);
+                return;
+            }
             setBtn("Connect", true);
         }
     };
@@ -248,18 +280,39 @@ public class BleService extends Service {
 
     /** 半片兜底：4 秒没等到后续片。
      *  数据片全到但校验帧未到 → 只请求补发校验帧（fromSeq==total）；
-     *  其他情况 → 显示半包并中止本次传输（迟到的重传片会触发从断点继续）。 */
+     *  数据片没到齐 → 保留已收前缀，请求从断点续传（绝不 abortRx 清零，否则迟到片被当新传输从头再来）；
+     *  连续 3 次仍不完整才放弃，并标记该 tid 的迟到残帧一律吞掉。 */
     final Runnable chunkTimeout = new Runnable() {
         @Override public void run() {
-            if (rvTid >= 0 && rvTotal > 1 && rvNext >= rvTotal && !rvDigestGot) {
+            if (rvTid < 0) return;
+            if (rvTotal > 1 && rvNext >= rvTotal && !rvDigestGot) {
+                rvTimeouts = 0;
                 sendNack(rvTid, rvTotal, "digest frame missing");
                 return;
             }
-            if (rx.size() == 0) return;
-            String half = new String(rx.toByteArray(), UTF8);
-            abortRx();
-            appendResult(half + "\n! Fragment incomplete (no follow-up within 4s; partial output shown)");
-            info(linkUp ? readyText() + " (previous result incomplete)" : "Disconnected");
+            int timeoutLimit = (rvTotal > 50) ? 15 : 3;   // 大文件：允许更多次连续无进展超时，别轻易放弃
+            if (rvNext < rvTotal && rvTimeouts < timeoutLimit) {
+                rvTimeouts++;
+                sendNack(rvTid, rvNext, "timeout, resume from seq " + rvNext);
+                th.postDelayed(chunkTimeout, 4000);
+                return;
+            }
+            int done = rvTid;
+            int doneNext = rvNext, doneTotal = rvTotal;
+            boolean wasDownload = downBusy;
+            abortRx(done);
+            if (wasDownload) {
+                // 文件下载超时放弃：绝不 dump 二进制（满屏乱码），给友好提示
+                toast("下载失败：传输超时，请重试或调大收发节奏");
+                logEvent("下载放弃: 连续超时 rvNext=" + doneNext + "/" + doneTotal + " tid=" + done);
+                notifyDownloadState(false);
+                unlockPriority();
+            } else {
+                String half = rx.size() > 0 ? new String(rx.toByteArray(), UTF8) : "";
+                if (!half.isEmpty())
+                    appendResult(half + "\n! Fragment incomplete (no follow-up; partial output shown)");
+            }
+            info(linkUp ? readyText() + "(previous result incomplete)" : "Disconnected");
         }
     };
 
@@ -484,6 +537,22 @@ public class BleService extends Service {
         });
     }
 
+    /**
+     * 连接就绪后自动执行设置里配置的那条命令。
+     * 触发时机：链路就绪（step=9 且 RES 已订阅）且鉴权已完成；有 PSK 时必须等 auth:ok 之后，
+     * 否则服务端会以"未认证"拒掉。每次连接只执行一次。
+     */
+    void maybeRunOnConnectCmd() {
+        if (autoCmdDone) return;
+        String c = P.onConnectCmd(this);
+        if (c == null || c.trim().length() == 0) { autoCmdDone = true; return; }
+        if (step < 9 || !resSubscribed) return;   // 还没就绪
+        if (authAwaiting) return;                 // 还在等服务端 nonce / 认证
+        autoCmdDone = true;
+        logEvent("On-connect command: " + c.trim());
+        run(c.trim());                            // run() 内部会再校验一遍门槛并刷新界面
+    }
+
     /** 发命令；就绪门槛在引擎里统一把关，拒绝原因通过 toast 回给界面 */
     public void run(final String cmd) {
         th.post(new Runnable() {
@@ -585,18 +654,28 @@ public class BleService extends Service {
     // ---------------------------------------------------------------- 扫描连接
 
     void beginConnect(String name) {
-        if (name == null || name.trim().length() == 0) { toast("Please enter the advertised name"); return; }
-        want = name.trim();
-        if (adapter == null || !adapter.isEnabled()) { info("Bluetooth is off; please turn it on first"); setBtn("Connect", true); return; }
-        // 优先按已记住的 MAC 直连，跳过扫描（更快、更稳）；无记录则按名称扫描
+        String nm = (name == null) ? "" : name.trim();
+        // 已记住的 MAC：本轮只当兜底用（名称扫不到/扫超时才用），不再优先直连
         String mac = P.savedMac(this);
-        if (mac != null && mac.length() > 0) {
-            connectByMac(mac);
-        } else {
-            connectingByMac = false;
-            scanMatchMac = null;
-            startScan();
+        if (mac == null || mac.length() == 0) mac = null;
+
+        if (nm.length() == 0) {
+            // 没填名称但有 MAC 记录：退回按 MAC 直连（保留原有能力）
+            if (mac != null) { want = mac; connectByMac(mac); return; }
+            toast("Please enter the advertised name");
+            return;
         }
+        want = nm;
+        if (adapter == null || !adapter.isEnabled()) { info("Bluetooth is off; please turn it on first"); setBtn("Connect", true); return; }
+
+        // —— 优先按广播名称扫描：名称不随服务端地址变化，换了地址也能连上 ——
+        fallbackMac = mac;
+        connectingByMac = false;
+        scanMatchMac = null;
+        if (fallbackMac != null) {
+            logEvent("Scan by name '" + want + "' first; saved MAC " + fallbackMac + " kept as fallback");
+        }
+        startScan();
     }
 
     /** 按记住的 MAC 直连：不经扫描，直接向该地址发起 GATT 连接 */
@@ -649,7 +728,8 @@ public class BleService extends Service {
         if (scanMatchMac != null) {
             info("Scanning, matching MAC " + scanMatchMac + " (skip name) …");
         } else {
-            info("Scanning for all devices (looking for '" + want + "') …");
+            info("Scanning for all devices (looking for name '" + want + "')"
+                    + (fallbackMac != null ? ", MAC " + fallbackMac + " as fallback" : "") + " …");
         }
         scanning = true;
         try {
@@ -690,9 +770,16 @@ public class BleService extends Service {
                         scanDevLines.add(line);
                         logEvent(line);
                     }
-                    // —— 命中目标才自动连接：有 MAC 记录时按 MAC 匹配（不看名称），否则按名称 ——
+                    // —— 命中目标才自动连接：有 MAC 记录时先按 MAC 匹配，名称命中则视为地址已变 ——
                     if (scanMatchMac != null) {
-                        if (!addr.equalsIgnoreCase(scanMatchMac)) return;
+                        if (!addr.equalsIgnoreCase(scanMatchMac)) {
+                            // 服务端换了地址：旧 MAC 扫不到，但名称命中目标 → 接受新地址，立即连接
+                            if (name == null || !name.equalsIgnoreCase(want)) return;
+                            String old = scanMatchMac;
+                            P.clearMac(BleService.this);
+                            scanMatchMac = null;
+                            logEvent("服务端地址已变更 " + old + " → " + addr + "（名称命中 " + want + "），按新地址连接");
+                        }
                     } else if (name == null || !name.equalsIgnoreCase(want)) {
                         return;
                     }
@@ -817,6 +904,10 @@ public class BleService extends Service {
         waitingResult = false;
         resSubscribed = false;
         serverVer = "";
+        serverCwd = "";
+        editRemotePath = null;
+        highPrioLocked = false;   // 断链复位：清除可能残留的 HIGH 锁
+        autoCmdDone = false;      // 下次连接可以再执行一次"连接后自动命令"
     }
 
     /** 链路存活只问协议栈，不信业务 flag，也不受迟到事件摆布 */
@@ -904,6 +995,26 @@ public class BleService extends Service {
                 }
             });
         }
+
+        // API 26+：链路层实际协商出的连接参数。interval 单位 1.25ms，timeout 单位 10ms。
+        // 这是判断 requestConnectionPriority(HIGH) 是否真正生效的唯一可靠依据
+        // （dumpsys 看到的只是“请求档位”，不是链路层真实间隔）。低版本无此回调，静默跳过。
+        // 注意：编译用的裁剪 android.jar 无此方法的声明，故不加 @Override；
+        // 但签名与 framework 一致，API 26+ 设备上仍会被正常回调（Java 虚方法按签名派发）。
+        // 低版本设备上 framework 无此方法，就是一个永不被调用的普通方法，无害。
+        public void onConnectionUpdated(final BluetoothGatt g, final int interval,
+                                                  final int latency, final int timeout, final int status) {
+            th.post(new Runnable() {
+                @Override public void run() {
+                    if (g != gatt) return;
+                    double intervalMs = interval * 1.25;
+                    int timeoutMs = timeout * 10;
+                    dbgOnly("ConnParams: interval=" + intervalMs + "ms latency=" + latency
+                            + " timeout=" + timeoutMs + "ms status=" + status
+                            + " (请求=" + (highPrioLocked ? "HIGH/传输" : "省电/空闲") + ")");
+                }
+            });
+        }
     };
 
     void onConnState(BluetoothGatt g, int status, int newState) {
@@ -919,6 +1030,7 @@ public class BleService extends Service {
                 logEvent("Remembered server MAC " + addr + " for direct connect");
             }
             connectingByMac = false;   // 连上即完成本轮直连使命
+            fallbackMac = null;        // 名称已命中，兜底 MAC 不再需要
             notifTitle = want;   // 通知标题改为已连接的服务器名
             goForeground("Connected " + want + ", initializing…");
             acquireWake();
@@ -1112,18 +1224,35 @@ public class BleService extends Service {
             logEvent("Ready(" + readyText() + "): " + (cBatt != null ? "Battery Level readable/subscribable; " : "no battery service; ")
                     + (cCmd != null ? "commandchannel available" : "no command channel"));
             flushPendingShare();   // 系统分享进来的文件：链路就绪后自动开始上传
+            maybeRunOnConnectCmd(); // 设置里的"连接后自动命令"
         }
     }
 
     /**
-     * 连接参数省电：就绪/空闲时请求 LOW_POWER（连接间隔拉长到 ~150-225ms，射频少醒），
-     * 发命令前临时升 BALANCED（~40ms）保住交互延迟，结果收完再降回去。
+     * 连接参数：就绪/空闲请求 LOW_POWER 省电，交互用 BALANCED，传输用 HIGH。
      * 服务端是外设端，无法自己请求连接参数，只能靠客户端这头提。
+     *
+     * 关键：传输期（highPrioLocked=true）只允许 HIGH，屏蔽一切 LOW_POWER/BALANCED 请求——
+     * 否则上传途中任何命令回执（#rc=、auth:ok、!错误帧等）都会把 HIGH 切回 LOW_POWER，
+     * 连接间隔被拉到 150ms+，这是“nRF Connect 能提速、我们 App 不行”的根因之一。
      */
     void setConnPriority(int mode) {
+        if (highPrioLocked && mode != BluetoothGatt.CONNECTION_PRIORITY_HIGH) return;  // 传输期锁 HIGH
         try {
             if (gatt != null) gatt.requestConnectionPriority(mode);
         } catch (Throwable ignored) { }
+    }
+
+    /** 传输开始：锁住 HIGH，之后其它档位的请求一律被 setConnPriority 屏蔽 */
+    void lockHighPriority() {
+        highPrioLocked = true;
+        setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH);
+    }
+
+    /** 传输结束：解锁并降回 LOW_POWER 省电档 */
+    void unlockPriority() {
+        highPrioLocked = false;
+        setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER);
     }
 
     // ------------------------------------------------------------ 熄屏保活（可选）
@@ -1219,30 +1348,59 @@ public class BleService extends Service {
             if (v.length < 9) return;
             int crc = ((v[v.length - 2] & 0xFF) << 8) | (v[v.length - 1] & 0xFF);
             int tid = ((v[1] & 0xFF) << 8) | (v[2] & 0xFF);
+            int seq = ((v[3] & 0xFF) << 8) | (v[4] & 0xFF);
+            if (tid == rvDoneTid) return;                     // 已放弃传输的迟到残帧：吞掉，防止被误当新传输从头再来
             if (crc16(v, 0, v.length - 2) != crc) {          // 单帧 CRC 失败：按缺片请求该帧
-                if (tid == rvTid) {
-                    int seq = ((v[3] & 0xFF) << 8) | (v[4] & 0xFF);
-                    sendNack(tid, seq, "CRC16 check failed");
-                }
+                if (tid == rvTid) requestMissing(tid, seq, "CRC16 check failed");
                 return;
             }
-            int seq = ((v[3] & 0xFF) << 8) | (v[4] & 0xFF);
             int total = ((v[5] & 0xFF) << 8) | (v[6] & 0xFF);
             if (tid != rvTid) {                              // 新传输：重置接收状态
-                rx.reset();
+                rx.reset(); rvPend.clear(); rvTimeouts = 0;
                 rvTid = tid; rvTotal = total; rvNext = 0; rvNacks = 0;
                 rvDigest = null; rvDigestGot = false;
+                rvNackGuardSeq = -1; rvNackGuardAt = 0;
             }
-            if (seq < rvNext) return;                        // 重传窗口里的重复片，忽略
-            if (seq > rvNext) {                              // 序号断档：缺号立即请求断点重传
-                sendNack(tid, rvNext, "missing seq " + rvNext + "(received " + seq + ")");
-                return;
+            if (seq < rvNext) return;                        // 重复片（重传窗口内已收过），忽略
+            if (seq == rvNext) {
+                // 顺序片：写入后把缓冲区里已到齐的后续连续片一并冲刷进 rx
+                try {
+                    rx.write(v, 7, v.length - 9);
+                    rvNext++;
+                    while (rvPend.containsKey(rvNext)) {
+                        byte[] b = rvPend.remove(rvNext);
+                        rx.write(b, 0, b.length);
+                        rvNext++;
+                    }
+                    rvTimeouts = 0;   // 有进展：清零连续超时计数（大文件传输偶尔慢一拍不该被误判为连续超时）
+                } catch (Throwable ignored) { }
+            } else {
+                // 乱序片：缓存，不丢弃；只请求真正缺的 rvNext（带节流，杜绝每来一帧都从头 NACK）
+                if (!rvPend.containsKey(seq)) {
+                    byte[] b = new byte[v.length - 9];
+                    System.arraycopy(v, 7, b, 0, b.length);
+                    rvPend.put(seq, b);
+                }
+                requestMissing(tid, rvNext, "missing seq " + rvNext + "(received " + seq + ")");
             }
-            try { rx.write(v, 7, v.length - 9); } catch (Throwable ignored) { }
-            rvNext++;
-            if (rvTotal > 1) th.postDelayed(chunkTimeout, 4000);
-            info("Receiving... chunk " + rvNext + "/" + rvTotal + ", got " + rx.size() + " bytes");
-            if (rvTotal == 1) completeRx();                  // 单片传输：CRC 已保证完整
+            if (rvTotal > 1) {
+                // 收到任意一片就重置超时：chunkTimeout 表示"连续 4 秒无任何新片"，
+                // 而非旧逻辑那样每片排一个定时器、导致数据正常流动时每 4 秒仍误报一次 timeout NACK。
+                th.removeCallbacks(chunkTimeout);
+                th.postDelayed(chunkTimeout, 4000);
+            }
+            if (downBusy) {
+                // 下载中：进度走状态行（与上传同款格式），不刷日志区
+                int dpct = rvTotal > 0 ? (int) ((long) rvNext * 100 / rvTotal) : 0;
+                if (dpct > 100) dpct = 100;
+                Ui du = uiCb;
+                if (du != null) { try { du.onProgress(downStatus(false, dpct, rx.size())); } catch (Throwable ignored) { } }
+            } else {
+                info("receiving... chunk " + rvNext + "/" + rvTotal + ", got " + rx.size()
+                        + " bytes, buffered=" + rvPend.size());
+            }
+            if (rvNext >= rvTotal && rvDigestGot) verifyDigest();   // 校验帧先到、数据后齐：此刻才比对
+            else if (rvTotal == 1) completeRx();                     // 单片传输：CRC 已保证完整
             return;
         }
         if (mark == 'D') {
@@ -1250,16 +1408,18 @@ public class BleService extends Service {
             int crc = ((v[v.length - 2] & 0xFF) << 8) | (v[v.length - 1] & 0xFF);
             if (crc16(v, 0, v.length - 2) != crc) return;    // 坏校验帧：等 chunkTimeout 补请求
             int tid = ((v[1] & 0xFF) << 8) | (v[2] & 0xFF);
-            if (tid == rvTid && rvNext >= rvTotal && !rvDigestGot && rvTotal > 1) {
+            if (tid == rvDoneTid) return;                     // 已放弃传输的迟到校验帧：吞掉
+            if (tid == rvTid && !rvDigestGot && rvTotal > 1) {
                 rvDigest = new byte[32];
                 System.arraycopy(v, 3, rvDigest, 0, 32);
                 rvDigestGot = true;
-                verifyDigest();
+                if (rvNext >= rvTotal) verifyDigest();       // 数据已齐才比对；否则等最后一片到齐再校验
             }
             return;
         }
         if (mark == '!') {
-            abortRx();
+            int done = rvTid;
+            abortRx(done);
             appendResult("✗ " + new String(v, 1, v.length - 1, UTF8));
         }
         // 其他帧型不认识：忽略
@@ -1306,8 +1466,8 @@ public class BleService extends Service {
             if (java.util.Arrays.equals(actual, rvDigest)) { completeRx(); return; }
         } catch (Throwable ignored) { }
         logEvent("SHA-256 mismatch: discarding " + rx.size() + " bytes, requesting full retransmit");
-        rx.reset();
-        rvNext = 0;
+        rx.reset(); rvPend.clear();
+        rvNext = 0; rvTimeouts = 0; rvNackGuardSeq = -1;
         rvDigestGot = false;
         rvDigest = null;
         sendNack(rvTid, 0, "SHA-256 mismatch, full retransmit");
@@ -1317,11 +1477,13 @@ public class BleService extends Service {
     void completeRx() {
         th.removeCallbacks(chunkTimeout);
         byte[] data = rx.toByteArray();
-        abortRx();
-        // v3 文件传输：FILD: 头=下载数据，FLST: 头=目录列表，走专用处理（字节安全，不经 UTF-8 解码）
+        abortRx(rvTid);   // 标记完成 tid：其迟到残帧一律吞掉，不被当成新传输重复输出
+        // v3 文件传输：FILD: 头=下载数据，FLST: 头=目录列表，FILM: 头=vi 编辑用的带元数据下载
+        // 走专用处理（字节安全，不经 UTF-8 解码）
         if (data.length >= 5 && data[0] == 'F' && data[1] == 'I' && data[2] == 'L') {
             if (data.length > 5 && data[3] == 'D' && data[4] == ':') { handleFileDownload(data); return; }
             if (data.length > 6 && data[3] == 'S' && data[4] == 'T' && data[5] == ':') { handleFileList(data); return; }
+            if (data.length > 5 && data[3] == 'M' && data[4] == ':') { handleEditDownload(data); return; }
         }
         String whole = new String(data, UTF8);
         String wholeTrim = whole.trim();
@@ -1352,14 +1514,25 @@ public class BleService extends Service {
             return;
         }
         if (wholeTrim.startsWith("FILEDONE:")) {   // v3 上传完成回执：name:sha:size
-            setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER);
+            // 不在单文件完成时降档：多文件队列还要继续传。解锁统一由 pumpUpload() 在队列空时处理。
             String body = wholeTrim.substring("FILEDONE:".length()).trim();
             String[] p = body.split(":");
             String name = p.length > 0 ? p[0] : "?";
             String size = p.length > 2 ? p[2] : "?";
             upName = name;
+            // 编辑回写（PUTE）完成：与普通上传分开通知，避免误报 Uploaded: 与误触发队列
+            if (editRemotePath != null) {
+                String rp = editRemotePath;
+                editRemotePath = null;
+                unlockPriority();
+                logEvent("编辑已回写: " + rp + " (" + size + " 字节)");
+                Ui eu = uiCb;
+                if (eu != null) { try { eu.onEditUploaded(true, "已回写 " + rp); } catch (Throwable ignored) { } }
+                return;
+            }
             Ui u = uiCb;
-            if (u != null) { try { u.onProgress(upStatus(true, 100)); } catch (Throwable ignored) { } }  // 完成行：Uploaded: ...，不弹 toast
+            if (u != null) { try { u.onProgress(upStatus(true, 100)); } catch (Throwable ignored) { } }  // 完成行：Uploaded: ...
+            toast("上传完成: " + name + " (" + size + " 字节)");   // 每个文件传完弹一条，多文件队列会逐条提示
             logEvent("上传完成: " + name + " (" + size + " 字节)");
             upBusy = false;                                  // 本文件传完，启动队列里的下一个
             th.post(new Runnable() { public void run() { pumpUpload(); } });
@@ -1368,9 +1541,10 @@ public class BleService extends Service {
         if (wholeTrim.startsWith("FILEABORT:")) {   // v3 上传中止回执：服务端已关闭流并删除部分文件
             String nm = wholeTrim.substring("FILEABORT:".length()).trim();
             upCancel = false; upBusy = false; upQueue.clear();
+            unlockPriority();   // 传输彻底中止：解锁并降回省电档
             Ui u = uiCb;
             if (u != null) {
-                try { u.onProgress((nm.isEmpty() ? "Upload" : "Upload " + nm) + " cancelled."); u.onUploadState(false); }
+                try { u.onProgress((nm.isEmpty() ? "upload" : "upload " + nm) + " cancelled."); u.onUploadState(false); }
                 catch (Throwable ignored) { }
             }
             logEvent("上传已取消（服务端确认）: " + (nm.isEmpty() ? "(进行中文件)" : nm));
@@ -1380,16 +1554,24 @@ public class BleService extends Service {
             finishStream();                        // 先收尾当前输出流（若正在流式显示）
             appendResult("✗ " + whole.trim().substring(1));
             logEvent("Server: " + whole.trim());
-            setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER);
+            // fs edget/fs get 等传输请求若返回文本错误（如 !fs: not a file），
+            // 之前为保证速度锁了 HIGH，这里没有 FILD 回包来解锁，需主动释放，避免永久卡在 HIGH
+            if (highPrioLocked && !upBusy && upQueue.isEmpty() && editRemotePath == null) unlockPriority();
+            else setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER);
             if (linkUp) info(readyText());
             return;
         }
-        if ("auth:ok".equals(wholeTrim)) { rememberKey(); authAwaiting = false; th.removeCallbacks(authWatchdog); setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER); if (linkUp) info(readyText()); return; }
+        if ("auth:ok".equals(wholeTrim)) { rememberKey(); authAwaiting = false; th.removeCallbacks(authWatchdog); setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER); if (linkUp) info(readyText()); maybeRunOnConnectCmd(); return; }
+        if (wholeTrim.startsWith("#cwd=")) {        // 持久 shell 回报当前目录：静默更新，不进终端
+            serverCwd = wholeTrim.substring(5).trim();
+            dbgOnly("server cwd = " + serverCwd);   // 仅调试日志，不进界面
+            return;
+        }
         if (wholeTrim.startsWith("#rc=")) {        // 命令正常结束帧：打印一条汇总，替代原先每片一条的「接收完成」脚注
             finishStream();
             int code = -1;
             try { code = Integer.parseInt(wholeTrim.substring(4).trim()); } catch (Throwable ignored) { }
-            addLog("· " + ts.format(new Date()) + " Command finished (exit code " + code + "), received " + streamChars + " chars (CRC/SHA verified)\n");
+            dbgOnly("Command finished (exit code " + code + "), received " + streamChars + " chars (CRC/SHA verified)");   // 仅调试日志，不进界面
             setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER); // 回到省电档
             if (linkUp) info(readyText());
             return;
@@ -1407,13 +1589,14 @@ public class BleService extends Service {
         try {
             int nl = -1;
             for (int i = 5; i < data.length; i++) { if (data[i] == '\n') { nl = i; break; } }
-            if (nl < 0) { logEvent("下载失败：FILD 头无换行"); return; }
+            if (nl < 0) { logEvent("下载失败：FILD 头无换行"); downBusy = false; notifyDownloadState(false); unlockPriority(); return; }
             String hdr = new String(data, 0, nl, UTF8);
             String[] h = hdr.split(":");                // FILD name size sha
-            if (h.length < 4) { logEvent("下载失败：FILD 头格式错"); return; }
+            if (h.length < 4) { logEvent("下载失败：FILD 头格式错"); downBusy = false; notifyDownloadState(false); unlockPriority(); return; }
             String name = h[1];
             long size = Long.parseLong(h[2].trim());
             String sha = h[3].trim();
+            downName = name; downTotal = size;   // 用 FILD 头里的真实文件名/大小回填进度状态
             byte[] fileBytes = java.util.Arrays.copyOfRange(data, nl + 1, data.length);
             java.io.File dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
             if (dir == null) dir = getFilesDir();
@@ -1421,21 +1604,118 @@ public class BleService extends Service {
             java.io.FileOutputStream fos = new java.io.FileOutputStream(out);
             fos.write(fileBytes);
             fos.close();
-            setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER);
+            unlockPriority();   // 下载完成：解锁并降回省电档
+            downBusy = false;
+            notifyDownloadState(false);   // down 按钮 → down
             String got = sha256hex(fileBytes);
             boolean ok = got.equalsIgnoreCase(sha);
+            Ui du = uiCb;
             if (ok) {
+                // 完成行走状态行（与上传 "Uploaded:" 对称），不被 readyText 覆盖
+                if (du != null) { try { du.onProgress(downStatus(true, 100, fileBytes.length)); } catch (Throwable ignored) { } }
                 toast("下载完成: " + name + " (" + size + " 字节)");
                 logEvent("下载完成 " + name + " -> " + out.getAbsolutePath() + " 校验OK");
             } else {
+                if (du != null) { try { du.onProgress("download failed: " + name); } catch (Throwable ignored) { } }
                 toast("下载校验失败: " + name);
                 logEvent("下载校验失败 " + name + " 期望 " + sha + " 实得 " + got);
             }
-            if (linkUp) info(readyText());
         } catch (Throwable t) {
             logEvent("下载失败: " + t);
-            setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER);
+            downBusy = false;
+            notifyDownloadState(false);
+            unlockPriority();   // 下载异常：解锁并降回省电档
         }
+    }
+
+    /** vi 编辑下载：FILM:<base64绝对路径>:<mode八进制>:<size>:<sha>\n<原始字节>
+     *  落到 App 私有 edit 目录（文件名用远端 basename），回调界面交给外部编辑器。 */
+    void handleEditDownload(byte[] data) {
+        try {
+            int nl = -1;
+            for (int i = 5; i < data.length; i++) { if (data[i] == '\n') { nl = i; break; } }
+            if (nl < 0) { logEvent("编辑下载失败：FILM 头无换行"); unlockPriority(); return; }
+            String hdr = new String(data, 0, nl, UTF8);
+            String[] h = hdr.split(":");   // FILM b64Path mode size sha
+            if (h.length < 5) { logEvent("编辑下载失败：FILM 头格式错"); unlockPriority(); return; }
+            String remote = new String(Base64.decode(h[1], Base64.NO_WRAP), UTF8);
+            String mode = h[2].trim();
+            long size = Long.parseLong(h[3].trim());
+            String sha = h[4].trim();
+            byte[] fileBytes = java.util.Arrays.copyOfRange(data, nl + 1, data.length);
+            String got = sha256hex(fileBytes);
+            if (!got.equalsIgnoreCase(sha)) {
+                toast("编辑下载校验失败");
+                logEvent("编辑下载校验失败 " + remote + " 期望 " + sha + " 实得 " + got);
+                unlockPriority();
+                return;
+            }
+            java.io.File dir = new java.io.File(getFilesDir(), "edit");
+            if (!dir.exists()) dir.mkdirs();
+            String base = remote.substring(remote.lastIndexOf('/') + 1);
+            if (base.length() == 0) base = "edit.txt";
+            String localName = base + "." + System.currentTimeMillis();
+            java.io.File out = new java.io.File(dir, localName);
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(out);
+            fos.write(fileBytes);
+            fos.close();
+            unlockPriority();
+            logEvent("编辑下载OK " + remote + " -> " + out.getAbsolutePath() + " mode=" + mode);
+            Ui u = uiCb;
+            if (u != null) { try { u.onEditFileReady(out.getAbsolutePath(), remote, mode, sha); } catch (Throwable ignored) { } }
+        } catch (Throwable t) {
+            logEvent("编辑下载失败: " + t);
+            unlockPriority();
+        }
+    }
+
+    /** vi 拦截入口：请求下载服务端指定绝对路径的文件并在本地打开编辑器 */
+    public void editRemoteFile(final String absPath) {
+        th.post(new Runnable() { public void run() {
+            if (gatt == null || step < 9) { toast("未就绪"); return; }
+            if (absPath == null || absPath.trim().length() == 0) { toast("路径为空"); return; }
+            if (upBusy || !upQueue.isEmpty() || editRemotePath != null) { toast("传输中，请稍后"); return; }
+            lockHighPriority();
+            logEvent("请求编辑: " + absPath.trim());
+            BleService.this.run("fs edget " + absPath.trim());
+            th.post(new Runnable() { public void run() { lockHighPriority(); } });
+        }});
+    }
+
+    /** 把本地编辑后的文件写回服务端原路径，并让服务端恢复原权限 */
+    public void uploadEditedFile(final String localPath, final String remote, final String mode) {
+        th.post(new Runnable() { public void run() {
+            if (gatt == null || cFile == null || step < 9) { toast("未就绪，无法回写"); return; }
+            if (upBusy || !upQueue.isEmpty() || editRemotePath != null) { toast("传输中，请稍后重试回写"); return; }
+            try {
+                byte[] all = readAll(new java.io.FileInputStream(localPath));
+                if (all.length == 0) { toast("文件为空，未回写"); return; }
+                String b64 = Base64.encodeToString(remote.getBytes(UTF8), Base64.NO_WRAP);
+                byte[] hdr = ("PUTE:" + b64 + ":" + all.length + ":" + (mode == null ? "644" : mode) + "\n").getBytes(UTF8);
+                editRemotePath = remote;
+                editMode = (mode == null ? "644" : mode);
+                upSent = 0; upTotal = all.length; upStartMs = System.currentTimeMillis();
+                upName = remote.substring(remote.lastIndexOf('/') + 1);
+                lockHighPriority();
+                wq.add(new W(cFile, hdr, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT));
+                int maxW = Math.max(20, curMtu - 3);
+                for (int off = 0; off < all.length; off += maxW) {
+                    int len = Math.min(maxW, all.length - off);
+                    byte[] piece = new byte[len];
+                    System.arraycopy(all, off, piece, 0, len);
+                    wq.add(new W(cFile, piece, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE, len));
+                }
+                drain();
+                logEvent("编辑回写 " + remote + " (" + all.length + " 字节) 已入队");
+            } catch (Throwable t) {
+                editRemotePath = null;
+                unlockPriority();
+                toast("回写失败: " + t);
+                logEvent("回写失败: " + t);
+                Ui u = uiCb;
+                if (u != null) { try { u.onEditUploaded(false, "回写失败: " + t); } catch (Throwable ignored) { } }
+            }
+        }});
     }
 
     /** 目录列表：FLST:\n + 每行 "d/f <size> <name" → 回调界面填充列表 */
@@ -1483,10 +1763,39 @@ public class BleService extends Service {
         th.post(new Runnable() { public void run() {
             if (gatt == null || step < 9) { toast("未就绪"); return; }
             if (path == null || path.trim().length() == 0) { toast("路径为空"); return; }
-            setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH);   // 传输期提速
+            if (upBusy) { toast("上传中，请稍后再下载"); return; }   // 上传/下载共用同一把 HIGH 锁，串行执行
+            if (downBusy) { toast("下载中，请稍后"); return; }
+            lockHighPriority();           // 传输期提速
+            // 初始化下载进度状态（与上传对称：状态行显示 Downloading: ...）
+            downBusy = true;
+            notifyDownloadState(true);   // down 按钮 → cancel
+            downTotal = 0;
+            downStartMs = System.currentTimeMillis();
+            String base = path.trim();
+            int slash = Math.max(base.lastIndexOf('/'), base.lastIndexOf('\\'));
+            downName = slash >= 0 ? base.substring(slash + 1) : base;   // 先用请求路径的 basename，FILD 头到后再用真实名回填
+            Ui du = uiCb;
+            if (du != null) { try { du.onProgress(downStatus(false, 0, 0)); } catch (Throwable ignored) { } }
             logEvent("请求下载: " + path.trim());
-            BleService.this.run("fs get " + path.trim());
-            th.post(new Runnable() { public void run() { setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH); } });
+            // 路径解析（与 vi 一致）：
+            //  绝对路径 → getabs 直读；
+            //  相对路径 → 拼当前 shell 工作目录(serverCwd)成绝对路径再 getabs，实现「当前路径+文件名」下载；
+            //  serverCwd 未知 → 回退 fs get（相对 FILE_BASE）。
+            String dl = path.trim();
+            String fsOp;
+            if (dl.startsWith("/")) {
+                fsOp = "fs getabs ";
+            } else {
+                String cwd = serverCwd;
+                if (cwd == null || cwd.length() == 0) {
+                    fsOp = "fs get ";
+                } else {
+                    dl = (cwd.endsWith("/") ? cwd : cwd + "/") + dl;
+                    fsOp = "fs getabs ";
+                }
+            }
+            BleService.this.run(fsOp + dl);
+            th.post(new Runnable() { public void run() { lockHighPriority(); } });
         }});
     }
 
@@ -1543,12 +1852,14 @@ public class BleService extends Service {
             if (!upQueue.isEmpty()) toast("未就绪/未连接，取消剩余上传");
             upQueue.clear();
             upBusy = false;
+            unlockPriority();   // 上传链路中断：解锁并降回省电档
             notifyUploadState(false);
             flushDeferredCmds();   // 即便上传被取消，也让暂停的命令跑起来
             return;
         }
         if (upQueue.isEmpty()) {
             upBusy = false;
+            unlockPriority();   // 全部文件上传完成：解锁并降回省电档
             notifyUploadState(false);
             flushDeferredCmds();   // 全部上传完成，提交上传期间被暂停的命令
             return;
@@ -1566,6 +1877,12 @@ public class BleService extends Service {
         lastRssiOkAt = System.currentTimeMillis();
         Ui u = uiCb;
         if (u != null) { try { u.onUploadState(uploading); } catch (Throwable ignored) { } }
+    }
+
+    /** 把 down 按钮切换为 cancel / 还原为 down（下载开始/结束/取消/断开时调用） */
+    void notifyDownloadState(boolean downloading) {
+        Ui u = uiCb;
+        if (u != null) { try { u.onDownloadState(downloading); } catch (Throwable ignored) { } }
     }
 
     /** 取消上传：清空待传队列、丢弃当前文件剩余待发分片、通知服务端中止、复位状态。
@@ -1588,13 +1905,34 @@ public class BleService extends Service {
             drain();
             upBusy = false;
             upCancel = false;
+            unlockPriority();   // 用户取消上传：解锁并降回省电档
             flushDeferredCmds();   // 上传已结束，让暂停的命令跑起来
             String nm = upName.isEmpty() ? "" : upName + " ";
             Ui u = uiCb;
             if (u != null) {
-                try { u.onProgress(nm + "Upload cancelled."); u.onUploadState(false); } catch (Throwable ignored) { }
+                try { u.onProgress(nm + "upload cancelled."); u.onUploadState(false); } catch (Throwable ignored) { }
             }
             logEvent("上传已取消: " + (upName.isEmpty() ? "(进行中文件)" : upName));
+        }});
+    }
+
+    /** 取消下载：中断当前接收、吞掉该 tid 迟到残帧、复位状态并解锁 HIGH。
+     *  由 UI 的 down→cancel 按钮触发。服务端随后发来的该 tid 残帧会被 rvDoneTid 吞掉，
+     *  不会被误当新传输。 */
+    public void cancelDownload() {
+        th.post(new Runnable() { public void run() {
+            if (!downBusy) return;
+            int doneTid = rvTid;
+            abortRx(doneTid >= 0 ? doneTid : -1);   // 清接收状态；标记 tid 已结束，迟到残帧吞掉
+            downBusy = false;
+            unlockPriority();   // 用户取消下载：解锁并降回省电档
+            flushDeferredCmds();
+            Ui u = uiCb;
+            if (u != null) {
+                try { u.onProgress("download cancelled."); u.onDownloadState(false); } catch (Throwable ignored) { }
+            }
+            toast("下载已取消");
+            logEvent("下载已取消 tid=" + doneTid);
         }});
     }
 
@@ -1608,7 +1946,7 @@ public class BleService extends Service {
             if (all.length == 0) { toast("空文件"); upBusy = false; pumpUpload(); return; }
             String name = nameFromUri(uri);
             if (name == null || name.length() == 0) name = "upload.bin";
-            setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH);   // 传输期提速
+            lockHighPriority();   // 传输期提速：锁住 HIGH，屏蔽途中任何回执把它切回省电档
             upSent = 0;
             upTotal = all.length;
             upName = name;
@@ -1653,13 +1991,33 @@ public class BleService extends Service {
         if (streaming) { addLog("\n"); streaming = false; }
     }
 
-    /** 请求重传：#retrans <tid> <fromSeq>（fromSeq==total 表示只补校验帧）。上限 5 次 */
+    /** 断点 NACK 去重节流：同一 fromSeq 在 900ms 内只请求一次，
+     *  杜绝"迟到帧每来一片就从头 NACK"与服务端清队列互相喂养形成活锁 */
+    void requestMissing(int tid, int fromSeq, String why) {
+        long now = System.currentTimeMillis();
+        if (fromSeq == rvNackGuardSeq && now - rvNackGuardAt < 900) return;
+        rvNackGuardSeq = fromSeq; rvNackGuardAt = now;
+        sendNack(tid, fromSeq, why);
+    }
+
+    /** 请求重传：#retrans <tid> <fromSeq>（fromSeq==total 表示只补校验帧）。
+     *  普通文本上限 5 次；大文件按片数放宽（至少 50 + total/50），避免丢几片就放弃。 */
     void sendNack(int tid, int fromSeq, String why) {
         th.removeCallbacks(chunkTimeout);
-        if (rvNacks >= 5) {
-            abortRx();
-            appendResult("! Retransmit requested 5 times without completion (tid=" + tid + "), giving up this round");
-            setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER);
+        int nackLimit = 5;
+        if (rvTotal > 50) nackLimit = Math.max(50, rvTotal / 50 + 20);
+        if (rvNacks >= nackLimit) {
+            boolean wasDownload = downBusy;
+            abortRx(tid);
+            if (wasDownload) {
+                // 文件下载失败：绝不把已收二进制当文本 dump（满屏乱码），给友好提示即可
+                toast("下载失败：重传次数超限，请重试或调大收发节奏");
+                logEvent("下载放弃: 重传 " + rvNacks + " 次仍未完成 tid=" + tid);
+                notifyDownloadState(false);
+            } else {
+                appendResult("! Retransmit requested " + rvNacks + " times without completion (tid=" + tid + "), giving up this round");
+            }
+            unlockPriority();   // 接收放弃：解锁并降回省电档
             if (linkUp) info(readyText() + "(last transfer failed)");
             return;
         }
@@ -1673,28 +2031,47 @@ public class BleService extends Service {
         th.postDelayed(chunkTimeout, 4000);
     }
 
-    /** 中止/重置当前传输的接收状态 */
-    void abortRx() {
+    /** 中止/重置当前传输的接收状态；doneTid>=0 时标记该 tid 已结束，其迟到残帧一律吞掉 */
+    void abortRx() { abortRx(-1); }
+    void abortRx(int doneTid) {
         th.removeCallbacks(chunkTimeout);
-        rx.reset();
+        rx.reset(); rvPend.clear();
         rvTid = -1; rvTotal = 0; rvNext = 0; rvNacks = 0;
         rvDigest = null; rvDigestGot = false;
-        rvDoneTid = -1;   // 任何中止都把"已结束"标记清掉；完成/放弃/超时处会单独置为对应 tid
+        rvNackGuardSeq = -1; rvNackGuardAt = 0; rvTimeouts = 0;
+        rvDoneTid = doneTid;
+        downBusy = false;   // 接收放弃/断链复位：下载状态一并清掉
     }
 
-    /** 单飞发数：安卓 BluetoothGatt 同一时刻只允许 1 个写请求在飞（底层 mDeviceBusy 串行锁），
-     *  所以每发一个包、等 onCharWrite 回调再补下一个。上传数据用 WRITE_NO_RESPONSE，
-     *  配合 HIGH 优先级连接间隔，控制器会在连接事件里连续 flush，得到稳定吞吐。
-     *  应答写（命令/鉴权）同样严格单飞，避免命令通道重排或冲掉应答流控。 */
+    /** 上传流水线：允许最多 UP_PIPELINE_MAX 个 WRITE_NO_RESPONSE 数据片同时在途，
+     *  让控制器在一个连接事件里连续 flush 多片，显著提速（实测 10KB/s → 30~50KB/s 量级）。
+     *  可在设置里关闭：关闭后退回严格单飞（一次只发一片，最稳）。
+     *  安卓 BluetoothGatt 底层有 mDeviceBusy 串行锁：连发若被栈拒绝，issue() 会 addFirst + 25ms
+     *  重试自动退回单飞，不丢片。应答写（命令/鉴权/文件头）始终严格单飞，不受此开关影响。 */
+    static final int UP_PIPELINE_MAX = 4;
+
     void drain() {
         if (gatt == null || wq.isEmpty()) return;
-        W w = wq.peek();
-        // 取消上传中：尚未发出的 cFile 分片直接丢弃（不再入队重发）
-        if (upCancel && w.ch == cFile) { wq.poll(); issue(w); return; }
-        // 应答写必须等所有在途写落定，保持严格单飞、避免重排
-        if (w.writeType == BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT && inflight > 0) return;
-        wq.poll();
-        issue(w);
+        boolean pipeline = P.uploadPipeline(this);
+        while (!wq.isEmpty()) {
+            W w = wq.peek();
+            // 取消上传中：尚未发出的 cFile 分片直接丢弃（不再入队重发）
+            if (upCancel && w.ch == cFile) { wq.poll(); issue(w); continue; }
+            // 应答写（命令/鉴权/PUT 头）必须等所有在途写落定，保持严格单飞、避免重排
+            if (w.writeType == BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) {
+                if (inflight > 0) return;
+                wq.poll();
+                issue(w);
+                return;                       // 应答写一次一条，回到原节奏
+            }
+            // 上传数据片（WRITE_NO_RESPONSE）：关流水线→1 片在途；开流水线→补到 UP_PIPELINE_MAX
+            int cap = pipeline ? UP_PIPELINE_MAX : 1;
+            if (inflight >= cap) return;      // 在途已满：等 onCharWrite 回调再补
+            wq.poll();
+            if (!issue(w)) return;            // 栈忙：issue 已 addFirst 并安排 25ms 重试
+            if (!pipeline) return;            // 单飞：发一片就停
+            // 流水线：继续 while，把在途补到上限
+        }
     }
 
     boolean issue(W w) {
@@ -1729,9 +2106,20 @@ public class BleService extends Service {
         String idx = upTotalFiles > 1 ? " [" + (upTotalFiles - upQueue.size()) + "/" + upTotalFiles + "]" : "";
         if (done) {
             long tk = upTotal / 1024;
-            return "Uploaded: " + upName + idx + " " + tk + "KB " + mmss(sec) + ".";
+            return "uploaded: " + upName + idx + " " + tk + "KB " + mmss(sec) + ".";
         }
-        return upName + idx + " Uploading: " + kb + "KB " + pct + "% (" + mmss(sec) + ")";
+        return upName + idx + " uploading: " + kb + "KB " + pct + "% (" + mmss(sec) + ")";
+    }
+
+    /** 下载进度行格式化（与上传对称）：xxx Downloading: xxKB 80% (00:25) / Downloaded: xxx xxKB 00:59. */
+    String downStatus(boolean done, int pct, long gotBytes) {
+        long sec = (System.currentTimeMillis() - downStartMs) / 1000;
+        if (done) {
+            long tk = downTotal / 1024;
+            return "downloaded: " + downName + " " + tk + "KB " + mmss(sec) + ".";
+        }
+        long kb = gotBytes / 1024;
+        return downName + " downloading: " + kb + "KB " + pct + "% (" + mmss(sec) + ")";
     }
 
     static String mmss(long sec) {
@@ -1764,6 +2152,12 @@ public class BleService extends Service {
         addLog("· " + ts.format(new Date()) + "  " + s + "\n");
     }
 
+    // 只写调试日志落盘文件（受 Debug 开关控制），不进界面日志缓冲、不回调 UI。
+    // 用于 ConnParams 这类高频/诊断性信息，避免刷屏界面日志。
+    void dbgOnly(String s) {
+        DbgLog.write(this, "· " + ts.format(new Date()) + "  " + s + "\n");
+    }
+
     void addLog(String s) {
         logBuf.addLast(s);
         while (logBuf.size() > LOG_MAX) logBuf.pollFirst();
@@ -1782,6 +2176,13 @@ public class BleService extends Service {
         if (u != null) {
             try { u.onBtn(text, enabled); } catch (Throwable ignored) { }
             try { u.onDisconnectBtn(disconnectEnabled); } catch (Throwable ignored) { }
+            // 断开/未连接态：传输按钮复位为 up/down，避免 Cancel 状态卡住
+            if ("Connect".equals(text) && enabled) {
+                upBusy = false; upCancel = false;
+                downBusy = false;
+                try { u.onUploadState(false); } catch (Throwable ignored) { }
+                try { u.onDownloadState(false); } catch (Throwable ignored) { }
+            }
         }
     }
 

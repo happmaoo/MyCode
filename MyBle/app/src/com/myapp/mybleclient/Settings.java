@@ -13,8 +13,8 @@ import android.widget.Toast;
 /** 设置页：广播名 / 密钥 / RSSI 轮询间隔 / 启动自动连接，全部落盘 */
 public class Settings extends Activity {
 
-    EditText sServer, sKey, sRssi, sZero, sSilent, sQuick;
-    CheckBox sAuto, sWake, sDebug;
+    EditText sServer, sKey, sRssi, sZero, sSilent, sQuick, sEditorPkg, sEditorCls, sOnConnect;
+    CheckBox sAuto, sWake, sDebug, sPipeline;
     TextView sInfo, sMac;
 
     @Override
@@ -29,9 +29,13 @@ public class Settings extends Activity {
         sZero = (EditText) findViewById(R.id.s_zero);
         sSilent = (EditText) findViewById(R.id.s_silent);
         sQuick = (EditText) findViewById(R.id.s_quick);
+        sEditorPkg = (EditText) findViewById(R.id.s_editor_pkg);
+        sEditorCls = (EditText) findViewById(R.id.s_editor_cls);
+        sOnConnect = (EditText) findViewById(R.id.s_onconnect);
         sAuto = (CheckBox) findViewById(R.id.s_auto);
         sWake = (CheckBox) findViewById(R.id.s_wake);
         sDebug = (CheckBox) findViewById(R.id.s_debug);
+        sPipeline = (CheckBox) findViewById(R.id.s_pipeline);
         sInfo = (TextView) findViewById(R.id.s_info);
         sMac = (TextView) findViewById(R.id.s_mac);
         showMac();
@@ -43,9 +47,13 @@ public class Settings extends Activity {
         sZero.setText(zc == 0 ? "0" : String.valueOf(zc / 1000.0f));
         sSilent.setText(String.valueOf(P.rssiSilentSec(this)));
         sQuick.setText(P.quickCmdsRaw(this));
+        sEditorPkg.setText(P.editorPkg(this));
+        sEditorCls.setText(P.editorCls(this));
+        sOnConnect.setText(P.onConnectCmd(this));
         sWake.setChecked(P.keepWake(this));
         sAuto.setChecked(P.autoConnect(this));
         sDebug.setChecked(P.debug(this));
+        sPipeline.setChecked(P.uploadPipeline(this));
         sInfo.setText("Saved: Server=" + P.server(this)
                 + "  RSSI=" + P.rssiSec(this) + "s"
                 + "  zero-chunk timeout=" + (P.zeroChunkMs(this) == 0 ? "off" : P.zeroChunkMs(this) + "ms")
@@ -53,8 +61,10 @@ public class Settings extends Activity {
                 + "  wake-lock=" + P.keepWake(this)
                 + "  auto-connect=" + P.autoConnect(this)
                 + "  debug-log=" + P.debug(this) + " → Download/mybleclient.log"
+                + "  upload-pipeline=" + P.uploadPipeline(this)
                 + "  saved-MAC=" + (P.savedMac(this).length() == 0 ? "(none)" : P.savedMac(this))
-                + "  key=" + (P.psk(this).length() == 0 ? "(empty)" : P.psk(this).length() + " chars"));
+                + "  key=" + (P.psk(this).length() == 0 ? "(empty)" : P.psk(this).length() + " chars")
+                + "\n  on-connect cmd=" + (P.onConnectCmd(this).length() == 0 ? "(none)" : P.onConnectCmd(this)));
 
         ((Button) findViewById(R.id.s_save)).setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { save(); }
@@ -123,7 +133,10 @@ public class Settings extends Activity {
         P.save(this, server, key, sAuto.isChecked(), rssi, zeroMs, silentSec, sWake.isChecked());
         P.saveDebug(this, sDebug.isChecked());
         if (!sDebug.isChecked()) DbgLog.close();   // 关闭开关时立刻停止写文件
+        P.saveUploadPipeline(this, sPipeline.isChecked());
         P.saveQuickCmds(this, sQuick.getText().toString());
+        P.saveEditor(this, sEditorPkg.getText().toString(), sEditorCls.getText().toString());
+        P.saveOnConnectCmd(this, sOnConnect.getText().toString());
         sInfo.setText("Saved: " + System.currentTimeMillis() / 1000
                 + "\nServer=" + server + "  RSSI=" + rssi + "s"
                 + "  zero-chunk timeout=" + (zeroMs == 0 ? "off" : zeroMs + "ms")
@@ -131,7 +144,9 @@ public class Settings extends Activity {
                 + "  wake-lock=" + sWake.isChecked()
                 + "  auto-connect=" + sAuto.isChecked()
                 + "  debug-log=" + sDebug.isChecked() + (sDebug.isChecked() ? " → Download/mybleclient.log" : "")
-                + "  key=" + (key.length() == 0 ? "(empty)" : key.length() + " chars"));
+                + "  upload-pipeline=" + sPipeline.isChecked()
+                + "  key=" + (key.length() == 0 ? "(empty)" : key.length() + " chars")
+                + "\n  on-connect cmd=" + (P.onConnectCmd(this).length() == 0 ? "(none)" : P.onConnectCmd(this)));
         Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show();
     }
 }

@@ -1,0 +1,18 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <string name="server">Rolex</string>
+    <string name="saved_mac">7E:09:25:61:04:CD</string>
+    <string name="psk">pwd</string>
+    <boolean name="keep_wake" value="false" />
+    <string name="cmd_hist">sudo dumpsys power | grep -A 5 &quot;Wake Locks&quot;&#10;cat /sys/class/power_supply/battery/uevent&#10;ps -ef|grep -i blegatt&#10;vi blegatt.sh&#10;kill 20670&#10;free -h&#10;ls -lh&#10;sudo dumpsys deviceidle&#10;cd /sdcard/download&#10;su -c &quot;nohup ./blegatt.sh &gt; ./blegatt.log &amp;&quot;  # 重启 BLE&#10;vi blegatt.log&#10;ls&#10;cd&#10;ls usr/bin&#10;cd ..&#10;su -c input keyevent KEYCODE_WAKEUP&#10;sudo input keyevent KEYCODE_WAKEUP&#10;input keyevent KEYCODE_WAKEUP&#10;cp /sdcard/download/blegatt_upload/blegatt.jar /data/data/com.termux/files/home&#10;cd /etc&#10;pwd&#10;mv blegatt.jar blegatt.jar-&#10;ls -lh /sdcard/download/blegatt_upload&#10;ls -lh /sdcard/download&#10;ip addr&#10;ps aux --sort=-%mem | head -n 11&#10;pkill com.android.settings&#10;vi log.7z&#10;7z a log.7z blegatt.log&#10;cd download&#10;cd /sdcard&#10;id&#10;termux-wifi-scaninfo&#10;su -c svc wifi disable&#10;sudo svc wifi disable&#10;svc wifi enable&#10;ping -c 1 8.8.8.8&#10;ping -c 1 8.8.8.&#10;ping -c 1 qq.com&#10;apt update --fix-missing&#10;apt --fix-missing&#10;apt install tudo&#10;apt update&#10;sudo wpa_cli scan&#10;su -c wpa_cli scan&#10;source /data/data/com.termux/files/home/loadtermuxenv.sh;bash&#10;su - u0_a121 -c bash&#10;chown u0_a121:u0_a121 * #改文件用户组&#10;cmd wifi&#10;wpa_cli scan</string>
+    <boolean name="debug_log" value="false" />
+    <boolean name="upload_pipeline" value="true" />
+    <int name="rssi_sec" value="3" />
+    <string name="on_connect_cmd">source /data/data/com.termux/files/home/termux_env.sh;su - u0_a121;source /data/data/com.termux/files/home/termux_env.sh</string>
+    <int name="zero_chunk_ms" value="3500" />
+    <boolean name="auto_connect" value="false" />
+    <string name="editor_cls">com.nmmedit.nmm.TextEditorActivity</string>
+    <int name="rssi_silent_sec" value="0" />
+    <string name="editor_pkg">in.mfile</string>
+    <string name="quick_cmds">ls -lh&#10;free -h&#10;ip addr&#10;sudo dumpsys deviceidle&#10;sudo dumpsys power | grep -A 5 &quot;Wake Locks&quot;&#10;cat /sys/class/power_supply/battery/uevent&#10;su - u0_a121 -c bash&#10;ps -ef|grep -i blegatt&#10;chown u0_a121:u0_a121 * #改文件用户组&#10;------------------------------------------&#10;source /data/data/com.termux/files/home/loadtermuxenv.sh;bash&#10;cp /sdcard/download/blegatt_upload/blegatt.jar /data/data/com.termux/files/home&#10;su -c &quot;nohup ./blegatt.sh &gt; ./blegatt.log &amp;&quot;  # 重启 BLE</string>
+</map>

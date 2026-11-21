@@ -2,6 +2,7 @@ package com.myapp.mybleclient;
 
 import android.app.Activity;
 import android.app.ActionBar;
+import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
 import android.content.ClipData;
@@ -18,6 +19,7 @@ import android.os.IBinder;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import java.util.ArrayList;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -43,15 +45,16 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
 
     EditText etServer, etKey, etCmd;
-    boolean longPressCleared = false;   // 长按2秒清空输入框后置位，松手时不触发发送
+    boolean longPressCleared = false;   // 长按1秒清空输入框后置位，松手时不触发发送
     TextView tvInfo, tvBatt, tvResult;
     ScrollView svResult;
     LinearLayout llCmdpad;
     View cmdRow;   // 底部命令输入行（et_cmd 所在），与 ll_cmdpad 同属"命令面板区域"
     ListView lvCmdpad;
     Button tabQuick, tabHist, btnQuick;
-    Button btnFiles;
-    boolean uploading = false;        // Files 按钮当前是否处于 Cancel（上传中）状态
+    Button btnFiles, btnDown;
+    boolean uploading = false;        // up 按钮当前是否处于 cancel（上传中）状态
+    boolean downloading = false;      // down 按钮当前是否处于 cancel（下载中）状态
     String curPath = ".";
     ArrayList<String> fileRows = new ArrayList<String>();   // 每行 "d 0 name" / "f size name"
     ArrayAdapter<String> fileAdapter;
@@ -107,8 +110,14 @@ public class MainActivity extends Activity {
         @Override public void onUploadState(boolean uploading) {
             if (!alive()) return;
             MainActivity.this.uploading = uploading;
-            // 普通按钮（与 Run 同款），仅切换文字：上传中显示 Cancel，空闲显示 Files
-            btnFiles.setText(uploading ? "Cancel" : "Files");
+            // 仅切换文字：上传中显示 cancel，空闲显示 up
+            btnFiles.setText(uploading ? "cancel" : "up");
+        }
+        @Override public void onDownloadState(boolean downloading) {
+            if (!alive()) return;
+            MainActivity.this.downloading = downloading;
+            // 仅切换文字：下载中显示 cancel，空闲显示 down
+            btnDown.setText(downloading ? "cancel" : "down");
         }
         @Override public void onFileList(java.util.ArrayList<String> items) {
             if (!alive()) return;
@@ -116,6 +125,8 @@ public class MainActivity extends Activity {
             if (items != null) fileRows.addAll(items);
             if (fileAdapter != null) fileAdapter.notifyDataSetChanged();
         }
+        @Override public void onEditFileReady(String path, String remote, String mode, String sha) { /* 编辑入口在 ShellActivity，主界面忽略 */ }
+        @Override public void onEditUploaded(boolean ok, String msg) { if (ok) toast(msg); }
     };
 
     boolean alive() { return !isFinishing() && !isDestroyed(); }
@@ -128,7 +139,14 @@ public class MainActivity extends Activity {
 
     void scrollDown() {
         svResult.post(new Runnable() {
-            @Override public void run() { svResult.fullScroll(View.FOCUS_DOWN); }
+            @Override public void run() {
+                // 用 scrollTo 贴底而非 fullScroll：fullScroll 会把焦点转移给内部可聚焦的日志
+                // TextView，导致发送后焦点被日志抢走、输入框光标不闪。scrollTo 只滚动不动焦点。
+                View child = svResult.getChildAt(0);
+                if (child == null) return;
+                int target = child.getHeight() - svResult.getHeight();
+                svResult.scrollTo(0, Math.max(0, target));
+            }
         });
     }
 
@@ -180,11 +198,11 @@ public class MainActivity extends Activity {
         btnQuick = (Button) findViewById(R.id.btn_quick);
         btnQuick.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
-                if (longPressCleared) { longPressCleared = false; return; }  // 长按2秒清空后松手，不展开/收起面板
+                if (longPressCleared) { longPressCleared = false; return; }  // 长按1秒清空后松手，不展开/收起面板
                 toggleCmdPad();
             }
         });
-        // 长按 2 秒清空命令输入框（不干扰短按展开/收起面板）：按下起 2s 内没松手才清空
+        // 长按 1 秒清空命令输入框（不干扰短按展开/收起面板）：按下起 1s 内没松手才清空
         final android.os.Handler lpHandler = new android.os.Handler();
         final Runnable lpClear = new Runnable() {
             @Override public void run() {
@@ -198,11 +216,11 @@ public class MainActivity extends Activity {
                 switch (e.getAction()) {
                     case android.view.MotionEvent.ACTION_DOWN:
                         longPressCleared = false;
-                        lpHandler.postDelayed(lpClear, 2000);
+                        lpHandler.postDelayed(lpClear, 1000);
                         return false;   // 不消费事件，短按仍走 onClick 展开/收起面板
                     case android.view.MotionEvent.ACTION_UP:
                     case android.view.MotionEvent.ACTION_CANCEL:
-                        lpHandler.removeCallbacks(lpClear);  // 没满 2 秒松手 → 取消清空
+                        lpHandler.removeCallbacks(lpClear);  // 没满 1 秒松手 → 取消清空
                         return false;
                 }
                 return false;
@@ -250,6 +268,37 @@ public class MainActivity extends Activity {
                 pick.setType("*/*");
                 pick.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);   // 允许多选
                 try { startActivityForResult(pick, 1); } catch (Throwable t) { toast("无法打开文件选择器"); }
+            }
+        });
+
+        // ---- Down 按钮：弹输入框填服务端文件路径，下载到 App 私有 Download 目录 ----
+        btnDown = (Button) findViewById(R.id.btn_down);
+        btnDown.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                if (svc == null) { toast("Engine not ready; try again later"); return; }
+                if (downloading) { svc.cancelDownload(); return; }   // 下载中 → 取消下载
+                final EditText et = new EditText(MainActivity.this);
+                et.setSingleLine(true);
+                et.setHint("文件名（当前目录）或绝对路径");
+                // 预填 shell 当前工作目录，光标置于末尾：直接敲文件名即可下载当前目录下的文件
+                String cwd = svc.serverCwd;
+                String preset = (cwd != null && cwd.length() > 0)
+                        ? (cwd.endsWith("/") ? cwd : cwd + "/") : "";
+                et.setText(preset);
+                et.setSelection(et.getText().length());
+                new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("下载服务端文件")
+                        .setMessage("已填当前目录，直接输入文件名；或输入 / 开头的绝对路径。")
+                        .setView(et)
+                        .setPositiveButton("下载", new android.content.DialogInterface.OnClickListener() {
+                            @Override public void onClick(android.content.DialogInterface d, int which) {
+                                String path = et.getText().toString().trim();
+                                if (path.length() == 0) { toast("路径为空"); return; }
+                                svc.downloadFromServer(path);
+                            }
+                        })
+                        .setNegativeButton("取消", null)
+                        .show();
             }
         });
 
@@ -340,6 +389,81 @@ public class MainActivity extends Activity {
         svc.run(c);                   // 就绪门槛由服务把关，拒绝原因以 toast 回来
         P.pushHist(this, c);          // 记录到发送历史
         if (llCmdpad.getVisibility() == View.VISIBLE && curTab.equals("hist")) refreshCmdPad();
+        focusCmdInputWithoutKeyboard();
+    }
+
+    /**
+     * 点 Run 后：焦点留在命令框里；软件盘"原来开着就继续开着，原来没开就不要弹出来"。
+     * 点 Run 会抢走焦点，所以仍然需要 post 一下把焦点夺回来。
+     */
+    void focusCmdInputWithoutKeyboard() {
+        etCmd.postDelayed(new Runnable() {
+            @Override public void run() {
+                final InputMethodManager imm = (InputMethodManager)
+                        getSystemService(Context.INPUT_METHOD_SERVICE);
+                // 关键：先记下"当前键盘是否已经开着"
+                final boolean wasOpen = imm != null && imm.isAcceptingText();
+
+                View cur = getCurrentFocus();
+                if (cur != null && cur != etCmd) cur.clearFocus();
+                etCmd.setFocusableInTouchMode(true);
+                etCmd.requestFocus();
+                etCmd.setSelection(etCmd.getText().length());
+
+                if (imm != null && !wasOpen) {
+                    // 原本没开 -> 不许弹出来
+                    imm.hideSoftInputFromWindow(etCmd.getWindowToken(), 0);
+                }
+                etCmd.postDelayed(new Runnable() {
+                    @Override public void run() {
+                        InputMethodManager im2 = (InputMethodManager)
+                                getSystemService(Context.INPUT_METHOD_SERVICE);
+                        if (im2 == null) return;
+                        if (!etCmd.hasFocus()) etCmd.requestFocus();   // 焦点被抢走就再要回来
+                        if (wasOpen) {
+                            // 原本开着 -> 保持开着（焦点切换过程中若被收掉，就重新打开）
+                            if (!im2.isAcceptingText()) {
+                                im2.showSoftInput(etCmd, InputMethodManager.SHOW_IMPLICIT);
+                                etCmd.postDelayed(new Runnable() {
+                                    @Override public void run() {
+                                        InputMethodManager im3 = (InputMethodManager)
+                                                getSystemService(Context.INPUT_METHOD_SERVICE);
+                                        if (im3 != null && !im3.isAcceptingText()) {
+                                            im3.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
+                                        }
+                                    }
+                                }, 150);
+                            }
+                        } else {
+                            // 原本没开 -> 再补一枪，堵个别 ROM 重新弹键盘
+                            im2.hideSoftInputFromWindow(etCmd.getWindowToken(), 0);
+                        }
+                    }
+                }, 220);
+            }
+        }, 60);
+    }
+
+    /** 发送后把焦点还给命令框并唤起软键盘（点击 Send 会抢焦点，需 post 延迟重夺） */
+    void focusCmdInput() {
+        etCmd.postDelayed(new Runnable() {
+            @Override public void run() {
+                View cur = getCurrentFocus();
+                if (cur != null && cur != etCmd) cur.clearFocus();
+                etCmd.setFocusableInTouchMode(true);
+                etCmd.requestFocus();
+                etCmd.setSelection(etCmd.getText().length());
+                final InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) imm.showSoftInput(etCmd, InputMethodManager.SHOW_IMPLICIT);
+                // 兜底：再延迟一拍，若输入法仍未激活则强制切换出来
+                etCmd.postDelayed(new Runnable() {
+                    @Override public void run() {
+                        if (imm != null && !imm.isAcceptingText())
+                            imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
+                    }
+                }, 180);
+            }
+        }, 60);
     }
 
     // ---------------------------------------------------------- 命令面板（双 Tab）

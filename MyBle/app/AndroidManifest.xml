@@ -53,6 +53,13 @@
             android:label="Shell"
             android:windowSoftInputMode="stateHidden|adjustResize" />
 
+        <!-- vi 编辑：把本地下载的文件临时授权给外部编辑器读写（仅 App 私有 edit/ 目录） -->
+        <provider
+            android:name=".EditFileProvider"
+            android:authorities="com.myapp.mybleclient.editfile"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <!-- 系统「分享到/发送到」入口：其他 App 分享文件时可直接送到已连接的服务端 -->
         <activity
             android:name=".ShareActivity"

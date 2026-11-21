@@ -63,13 +63,17 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:fillViewport="true">
+        android:fillViewport="true"
+        android:focusable="false"
+        android:focusableInTouchMode="false">
 
         <ScrollView
             android:id="@+id/sv_shell_out"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:fillViewport="true">
+            android:fillViewport="true"
+            android:focusable="false"
+            android:focusableInTouchMode="false">
 
             <TextView
                 android:id="@+id/tv_shell_out"
@@ -86,22 +90,121 @@
         </ScrollView>
     </HorizontalScrollView>
 
-    <!-- 底部：多行命令输入框 -->
-    <EditText
-        android:id="@+id/et_shell_cmd"
+    <!-- 命令面板（与主界面一致：Quick Commands / History 两个 Tab） -->
+    <LinearLayout
+        android:id="@+id/ll_cmdpad_shell"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minLines="3"
-        android:gravity="top"
-        android:background="#F5F5F5"
-        android:textColor="#000000"
-        android:textColorHint="#888888"
-        android:fontFamily="monospace"
-        android:inputType="textMultiLine|textNoSuggestions"
-        android:hint="bash command"
-        android:textSize="13sp" />
+        android:background="#FAFAFA"
+        android:orientation="vertical"
+        android:paddingTop="4dp"
+        android:visibility="gone">
 
-    <!-- 底部操作行：模板 + Send -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/tab_shell_quick"
+                android:layout_width="0dp"
+                android:layout_height="26dp"
+                android:layout_weight="1"
+                android:background="#E8F0FE"
+                android:minHeight="0dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:text="Quick Commands"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/tab_shell_hist"
+                android:layout_width="0dp"
+                android:layout_height="26dp"
+                android:layout_weight="1"
+                android:background="#FFFFFF"
+                android:minHeight="0dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:text="History"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <ListView
+            android:id="@+id/lv_cmdpad_shell"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:background="#FFFFFF"
+            android:cacheColorHint="#00000000" />
+    </LinearLayout>
+
+    <!-- 底部：多行命令输入框 + 右侧历史上下箭头。
+         用 RelativeLayout：箭头列 alignTop/alignBottom 到输入框，高度被强制拉伸成
+         「输入框的上下边」，两个按钮各占一半（weight），所以它们之间 0 间距、边界完全贴合。 -->
+    <RelativeLayout
+        android:id="@+id/ll_shell_cmdrow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <EditText
+            android:id="@+id/et_shell_cmd"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="45dp"
+            android:minLines="3"
+            android:gravity="top"
+            android:background="#F5F5F5"
+            android:textColor="#000000"
+            android:textColorHint="#888888"
+            android:fontFamily="monospace"
+            android:inputType="textMultiLine|textNoSuggestions"
+            android:hint="bash command"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:id="@+id/arrow_col"
+            android:layout_width="44dp"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_alignTop="@id/et_shell_cmd"
+            android:layout_alignBottom="@id/et_shell_cmd"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btn_shell_hist_up"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_arrow_btn"
+                android:stateListAnimator="@null"
+                android:elevation="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:padding="0dp"
+                android:includeFontPadding="false"
+                android:text="▲"
+                android:textAllCaps="false"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_shell_hist_down"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_arrow_btn_bottom"
+                android:stateListAnimator="@null"
+                android:elevation="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:padding="0dp"
+                android:includeFontPadding="false"
+                android:text="▼"
+                android:textAllCaps="false"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </RelativeLayout>
+
+    <!-- 底部操作行：Quick + Send -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -109,11 +212,11 @@
         android:paddingTop="4dp">
 
         <Button
-            android:id="@+id/btn_shell_tpl"
-            android:layout_width="0dp"
+            android:id="@+id/btn_shell_quick"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="模板" />
+            android:minWidth="72dp"
+            android:text="⌄CMD" />
 
         <Button
             android:id="@+id/btn_shell_send"
