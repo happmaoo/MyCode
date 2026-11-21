@@ -23,6 +23,19 @@
 --split-servers 模式:openGattServer 两次,拿到两个实例。cmd 服务加进第一个,Battery 服务加进第二个(代码里的 server 和 serverBatt)。
 拆开是纯安卓框架内部的账本划分,目的是绕开"一个实例挂多个服务时,栈只正确映射第一个服务"的疑似缺陷(上一轮说过)。
 
+
+#
+termux 新建 logintermux.sh,不同设备参数值不同请用id查看
+
+uid=$(stat -c %u /data/data/com.termux);/data/data/com.termux/files/usr/bin/setpriv --reuid "$uid" --regid "$uid" --bounding-set -all --groups 1004,1007,1015,1011,1028,3001,3002,3003,3006,50120 /data/data/com.termux/files/usr/bin/bash -c '
+export HOME=/data/data/com.termux/files/home
+cd "$HOME"
+source /data/data/com.termux/files/home/loadtermuxenv.sh
+exec /data/data/com.termux/files/usr/bin/bash
+'
+客户端连接后运行以下命令即可登录termux
+sh /data/data/com.termux/files/home/logintermux.sh
+
 COMMENT
 
 
