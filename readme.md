@@ -31,6 +31,10 @@ https://github.com/happmaoo/MyCode/tree/main/clockwidget/app/release
 不得不说有了ai就是厉害，代码都不用写了。
 https://github.com/happmaoo/MyCode/tree/main/MyBle 
 
+## MyBleCam ble蓝牙摄像头
+ble速度有限
+https://github.com/happmaoo/MyCode/tree/main/MyBleCam
+
 ## MyFM 红米Note4x 的收音机APP
 红米Note4x和lineageOS自带的收音机不好用，自己写的代码，需要root，我的机子是 lineageOS 15.1 安卓8.1版本，可能其他高版本不能使用请自己测试。  
 https://github.com/happmaoo/MyCode/tree/main/MyFM/app/release
