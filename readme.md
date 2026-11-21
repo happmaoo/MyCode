@@ -28,11 +28,12 @@ https://github.com/happmaoo/MyCode/tree/main/clockwidget/app/release
 
 ## MyBle 蓝牙ble工具
 内含多个程序和APP 用于蓝牙ble和蓝牙pan 蓝牙共享网络连接
+配合termux使用可以运行bash命令，编辑文件，上传和下载文件。
 不得不说有了ai就是厉害，代码都不用写了。
 https://github.com/happmaoo/MyCode/tree/main/MyBle 
 
 ## MyBleCam ble蓝牙摄像头
-ble速度有限
+ble速度有限，玩玩还是不错的
 https://github.com/happmaoo/MyCode/tree/main/MyBleCam
 
 ## MyBtCam 蓝牙摄像头
