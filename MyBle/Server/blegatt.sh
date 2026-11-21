@@ -31,6 +31,7 @@ uid=$(stat -c %u /data/data/com.termux);/data/data/com.termux/files/usr/bin/setp
 export HOME=/data/data/com.termux/files/home
 cd "$HOME"
 source /data/data/com.termux/files/home/loadtermuxenv.sh
+#用一个新的交互式 bash 替换当前进程（exec 不产生新进程）
 exec /data/data/com.termux/files/usr/bin/bash
 '
 客户端连接后运行以下命令即可登录termux
