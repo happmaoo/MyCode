@@ -27,6 +27,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name="com.myapp.autobrightness.SettingsActivity"
+            android:exported="false"
+            android:label="设置" />
+
         <service
             android:name=".autobrightness"
             android:enabled="true"

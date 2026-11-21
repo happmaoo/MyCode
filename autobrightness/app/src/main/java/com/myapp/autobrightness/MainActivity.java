@@ -30,6 +30,10 @@ public class MainActivity extends AppCompatActivity {
     private static final String DEFAULT_CONFIG = "lmd:3/2\n0 50\n20 250";
 
     private TextView lightLevelTextView;
+    /** 最近一次收到的光照值；-1 表示还没数据（停用时会复位） */
+    private float lastLux = -1f;
+    /** 监听系统亮度变化：亮度每一小步都直接刷界面，不等光感广播 */
+    private android.database.ContentObserver brightnessUiObserver;
     private EditText editText;
     private CheckBox checkbox;
 
@@ -58,9 +62,8 @@ public class MainActivity extends AppCompatActivity {
                         registerLightReceiver();
                     } else {
                         unregisterLightReceiver();
-                        if (lightLevelTextView != null) {
-                            lightLevelTextView.setText("");
-                        }
+                        lastLux = -1f;
+                        updateStatusText();
                     }
                 }
             };
@@ -68,22 +71,29 @@ public class MainActivity extends AppCompatActivity {
     private final BroadcastReceiver lightLevelReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (lightLevelTextView == null) {
-                return;
-            }
-            // 获取当前的屏幕亮度
-            int currentBrightness = 0;
-            try {
-                currentBrightness = Settings.System.getInt(getContentResolver(),
-                        Settings.System.SCREEN_BRIGHTNESS);
-            } catch (Settings.SettingNotFoundException e) {
-                Log.w(TAG, "读取当前亮度失败", e);
-            }
-            // 从广播中获取光照强度数据
-            float lightLevel = intent.getFloatExtra("lightLevel", -1);
-            lightLevelTextView.setText("光线传感器: " + lightLevel + " lux" + "\n亮度: " + currentBrightness);
+            // 从广播中获取光照强度数据（服务端 100ms 节流，显示够跟手）
+            lastLux = intent.getFloatExtra("lightLevel", -1);
+            updateStatusText();
         }
     };
+
+    /** 刷新状态行：光照值用最近的缓存，亮度现读，保证过渡过程中数值也是同步的 */
+    private void updateStatusText() {
+        if (lightLevelTextView == null) return;
+        if (lastLux < 0) {
+            lightLevelTextView.setText("");
+            return;
+        }
+        int currentBrightness;
+        try {
+            currentBrightness = Settings.System.getInt(getContentResolver(),
+                    Settings.System.SCREEN_BRIGHTNESS);
+        } catch (Settings.SettingNotFoundException e) {
+            Log.w(TAG, "读取当前亮度失败", e);
+            return;
+        }
+        lightLevelTextView.setText("光线传感器: " + lastLux + " lux" + "\n亮度: " + currentBrightness);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -118,6 +128,17 @@ public class MainActivity extends AppCompatActivity {
             }
             applyEnabled(isChecked);
         });
+
+        // 亮度的过渡是 25 步写系统设置，光感广播最快 100ms 一次，
+        // 只靠广播刷新会看到"亮度值慢半拍"；这里直接盯系统亮度，每步都刷
+        brightnessUiObserver = new android.database.ContentObserver(new android.os.Handler()) {
+            @Override public void onChange(boolean selfChange) {
+                updateStatusText();
+            }
+        };
+        getContentResolver().registerContentObserver(
+                Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS),
+                false, brightnessUiObserver);
 
         checkWriteSettingsPermission();
     }
@@ -156,9 +177,8 @@ public class MainActivity extends AppCompatActivity {
             // 不 stopService：服务里注册了 prefs 监听，会自己切到“暂停”状态，
             // 通知栏那条通知保留下来（否则就没法从通知栏再打开了）
             unregisterLightReceiver();
-            if (lightLevelTextView != null) {
-                lightLevelTextView.setText("");
-            }
+            lastLux = -1f;
+            updateStatusText();
         }
     }
 
@@ -236,6 +256,22 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /** ActionBar 溢出菜单：只有一项“设置”，用来切算法 */
+    @Override
+    public boolean onCreateOptionsMenu(android.view.Menu menu) {
+        getMenuInflater().inflate(R.menu.main, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(android.view.MenuItem item) {
+        if (item.getItemId() == R.id.action_settings) {
+            startActivity(new Intent(this, SettingsActivity.class));
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
     @Override
     protected void onStart() {
         super.onStart();
@@ -270,5 +306,10 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         sharedPref.unregisterOnSharedPreferenceChangeListener(prefListener);
         unregisterLightReceiver();
+        if (brightnessUiObserver != null) {
+            try { getContentResolver().unregisterContentObserver(brightnessUiObserver); }
+            catch (Throwable ignored) { }
+            brightnessUiObserver = null;
+        }
     }
 }

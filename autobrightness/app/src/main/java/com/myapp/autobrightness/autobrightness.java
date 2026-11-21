@@ -42,6 +42,14 @@ public class autobrightness extends Service {
     private static final String KEY_CONFIG = "config";
     private static final String KEY_ENABLE = "enable";
     private static final String EXTRA_CONFIG = "arg-config";
+    /** 算法偏好键：0=阶梯阈值（确认窗口，默认） 1=事件计数（原逻辑，连续 N 次） */
+    static final String KEY_ALGO = "algo";
+    /** 阶梯阈值的确认窗口期（毫秒）；0 或缺失表示用默认 2 秒 */
+    static final String KEY_WINDOW_MS = "algo_window_ms";
+    static final int ALGO_STEP = 0;
+    static final int ALGO_COUNT = 1;
+    /** 旧版本“事件计数”曾用 3 做编号，读偏好时兼容一下 */
+    private static final int LEGACY_ALGO_COUNT = 3;
     /** 通知栏按钮点击后发给服务的 action：翻转启用/停用 */
     private static final String ACTION_TOGGLE = "com.myapp.autobrightness.ACTION_TOGGLE";
 
@@ -51,6 +59,10 @@ public class autobrightness extends Service {
     /** 传感器事件最小处理间隔，避免高频回调 */
     private static final long MIN_PROCESS_INTERVAL_MS = 500;
     private static final int TOTAL_STEPS = 25;
+    /** 阶梯阈值确认窗口的默认值：2 秒（设置页留空时用） */
+    private static final long DEFAULT_CONFIRM_WINDOW_MS = 2000;
+    /** 给界面刷数值用的广播节流（比判定用的 500ms 更快，界面才跟得上） */
+    private static final long UI_BROADCAST_INTERVAL_MS = 100;
 
     private SensorManager sensorManager;
     private Sensor lightSensor;
@@ -59,18 +71,23 @@ public class autobrightness extends Service {
 
     // --- 配置 ---
     private final List<int[]> cachedConfigData = new ArrayList<>();
+    private int algorithm = ALGO_STEP;
+    /** ALGO_COUNT 用的计数：同一目标连续上报的次数 */
+    private int consecutiveCount = 0;
     private int configLmd = 3;
     private int configDuration = 2000;
 
     private long lastProcessingTime = 0;
+    private long lastBroadcastTime = 0;
 
     private Handler brightnessHandler = new Handler(Looper.getMainLooper());
     private Runnable brightnessRunnable;
 
     private float lightLevel;
-    private int consecutiveCount = 0;
-    /** 正在累计的候选目标亮度，只有它连续出现 configLmd 次才会真正调整 */
+    /** 候选目标亮度：进入后等确认窗口（configLmd × 500ms）到点再裁决 */
     private int pendingTarget = Integer.MIN_VALUE;
+    /** 待执行的确认任务，目标变化时要取消重排 */
+    private Runnable pendingConfirmRunnable;
     private int lastTargetBrightness = -1;
     private boolean firstStart = true;
 
@@ -91,6 +108,19 @@ public class autobrightness extends Service {
                 public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
                     if (KEY_ENABLE.equals(key)) {
                         onEnableChanged();
+                    } else if (KEY_WINDOW_MS.equals(key)) {
+                        // 改了窗口期：丢掉正在等的候选，下一次采样按新窗口重新计时
+                        clearPending();
+                    } else if (KEY_ALGO.equals(key)) {
+                        // 设置页切了算法：立刻换算法并让下一次采样按新规则重算
+                        loadAlgorithm();
+                        clearPending();
+                        consecutiveCount = 0;
+                        lastTargetBrightness = -1;
+                        if (brightnessRunnable != null) {
+                            brightnessHandler.removeCallbacks(brightnessRunnable);
+                            brightnessRunnable = null;
+                        }
                     }
                 }
             };
@@ -107,6 +137,7 @@ public class autobrightness extends Service {
 
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
                 .registerOnSharedPreferenceChangeListener(prefListener);
+        loadAlgorithm();
 
         // 监听系统亮度值变化：用来发现"用户自己拉了亮度条"
         brightnessObserver = new ContentObserver(brightnessHandler) {
@@ -122,6 +153,80 @@ public class autobrightness extends Service {
         } catch (Exception e) {
             Log.w(TAG, "注册亮度监听失败", e);
         }
+    }
+
+    /** 读取当前算法（设置页写入的 algo 键） */
+    private void loadAlgorithm() {
+        int v = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getInt(KEY_ALGO, ALGO_STEP);
+        if (v == LEGACY_ALGO_COUNT) v = ALGO_COUNT;    // 旧编号兼容
+        // 已删掉的“线性插值(1)/立即响应(2)”回落到默认阶梯
+        algorithm = (v == ALGO_COUNT) ? ALGO_COUNT : ALGO_STEP;
+    }
+
+    /** 光照 → 目标亮度：取阈值不超过当前光照的最高一档；无匹配返回 -1 */
+    private int targetForLight(float lux) {
+        int target = -1;
+        for (int i = cachedConfigData.size() - 1; i >= 0; i--) {
+            int[] rule = cachedConfigData.get(i);
+            if (lux >= rule[0]) {
+                target = rule[1];
+                break;
+            }
+        }
+        return target;
+    }
+
+    /**
+     * 确认窗口长度，单位毫秒。
+     * 设置页填了具体值就用它（KEY_WINDOW_MS）；留空一律用默认 2 秒
+     * （不再跟 lmd 挂钩，lmd 第一位数现在只影响“事件计数”模式）。
+     * 下限 300ms，防止被设成 0 疯狂调亮度。
+     */
+    private long confirmWindowMs() {
+        int custom = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getInt(KEY_WINDOW_MS, 0);
+        if (custom > 0) return Math.max(300, custom);
+        return DEFAULT_CONFIRM_WINDOW_MS;
+    }
+
+    /** 取消待裁决的候选目标 */
+    private void clearPending() {
+        pendingTarget = Integer.MIN_VALUE;
+        if (pendingConfirmRunnable != null) {
+            brightnessHandler.removeCallbacks(pendingConfirmRunnable);
+            pendingConfirmRunnable = null;
+        }
+    }
+
+    /** 为当前 pendingTarget 排一个确认任务（重复排会先取消旧的） */
+    private void armPendingConfirm() {
+        if (pendingConfirmRunnable != null) {
+            brightnessHandler.removeCallbacks(pendingConfirmRunnable);
+        }
+        pendingConfirmRunnable = new Runnable() {
+            @Override public void run() {
+                pendingConfirmRunnable = null;
+                commitPendingTarget();
+            }
+        };
+        brightnessHandler.postDelayed(pendingConfirmRunnable, confirmWindowMs());
+    }
+
+    /**
+     * 窗口到点：用最新光照再算一次目标。
+     * 仍等于候选目标 → 执行；已经被光线回摆打断 → 丢弃，避免误调。
+     */
+    private void commitPendingTarget() {
+        int pending = pendingTarget;
+        pendingTarget = Integer.MIN_VALUE;
+        if (pending == Integer.MIN_VALUE) return;
+        if (!getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getBoolean(KEY_ENABLE, false)) return;
+        if (manualBrightness) return;                       // 用户手动调过，先别抢
+        if (lightLevel <= 0f) return;                       // 已进入全黑立即分支
+        int now = targetForLight(lightLevel);
+        if (now == -1 || now != pending) return;            // 窗口期内又跳回别档
+        if (now == lastTargetBrightness) return;
+        setScreenBrightnessSmoothly(now);
     }
 
     /** 解析配置：逐行容错，单行写错只跳过该行，不会让整份配置作废 */
@@ -202,6 +307,7 @@ public class autobrightness extends Service {
             config = pref.getString(KEY_CONFIG, "");
         }
 
+        loadAlgorithm();
         parseConfig(config);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(this)) {
@@ -292,7 +398,7 @@ public class autobrightness extends Service {
         }
         lastTargetBrightness = -1;
         consecutiveCount = 0;
-        pendingTarget = Integer.MIN_VALUE;
+        clearPending();
     }
 
     private void postNotification(boolean enabled) {
@@ -371,64 +477,81 @@ public class autobrightness extends Service {
 
             @Override
             public void onSensorChanged(SensorEvent event) {
+                // 先无条件刷新缓存：确认窗口到点时要用“此刻最新”的光照复查，
+                // 否则被节流丢掉的事件会让缓存值停留在旧读数上
+                lightLevel = event.values[0];
+
                 long currentTime = System.currentTimeMillis();
+
+                // 先按 100ms 节流广播给界面：这只影响显示，不参与判定，
+                // 所以界面数字能跟上传感器，而不会把判定频率也抬高
+                if (currentTime - lastBroadcastTime >= UI_BROADCAST_INTERVAL_MS) {
+                    lastBroadcastTime = currentTime;
+                    Intent broadcastIntent = new Intent("com.myapp.LIGHT_LEVEL_UPDATE");
+                    broadcastIntent.putExtra("lightLevel", lightLevel);
+                    sendBroadcast(broadcastIntent);
+                }
+
+                // 判定用 500ms 节流：过密的事件不参与算法统计
                 if (currentTime - lastProcessingTime < MIN_PROCESS_INTERVAL_MS) {
                     return;
                 }
                 lastProcessingTime = currentTime;
 
-                lightLevel = event.values[0];
-
-                // 发送广播到 UI
-                Intent broadcastIntent = new Intent("com.myapp.LIGHT_LEVEL_UPDATE");
-                broadcastIntent.putExtra("lightLevel", lightLevel);
-                sendBroadcast(broadcastIntent);
-
                 if (cachedConfigData.isEmpty()) {
                     return;
                 }
 
-                // 1. 寻找当前光照对应的目标亮度（从高到低遍历）
-                int currentTarget = -1;
-                for (int i = cachedConfigData.size() - 1; i >= 0; i--) {
-                    int[] rule = cachedConfigData.get(i);
-                    if (lightLevel >= rule[0]) {
-                        currentTarget = rule[1];
-                        break;
-                    }
-                }
+                // 1. 光照 → 目标亮度（两种算法共用同一套阈值表）
+                int currentTarget = targetForLight(lightLevel);
                 if (currentTarget == -1) {
                     return;
                 }
 
-                // 2. 光感为 0 时立即调整，不参与计数逻辑
+                // 2. 光感为 0 时立即调整，不参与确认窗口
                 if (lightLevel <= 0f) {
+                    clearPending();
                     if (currentTarget != lastTargetBrightness) {
                         setScreenBrightnessSmoothly(currentTarget);
                     }
-                    consecutiveCount = 0;
-                    pendingTarget = Integer.MIN_VALUE;
                     return;
                 }
 
-                // 3. 常规处理：要求“同一个目标”连续出现 configLmd 次才调整，
-                //    原先只统计“目标与当前亮度不同”的次数，光线抖动几次就会跳档
-                if (currentTarget == lastTargetBrightness) {
-                    consecutiveCount = 0;
-                    pendingTarget = Integer.MIN_VALUE;
+                // 3a. 事件计数（原逻辑）：同一个目标连续上报 configLmd 次才切换。
+                //     完全按最初的实现，不掺时间窗口；间隔由 500ms 节流保证。
+                if (algorithm == ALGO_COUNT) {
+                    clearPending();                 // 这条路径不用确认窗口
+                    if (currentTarget == lastTargetBrightness) {
+                        consecutiveCount = 0;
+                        return;
+                    }
+                    if (currentTarget == pendingTarget) {
+                        consecutiveCount++;
+                    } else {
+                        pendingTarget = currentTarget;
+                        consecutiveCount = 1;
+                    }
+                    if (consecutiveCount >= configLmd) {
+                        setScreenBrightnessSmoothly(currentTarget);
+                        consecutiveCount = 0;
+                        pendingTarget = Integer.MIN_VALUE;
+                    }
                     return;
                 }
-                if (currentTarget == pendingTarget) {
-                    consecutiveCount++;
-                } else {
+
+                // 3b. 阶梯阈值（默认）：同一个目标要“稳扎”到确认窗口结束才生效。
+                //    窗口 = configLmd × 500ms。用定时器而不是数事件条数，
+                //    这样光线一次跳变后就不再上报（TYPE_LIGHT 是 on-change 传感器）
+                //    也能正常裁决；窗口内目标变了就重新计时。
+                if (currentTarget == lastTargetBrightness) {
+                    clearPending();
+                    return;
+                }
+                if (currentTarget != pendingTarget) {
                     pendingTarget = currentTarget;
-                    consecutiveCount = 1;
+                    armPendingConfirm();      // 目标变了：窗口重新开始
                 }
-                if (consecutiveCount >= configLmd) {
-                    setScreenBrightnessSmoothly(currentTarget);
-                    consecutiveCount = 0;
-                    pendingTarget = Integer.MIN_VALUE;
-                }
+                // 目标没变：沿用已有窗口，到点由 commitPendingTarget() 统一处理
             }
 
             @Override
