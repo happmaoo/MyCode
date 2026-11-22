@@ -44,7 +44,7 @@ import android.widget.Toast;
  */
 public class MainActivity extends Activity {
 
-    EditText etServer, etKey, etCmd;
+    EditText etServer, etCmd;
     boolean longPressCleared = false;   // 长按1秒清空输入框后置位，松手时不触发发送
     TextView tvInfo, tvBatt, tvResult;
     ScrollView svResult;
@@ -60,7 +60,9 @@ public class MainActivity extends Activity {
     ArrayAdapter<String> fileAdapter;
     String curTab = "quick";
     ArrayAdapter<String> padAdapter;
-    Button btnConnect, btnDisconnect;
+    Button btnConnect;
+    boolean linked = false;   // 当前是否已连接：决定同一个按钮显示 Connect 还是 Disconnect
+    boolean busy = false;     // 当前是否扫描/连接中：按钮显示 cancel，点击可取消
 
     BleService svc;                 // 绑定后拿到引擎；为 null 时动作先暂存
     String pendingConnect;          // 服务还没绑上就点了 Connect 时的暂存
@@ -91,15 +93,30 @@ public class MainActivity extends Activity {
         @Override public void onLog(String s)       { if (alive()) { tvResult.append(s); scrollDown(); } }
         @Override public void onLogReset(String s)  { if (alive()) { tvResult.setText(s); scrollDown(); } }
         @Override public void onBtn(String t, boolean en) {
-            if (alive()) {
+            if (!alive()) return;
+            // 合并后的单按钮，四种状态：
+            //   "Scanning…"/"Connecting…" → 显示 "cancel"，可点击（点击取消扫描/连接）
+            //   "Connected"                → 显示 "Disconnect"，可点击（点击断开）
+            //   "Connect"                  → 显示 "Connect"，可点击（点击连接）
+            if ("Scanning…".equals(t) || "Connecting…".equals(t)) {
+                linked = false;
+                busy = true;
+                btnConnect.setText("cancel");
+                btnConnect.setEnabled(true);
+            } else if ("Connected".equals(t) && !en) {
+                linked = true;
+                busy = false;
+                btnConnect.setText("Disconnect");
+                btnConnect.setEnabled(true);
+            } else {
+                linked = false;
+                busy = false;
                 btnConnect.setText(t);
                 btnConnect.setEnabled(en);
-                // 双保险：断开按钮状态直接跟着 onBtn 走，不依赖新增回调链路
-                syncDisconnectBtn(!en && "Connected".equals(t));
             }
         }
         @Override public void onDisconnectBtn(boolean en) {
-            if (alive()) syncDisconnectBtn(en);
+            // 断开按钮已合并进 Connect 按钮，无需单独处理
         }
         @Override public void onToast(String s) {
             if (alive()) Toast.makeText(MainActivity.this, s, Toast.LENGTH_SHORT).show();
@@ -131,12 +148,6 @@ public class MainActivity extends Activity {
 
     boolean alive() { return !isFinishing() && !isDestroyed(); }
 
-    /** 断开按钮：只在已连接时可用；禁用时文字直接改「未连接」，状态肉眼可确认 */
-    void syncDisconnectBtn(boolean on) {
-        btnDisconnect.setEnabled(on);
-        btnDisconnect.setText(on ? "Disconnect" : "Not connected");
-    }
-
     void scrollDown() {
         svResult.post(new Runnable() {
             @Override public void run() {
@@ -166,26 +177,22 @@ public class MainActivity extends Activity {
         }
 
         etServer = (EditText) findViewById(R.id.et_server);
-        etKey    = (EditText) findViewById(R.id.et_key);
         etCmd    = (EditText) findViewById(R.id.et_cmd);
         tvInfo   = (TextView) findViewById(R.id.tv_info);
         tvBatt   = (TextView) findViewById(R.id.tv_batt);
         tvResult = (TextView) findViewById(R.id.tv_result);
         svResult = (ScrollView) findViewById(R.id.sv_result);
         btnConnect = (Button) findViewById(R.id.btn_connect);
-        btnDisconnect = (Button) findViewById(R.id.btn_disconnect);
-        btnDisconnect.setEnabled(false);   // 初始未连接：断开按钮先禁用，等连接成功再启用
-        btnDisconnect.setText("Not connected");    // 文字直接标明状态，便于确认禁用是否生效
 
         // 输入来自持久化设置；APK 内不内置任何密钥
         etServer.setText(P.server(this));
-        etKey.setText(P.psk(this));
 
+        // 单按钮：未连接→连接；扫描/连接中（cancel）→取消；已连接（Disconnect）→断开
         btnConnect.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { onConnectClicked(); }
-        });
-        findViewById(R.id.btn_disconnect).setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { userRelease(); }
+            @Override public void onClick(View v) {
+                if (busy || linked) userRelease();
+                else onConnectClicked();
+            }
         });
         findViewById(R.id.btn_run).setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { onRunClicked(); }
@@ -366,7 +373,7 @@ public class MainActivity extends Activity {
     void onConnectClicked() {
         String want = etServer.getText().toString().trim();
         if (want.length() == 0) { toast("Please enter the advertised name"); return; }
-        P.saveServerPsk(this, want, etKey.getText().toString().trim());
+        P.saveServerPsk(this, want, P.psk(this));
         BluetoothManager bm = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         BluetoothAdapter ad = (bm == null) ? null : bm.getAdapter();
         if (ad == null || !ad.isEnabled()) { info("Bluetooth is off; please turn it on first"); return; }

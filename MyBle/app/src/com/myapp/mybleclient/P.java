@@ -17,14 +17,6 @@ public class P {
     static String psk(Context c) { return sp(c).getString("psk", ""); }
     static boolean autoConnect(Context c) { return sp(c).getBoolean("auto_connect", false); }
 
-    /** 记住的服务端 MAC：首次按名称连上后写入，以后按地址直连跳过扫描；空=尚未记住 */
-    static String savedMac(Context c) { return sp(c).getString("saved_mac", ""); }
-    static void saveMac(Context c, String mac) {
-        if (mac == null || mac.trim().length() == 0) return;
-        sp(c).edit().putString("saved_mac", mac.trim().toUpperCase(java.util.Locale.US)).apply();
-    }
-    static void clearMac(Context c) { sp(c).edit().remove("saved_mac").apply(); }
-
     /** RSSI 轮询间隔，秒；越界回落 3 */
     static int rssiSec(Context c) {
         int v = sp(c).getInt("rssi_sec", 3);
@@ -36,13 +28,6 @@ public class P {
         int v = sp(c).getInt("zero_chunk_ms", 3500);
         if (v == 0) return 0;                       // 0 = 关闭提示
         return (v < 500 || v > 120000) ? 3500 : v;
-    }
-
-    /** RSSI 静默判死阈值，秒；0=不做静默判死（只靠协议栈 linkAlive）；越界回落 30 */
-    static int rssiSilentSec(Context c) {
-        int v = sp(c).getInt("rssi_silent_sec", 30);
-        if (v == 0) return 0;
-        return (v < 5 || v > 300) ? 30 : v;
     }
 
     /** 连接期间持有 CPU 唤醒锁（防熄屏后 ATT 停摆），耗电换稳定，默认关 */
@@ -128,10 +113,10 @@ public class P {
     }
 
     static void save(Context c, String server, String psk, boolean auto, int rssiSec, int zeroChunkMs,
-                     int rssiSilentSec, boolean keepWake) {
+                     boolean keepWake) {
         sp(c).edit().putString("server", server).putString("psk", psk)
                 .putBoolean("auto_connect", auto).putInt("rssi_sec", rssiSec)
-                .putInt("zero_chunk_ms", zeroChunkMs).putInt("rssi_silent_sec", rssiSilentSec)
+                .putInt("zero_chunk_ms", zeroChunkMs)
                 .putBoolean("keep_wake", keepWake).apply();
     }
 

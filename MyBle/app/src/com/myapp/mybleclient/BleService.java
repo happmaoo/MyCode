@@ -183,7 +183,6 @@ public class BleService extends Service {
     int step = 0;              // 0 未开始 1 读电量 2 订阅电量 3 订阅RES 4 鉴权 9 就绪
     int lastBattery = -1;
     int lastRssi = 0;
-    long lastRssiOkAt = 0;
     int rssiBusy = 0;
     int hbTicks = 0;
     boolean linkUp = false;
@@ -205,9 +204,6 @@ public class BleService extends Service {
     boolean autoCmdDone = false;     // 本次连接是否已执行过"连接后自动命令"
     PowerManager.WakeLock wake;      // 可选：熄屏保活（设置 keep_wake 开启才持有）
     String want = "";
-    boolean connectingByMac = false;     // 本轮是否按记住的 MAC 直连（失败时回退按 MAC 扫描匹配）
-    String scanMatchMac = null;          // 非空=本轮扫描按 MAC 匹配（不依赖名称）；空=按名称匹配
-    String fallbackMac = null;          // 本轮记住的 MAC：仅当按名称扫不到时才启用（兜底，不优先）
     String notifTitle = "MyBleClient";   // 通知标题：未连接用默认值，连上后改为服务器名
     Set<String> seenDev = new HashSet<String>();   // 扫描期已记录过的设备地址（去重，避免日志刷屏）
     List<String> scanDevLines = new ArrayList<String>();  // 扫描期发现设备的日志行（保序，连上时重新汇入）
@@ -232,28 +228,7 @@ public class BleService extends Service {
         @Override public void run() {
             if (connecting || linkUp) return;
             stopScan();
-            if (scanMatchMac != null) {
-                // 按记住的 MAC 扫不到：多半是服务端换了地址，清掉旧记录回退按名称
-                String old = scanMatchMac;
-                scanMatchMac = null;
-                P.clearMac(BleService.this);
-                info("No device with saved MAC " + old + "; cleared it, retry by name '" + want + "'");
-                th.postDelayed(new Runnable() {
-                    @Override public void run() {
-                        if (gatt == null && !linkUp && !connecting && !scanning) beginConnect(want);
-                    }
-                }, 600);
-                return;
-            }
             info("No match: " + want + "(confirm the server is running and the advertised name matches)");
-            // 名称没扫到：有记住的 MAC 就退回按 MAC 直连（兜底，仅此一次）
-            if (fallbackMac != null) {
-                String fb = fallbackMac;
-                fallbackMac = null;
-                info("Name '" + want + "' not found in 12s; fall back to saved MAC " + fb);
-                connectByMac(fb);
-                return;
-            }
             setBtn("Connect", true);
         }
     };
@@ -264,17 +239,7 @@ public class BleService extends Service {
             if (step >= 9 || gatt == null) return;
             info("Init timeout (stuck at step " + step + ")  -  connection released; retrying…");
             logEvent("Init timeout step=" + step + ": an ATT request got no callback, or the peripheral process was restarted");
-            // 按 MAC 直连卡住：可能地址类型/链路问题，清掉直连标记后按 MAC 扫描匹配重试
-            boolean wasByMac = connectingByMac;
             hardClose();
-            if (wasByMac && P.savedMac(BleService.this).length() > 0) {
-                info("MAC direct stalled; retry by MAC scan");
-                th.postDelayed(new Runnable() {
-                    @Override public void run() {
-                        if (gatt == null && !linkUp && !connecting && !scanning) connectByMacScan();
-                    }
-                }, 600);
-            }
         }
     };
 
@@ -400,22 +365,6 @@ public class BleService extends Service {
                     info(auto ? "Link disconnected (stack reported no GATT connection) - reconnecting"
                               : "Link disconnected (stack reported no GATT connection) - please reconnect manually");
                     logEvent("Heartbeat #" + hbTicks + ": linkAlive=false → released and reset button");
-                    hardClose();
-                    if (auto) th.postDelayed(autoConnectTask, 3000);
-                    return;
-                }
-                long silent = System.currentTimeMillis() - lastRssiOkAt;
-                long lim = P.rssiSilentSec(BleService.this) * 1000L;
-                // 上传进行中：不让 RSSI 静默判死误杀上传（上传会持续占满链路、挤掉 RSSI 读取，
-                // 导致 lastRssiOkAt 停滞，若照常判死会把传一半的文件腰斩）
-                if (lim > 0 && (lastRssiOkAt == 0 || silent > lim)
-                        && !(upBusy || !upQueue.isEmpty())) {
-                    boolean auto = P.autoConnect(BleService.this);
-                    info(auto ? "Link may be dead (RSSI silent " + (silent / 1000) + "s) - reconnecting"
-                              : "Link may be dead (RSSI silent " + (silent / 1000) + "s) - please reconnect manually");
-                    logEvent("Heartbeat #" + hbTicks + ": RSSI silent " + (silent / 1000)
-                            + "s (threshold " + (lim / 1000) + "s), readRemoteRssi rejected "
-                            + rssiBusy + " times -> releasing");
                     hardClose();
                     if (auto) th.postDelayed(autoConnectTask, 3000);
                     return;
@@ -655,62 +604,14 @@ public class BleService extends Service {
 
     void beginConnect(String name) {
         String nm = (name == null) ? "" : name.trim();
-        // 已记住的 MAC：本轮只当兜底用（名称扫不到/扫超时才用），不再优先直连
-        String mac = P.savedMac(this);
-        if (mac == null || mac.length() == 0) mac = null;
-
         if (nm.length() == 0) {
-            // 没填名称但有 MAC 记录：退回按 MAC 直连（保留原有能力）
-            if (mac != null) { want = mac; connectByMac(mac); return; }
             toast("Please enter the advertised name");
             return;
         }
         want = nm;
         if (adapter == null || !adapter.isEnabled()) { info("Bluetooth is off; please turn it on first"); setBtn("Connect", true); return; }
 
-        // —— 优先按广播名称扫描：名称不随服务端地址变化，换了地址也能连上 ——
-        fallbackMac = mac;
-        connectingByMac = false;
-        scanMatchMac = null;
-        if (fallbackMac != null) {
-            logEvent("Scan by name '" + want + "' first; saved MAC " + fallbackMac + " kept as fallback");
-        }
-        startScan();
-    }
-
-    /** 按记住的 MAC 直连：不经扫描，直接向该地址发起 GATT 连接 */
-    void connectByMac(String mac) {
-        BluetoothDevice d = null;
-        try { d = adapter.getRemoteDevice(mac); } catch (Throwable t) { }
-        if (d == null) {
-            // 地址串非法（理论上不会）：清掉坏记录，回退按名称
-            P.clearMac(this);
-            connectingByMac = false;
-            scanMatchMac = null;
-            info("Bad saved MAC, cleared; scan by name instead");
-            startScan();
-            return;
-        }
-        connectingByMac = true;
-        scanMatchMac = null;
-        logBuf.clear();
-        Ui u = uiCb;
-        if (u != null) { try { u.onLogReset(""); } catch (Throwable ignored) { } }
-        logEvent("Connect by saved MAC " + mac + " (skip scan)");
-        connectDevice(d, 0);
-    }
-
-    /** 直连失败后的兜底：仍然扫描，但按 MAC 匹配广播设备（不依赖名称，地址类型也正确） */
-    void connectByMacScan() {
-        String mac = P.savedMac(this);
-        if (mac == null || mac.length() == 0) {
-            connectingByMac = false;
-            scanMatchMac = null;
-            startScan();
-            return;
-        }
-        connectingByMac = false;
-        scanMatchMac = mac;
+        // 按广播名称扫描（名称不随服务端地址变化）
         startScan();
     }
 
@@ -725,12 +626,7 @@ public class BleService extends Service {
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
         seenDev.clear();
         scanDevLines.clear();
-        if (scanMatchMac != null) {
-            info("Scanning, matching MAC " + scanMatchMac + " (skip name) …");
-        } else {
-            info("Scanning for all devices (looking for name '" + want + "')"
-                    + (fallbackMac != null ? ", MAC " + fallbackMac + " as fallback" : "") + " …");
-        }
+        info("Scanning for all devices (looking for name '" + want + "') …");
         scanning = true;
         try {
             sc.startScan(null, st, scanCb);
@@ -770,17 +666,8 @@ public class BleService extends Service {
                         scanDevLines.add(line);
                         logEvent(line);
                     }
-                    // —— 命中目标才自动连接：有 MAC 记录时先按 MAC 匹配，名称命中则视为地址已变 ——
-                    if (scanMatchMac != null) {
-                        if (!addr.equalsIgnoreCase(scanMatchMac)) {
-                            // 服务端换了地址：旧 MAC 扫不到，但名称命中目标 → 接受新地址，立即连接
-                            if (name == null || !name.equalsIgnoreCase(want)) return;
-                            String old = scanMatchMac;
-                            P.clearMac(BleService.this);
-                            scanMatchMac = null;
-                            logEvent("服务端地址已变更 " + old + " → " + addr + "（名称命中 " + want + "），按新地址连接");
-                        }
-                    } else if (name == null || !name.equalsIgnoreCase(want)) {
+                    // —— 名称命中目标才自动连接 ——
+                    if (name == null || !name.equalsIgnoreCase(want)) {
                         return;
                     }
                     connecting = true;
@@ -1023,14 +910,6 @@ public class BleService extends Service {
             linkUp = true;
             String addr = g.getDevice().getAddress();
             logEvent("Connected " + addr);  // 新会话起点标记
-            // 首次（或换设备）连上后记住服务端 MAC，供以后按地址直连
-            String saved = P.savedMac(this);
-            if (addr != null && addr.length() > 0 && !addr.equalsIgnoreCase(saved)) {
-                P.saveMac(this, addr);
-                logEvent("Remembered server MAC " + addr + " for direct connect");
-            }
-            connectingByMac = false;   // 连上即完成本轮直连使命
-            fallbackMac = null;        // 名称已命中，兜底 MAC 不再需要
             notifTitle = want;   // 通知标题改为已连接的服务器名
             goForeground("Connected " + want + ", initializing…");
             acquireWake();
@@ -1057,18 +936,6 @@ public class BleService extends Service {
             setBattIdle();
             releaseWake();
             stopForeground(true);        // 链路没了，通知也撤下
-            // 按 MAC 直连但压根没连上（服务端刚重启/链路瞬断）：回退按 MAC 扫描匹配
-            boolean directFailed = connectingByMac
-                    && status != BluetoothGatt.GATT_SUCCESS && status != 19;
-            if (directFailed) {
-                connectingByMac = false;
-                info("MAC direct failed status=" + status + "; retry by MAC scan");
-                th.postDelayed(new Runnable() {
-                    @Override public void run() {
-                        if (gatt == null && !linkUp && !connecting && !scanning) connectByMacScan();
-                    }
-                }, 600);
-            }
             if (P.autoConnect(this)) th.postDelayed(autoConnectTask, 4000);
         }
     }
@@ -1171,7 +1038,6 @@ public class BleService extends Service {
         if (g != gatt) return;
         if (status == BluetoothGatt.GATT_SUCCESS) {
             lastRssi = rssi;
-            lastRssiOkAt = System.currentTimeMillis();
             refreshBattLine();
         } else {
             logEvent("readRemoteRssi Back status=" + status);
@@ -1215,7 +1081,6 @@ public class BleService extends Service {
         }
         if (step == 9) {
             th.removeCallbacks(readyTimeout);
-            lastRssiOkAt = System.currentTimeMillis();
             th.removeCallbacks(heartbeat);
             th.postDelayed(heartbeat, 1000);
             setConnPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER); // 空闲省电
@@ -1811,7 +1676,7 @@ public class BleService extends Service {
                 pendingShare.addAll(uris);
                 logEvent("分享 " + uris.size() + " 个文件已暂存，等待连接就绪后自动上传");
                 toast("已保存 " + uris.size() + " 个文件，连接就绪后自动上传");
-                // 未连接则触发自动连接（按记住的 MAC / 服务器名）
+                // 未连接则触发自动连接（按服务器名）
                 if (gatt == null && !linkUp && !connecting && !scanning) {
                     beginConnect(P.server(BleService.this));
                 }
@@ -1872,9 +1737,6 @@ public class BleService extends Service {
 
     /** 把文件上传按钮切换为 Cancel / 还原为 Files（仅通知当前界面） */
     void notifyUploadState(boolean uploading) {
-        // 上传开始/结束都刷新一次 RSSI 时间戳：开始=避免刚进入上传就被旧静默值误杀；
-        // 结束=避免长上传后 lastRssiOkAt 过旧、下一拍心跳立刻误判链路死亡
-        lastRssiOkAt = System.currentTimeMillis();
         Ui u = uiCb;
         if (u != null) { try { u.onUploadState(uploading); } catch (Throwable ignored) { } }
     }
@@ -2183,6 +2045,13 @@ public class BleService extends Service {
                 try { u.onUploadState(false); } catch (Throwable ignored) { }
                 try { u.onDownloadState(false); } catch (Throwable ignored) { }
             }
+        }
+        // 所有复位到「未连接」的路径（扫描超时/失败/权限错/蓝牙关/主动断开）统一刷新通知栏，
+        // 避免按钮已回到 Connect、通知栏却仍停在 "Scan/Connect …" 的不同步。
+        // 这里只更新文字、不 stopForeground：扫描超时后服务仍需留在前台保活（供重试/自动重连）。
+        if ("Connect".equals(text) && enabled) {
+            notifTitle = "MyBleClient";
+            updateNotif("Not connected");
         }
     }
 

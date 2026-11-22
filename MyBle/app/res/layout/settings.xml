@@ -80,21 +80,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="8dp"
-            android:text="RSSI silence-death (seconds, 5~300; if readRemoteRssi hasn't responded for this long, the link is deemed dead and released; 0=off)"
-            android:textSize="13sp" />
-
-        <EditText
-            android:id="@+id/s_silent"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="30"
-            android:inputType="number"
-            android:singleLine="true" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="8dp"
             android:text="Quick commands (one per line; tap ▾Quick on the main screen to pick; tap an item to send immediately; max 50)"
             android:textSize="13sp" />
 
@@ -173,34 +158,6 @@
             android:paddingTop="8dp"
             android:text="Fast upload pipeline (send several data chunks per connection event; much faster. Turn off to fall back to one-at-a-time if uploads are unstable)" />
 
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="8dp"
-            android:text="Remembered server MAC (connect by address; learned on first connect)"
-            android:textSize="13sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:id="@+id/s_mac"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text=""
-                android:textSize="14sp" />
-
-            <Button
-                android:id="@+id/s_clear_mac"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Forget MAC" />
-        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"

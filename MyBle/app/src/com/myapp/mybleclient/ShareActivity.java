@@ -25,7 +25,7 @@ import java.util.ArrayList;
  *     内容复制进本 App 私有缓存，再以 file:// Uri 交给长期存活的 BleService，彻底规避权限问题。
  *  2) 从分享菜单启动时 App 往往没在前台，Service 可能未启动 —— 先 startService 让服务常驻，
  *     再 bindService 拿 LocalBinder；拿到后立即 unbind，服务靠 started 状态继续存活。
- *     若尚未连接，BleService 会用记住的 MAC/服务器名自动连接，就绪后自动上传队列。
+ *     若尚未连接，BleService 会用服务器名自动连接，就绪后自动上传队列。
  */
 public class ShareActivity extends Activity {
 

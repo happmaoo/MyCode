@@ -9,7 +9,7 @@
     android:paddingTop="0dp"
     android:paddingBottom="56dp">
 
-    <!-- Server 与 Key 合并为一行 -->
+    <!-- Server 与 Connect 合并为一行 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -24,51 +24,21 @@
 
         <EditText
             android:id="@+id/et_server"
-            android:layout_width="0dp"
+            android:layout_width="140dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1.2"
             android:hint="advertised name"
-            android:imeOptions="actionNext"
+            android:imeOptions="actionDone"
             android:inputType="textNoSuggestions"
             android:singleLine="true"
             android:text="Rolex" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginLeft="6dp"
-            android:text="Key:"
-            android:textSize="15sp" />
-
-        <EditText
-            android:id="@+id/et_key"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:hint="--psk value"
-            android:imeOptions="actionDone"
-            android:inputType="textNoSuggestions"
-            android:singleLine="true" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
-
         <Button
             android:id="@+id/btn_connect"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_marginLeft="4dp"
+            android:minWidth="120dp"
             android:text="Connect" />
-
-        <Button
-            android:id="@+id/btn_disconnect"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Disconnect" />
     </LinearLayout>
 
     <TextView

@@ -13,9 +13,9 @@ import android.widget.Toast;
 /** 设置页：广播名 / 密钥 / RSSI 轮询间隔 / 启动自动连接，全部落盘 */
 public class Settings extends Activity {
 
-    EditText sServer, sKey, sRssi, sZero, sSilent, sQuick, sEditorPkg, sEditorCls, sOnConnect;
+    EditText sServer, sKey, sRssi, sZero, sQuick, sEditorPkg, sEditorCls, sOnConnect;
     CheckBox sAuto, sWake, sDebug, sPipeline;
-    TextView sInfo, sMac;
+    TextView sInfo;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,7 +27,6 @@ public class Settings extends Activity {
         sKey = (EditText) findViewById(R.id.s_key);
         sRssi = (EditText) findViewById(R.id.s_rssi);
         sZero = (EditText) findViewById(R.id.s_zero);
-        sSilent = (EditText) findViewById(R.id.s_silent);
         sQuick = (EditText) findViewById(R.id.s_quick);
         sEditorPkg = (EditText) findViewById(R.id.s_editor_pkg);
         sEditorCls = (EditText) findViewById(R.id.s_editor_cls);
@@ -37,15 +36,12 @@ public class Settings extends Activity {
         sDebug = (CheckBox) findViewById(R.id.s_debug);
         sPipeline = (CheckBox) findViewById(R.id.s_pipeline);
         sInfo = (TextView) findViewById(R.id.s_info);
-        sMac = (TextView) findViewById(R.id.s_mac);
-        showMac();
 
         sServer.setText(P.server(this));
         sKey.setText(P.psk(this));
         sRssi.setText(String.valueOf(P.rssiSec(this)));
         int zc = P.zeroChunkMs(this);
         sZero.setText(zc == 0 ? "0" : String.valueOf(zc / 1000.0f));
-        sSilent.setText(String.valueOf(P.rssiSilentSec(this)));
         sQuick.setText(P.quickCmdsRaw(this));
         sEditorPkg.setText(P.editorPkg(this));
         sEditorCls.setText(P.editorCls(this));
@@ -57,12 +53,10 @@ public class Settings extends Activity {
         sInfo.setText("Saved: Server=" + P.server(this)
                 + "  RSSI=" + P.rssiSec(this) + "s"
                 + "  zero-chunk timeout=" + (P.zeroChunkMs(this) == 0 ? "off" : P.zeroChunkMs(this) + "ms")
-                + "  silence death=" + (P.rssiSilentSec(this) == 0 ? "off" : P.rssiSilentSec(this) + "s")
                 + "  wake-lock=" + P.keepWake(this)
                 + "  auto-connect=" + P.autoConnect(this)
                 + "  debug-log=" + P.debug(this) + " → Download/mybleclient.log"
                 + "  upload-pipeline=" + P.uploadPipeline(this)
-                + "  saved-MAC=" + (P.savedMac(this).length() == 0 ? "(none)" : P.savedMac(this))
                 + "  key=" + (P.psk(this).length() == 0 ? "(empty)" : P.psk(this).length() + " chars")
                 + "\n  on-connect cmd=" + (P.onConnectCmd(this).length() == 0 ? "(none)" : P.onConnectCmd(this)));
 
@@ -72,18 +66,6 @@ public class Settings extends Activity {
         ((Button) findViewById(R.id.s_cancel)).setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { finish(); }
         });
-        ((Button) findViewById(R.id.s_clear_mac)).setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                P.clearMac(Settings.this);
-                showMac();
-                Toast.makeText(Settings.this, "MAC forgotten; will use name next time", Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
-
-    void showMac() {
-        String mac = P.savedMac(this);
-        sMac.setText(mac.length() == 0 ? "(none — will learn on first connect)" : mac);
     }
 
     void save() {
@@ -118,19 +100,7 @@ public class Settings extends Activity {
             Toast.makeText(this, "Zero-chunk timeout limited to 0.5~120 s (0=off)", Toast.LENGTH_SHORT).show();
             return;
         }
-        // RSSI 静默判死：秒；0 = 关闭判死
-        int silentSec;
-        try {
-            silentSec = Integer.parseInt(sSilent.getText().toString().trim());
-        } catch (NumberFormatException e) {
-            Toast.makeText(this, "Silence-death must be 5~300 (0=off)", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (silentSec != 0 && (silentSec < 5 || silentSec > 300)) {
-            Toast.makeText(this, "Silence-death limited to 5~300 s (0=off)", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        P.save(this, server, key, sAuto.isChecked(), rssi, zeroMs, silentSec, sWake.isChecked());
+        P.save(this, server, key, sAuto.isChecked(), rssi, zeroMs, sWake.isChecked());
         P.saveDebug(this, sDebug.isChecked());
         if (!sDebug.isChecked()) DbgLog.close();   // 关闭开关时立刻停止写文件
         P.saveUploadPipeline(this, sPipeline.isChecked());
@@ -140,7 +110,6 @@ public class Settings extends Activity {
         sInfo.setText("Saved: " + System.currentTimeMillis() / 1000
                 + "\nServer=" + server + "  RSSI=" + rssi + "s"
                 + "  zero-chunk timeout=" + (zeroMs == 0 ? "off" : zeroMs + "ms")
-                + "  silence death=" + (silentSec == 0 ? "off" : silentSec + "s")
                 + "  wake-lock=" + sWake.isChecked()
                 + "  auto-connect=" + sAuto.isChecked()
                 + "  debug-log=" + sDebug.isChecked() + (sDebug.isChecked() ? " → Download/mybleclient.log" : "")
