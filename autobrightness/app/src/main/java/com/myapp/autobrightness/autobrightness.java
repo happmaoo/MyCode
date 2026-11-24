@@ -42,14 +42,10 @@ public class autobrightness extends Service {
     private static final String KEY_CONFIG = "config";
     private static final String KEY_ENABLE = "enable";
     private static final String EXTRA_CONFIG = "arg-config";
-    /** 算法偏好键：0=阶梯阈值（确认窗口，默认） 1=事件计数（原逻辑，连续 N 次） */
-    static final String KEY_ALGO = "algo";
-    /** 阶梯阈值的确认窗口期（毫秒）；0 或缺失表示用默认 2 秒 */
+    /** 是否启用"确认窗口期"兜底（缺省 true）；关掉就是纯次数判定 */
+    static final String KEY_WINDOW_ENABLE = "window_enable";
+    /** 确认窗口期（毫秒）；0 或缺失表示用默认 10 秒 */
     static final String KEY_WINDOW_MS = "algo_window_ms";
-    static final int ALGO_STEP = 0;
-    static final int ALGO_COUNT = 1;
-    /** 旧版本“事件计数”曾用 3 做编号，读偏好时兼容一下 */
-    private static final int LEGACY_ALGO_COUNT = 3;
     /** 通知栏按钮点击后发给服务的 action：翻转启用/停用 */
     private static final String ACTION_TOGGLE = "com.myapp.autobrightness.ACTION_TOGGLE";
 
@@ -59,8 +55,13 @@ public class autobrightness extends Service {
     /** 传感器事件最小处理间隔，避免高频回调 */
     private static final long MIN_PROCESS_INTERVAL_MS = 500;
     private static final int TOTAL_STEPS = 25;
-    /** 阶梯阈值确认窗口的默认值：2 秒（设置页留空时用） */
-    private static final long DEFAULT_CONFIRM_WINDOW_MS = 2000;
+    /** 阶梯阈值确认窗口的默认值：10 秒（设置页留空时用） */
+    private static final long DEFAULT_CONFIRM_WINDOW_MS = 10000;
+    /** 确认窗口期可填范围：2–30 秒 */
+    static final int MIN_CONFIRM_WINDOW_MS = 2000;
+    static final int MAX_CONFIRM_WINDOW_MS = 30000;
+    /** Settings.System.SCREEN_BRIGHTNESS_MODE 的自动值（该常量在 SDK 里是隐藏的，这里写死 1） */
+    private static final int SCREEN_BRIGHTNESS_MODE_AUTO = 1;
     /** 给界面刷数值用的广播节流（比判定用的 500ms 更快，界面才跟得上） */
     private static final long UI_BROADCAST_INTERVAL_MS = 100;
 
@@ -71,9 +72,12 @@ public class autobrightness extends Service {
 
     // --- 配置 ---
     private final List<int[]> cachedConfigData = new ArrayList<>();
-    private int algorithm = ALGO_STEP;
-    /** ALGO_COUNT 用的计数：同一目标连续上报的次数 */
+    /** 是否启用确认窗口期（设置页复选框）；关掉则只按次数判定 */
+    private boolean windowEnabled = true;
+    /** 连续"偏离当前亮度"的采样次数，凑够 lmd 次就立即切档 */
     private int consecutiveCount = 0;
+    /** 候选目标第一次出现的时刻：兜底窗口的截止时间以此为基准 */
+    private long pendingSinceMs = 0;
     private int configLmd = 3;
     private int configDuration = 2000;
 
@@ -88,6 +92,7 @@ public class autobrightness extends Service {
     private int pendingTarget = Integer.MIN_VALUE;
     /** 待执行的确认任务，目标变化时要取消重排 */
     private Runnable pendingConfirmRunnable;
+
     private int lastTargetBrightness = -1;
     private boolean firstStart = true;
 
@@ -108,14 +113,10 @@ public class autobrightness extends Service {
                 public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
                     if (KEY_ENABLE.equals(key)) {
                         onEnableChanged();
-                    } else if (KEY_WINDOW_MS.equals(key)) {
-                        // 改了窗口期：丢掉正在等的候选，下一次采样按新窗口重新计时
+                    } else if (KEY_WINDOW_MS.equals(key) || KEY_WINDOW_ENABLE.equals(key)) {
+                        // 改了窗口期/开关了兜底：丢掉正在等的候选，下一次采样按新规则重算
+                        loadWindowConfig();
                         clearPending();
-                    } else if (KEY_ALGO.equals(key)) {
-                        // 设置页切了算法：立刻换算法并让下一次采样按新规则重算
-                        loadAlgorithm();
-                        clearPending();
-                        consecutiveCount = 0;
                         lastTargetBrightness = -1;
                         if (brightnessRunnable != null) {
                             brightnessHandler.removeCallbacks(brightnessRunnable);
@@ -137,7 +138,7 @@ public class autobrightness extends Service {
 
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
                 .registerOnSharedPreferenceChangeListener(prefListener);
-        loadAlgorithm();
+        loadWindowConfig();
 
         // 监听系统亮度值变化：用来发现"用户自己拉了亮度条"
         brightnessObserver = new ContentObserver(brightnessHandler) {
@@ -155,12 +156,10 @@ public class autobrightness extends Service {
         }
     }
 
-    /** 读取当前算法（设置页写入的 algo 键） */
-    private void loadAlgorithm() {
-        int v = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getInt(KEY_ALGO, ALGO_STEP);
-        if (v == LEGACY_ALGO_COUNT) v = ALGO_COUNT;    // 旧编号兼容
-        // 已删掉的“线性插值(1)/立即响应(2)”回落到默认阶梯
-        algorithm = (v == ALGO_COUNT) ? ALGO_COUNT : ALGO_STEP;
+    /** 读取"确认窗口期"开关（设置页复选框；缺省 = 启用） */
+    private void loadWindowConfig() {
+        windowEnabled = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(KEY_WINDOW_ENABLE, true);
     }
 
     /** 光照 → 目标亮度：取阈值不超过当前光照的最高一档；无匹配返回 -1 */
@@ -178,54 +177,75 @@ public class autobrightness extends Service {
 
     /**
      * 确认窗口长度，单位毫秒。
-     * 设置页填了具体值就用它（KEY_WINDOW_MS）；留空一律用默认 2 秒
-     * （不再跟 lmd 挂钩，lmd 第一位数现在只影响“事件计数”模式）。
-     * 下限 300ms，防止被设成 0 疯狂调亮度。
+     * 设置页填了具体值就用它（KEY_WINDOW_MS）；留空一律用默认 10 秒。
+     * 只在"启用确认窗口期"时才会用到（见 windowEnabled）。
+     * 允许范围 2–30 秒，超出按边界夹取，防止设成 0 疯狂调亮度或设太长像卡死。
      */
     private long confirmWindowMs() {
         int custom = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
                 .getInt(KEY_WINDOW_MS, 0);
-        if (custom > 0) return Math.max(300, custom);
+        if (custom > 0) return clampWindowMs(custom);
         return DEFAULT_CONFIRM_WINDOW_MS;
     }
 
-    /** 取消待裁决的候选目标 */
-    private void clearPending() {
-        pendingTarget = Integer.MIN_VALUE;
+    /** 窗口期上下限夹取（2–30 秒） */
+    static int clampWindowMs(int ms) {
+        if (ms < MIN_CONFIRM_WINDOW_MS) return MIN_CONFIRM_WINDOW_MS;
+        if (ms > MAX_CONFIRM_WINDOW_MS) return MAX_CONFIRM_WINDOW_MS;
+        return ms;
+    }
+
+    /** 只掐掉确认窗口的定时器，保留 pendingTarget（事件计数模式要拿它做连续计数） */
+    private void cancelPendingConfirmOnly() {
         if (pendingConfirmRunnable != null) {
             brightnessHandler.removeCallbacks(pendingConfirmRunnable);
             pendingConfirmRunnable = null;
         }
     }
 
-    /** 为当前 pendingTarget 排一个确认任务（重复排会先取消旧的） */
+    /** 取消待裁决的候选目标，计数一起清零 */
+    private void clearPending() {
+        pendingTarget = Integer.MIN_VALUE;
+        pendingSinceMs = 0;
+        consecutiveCount = 0;
+        cancelPendingConfirmOnly();
+    }
+
+    /** 为当前候选目标排确认任务：截止时间固定在"第一次偏离"那一刻 + 窗口期，后续抖动只更新候选，不再顺延 */
     private void armPendingConfirm() {
-        if (pendingConfirmRunnable != null) {
-            brightnessHandler.removeCallbacks(pendingConfirmRunnable);
-        }
+        cancelPendingConfirmOnly();
+        long elapsed = SystemClock.uptimeMillis() - pendingSinceMs;
+        long delay = Math.max(0, confirmWindowMs() - elapsed);
         pendingConfirmRunnable = new Runnable() {
             @Override public void run() {
                 pendingConfirmRunnable = null;
                 commitPendingTarget();
             }
         };
-        brightnessHandler.postDelayed(pendingConfirmRunnable, confirmWindowMs());
+        brightnessHandler.postDelayed(pendingConfirmRunnable, delay);
     }
 
     /**
-     * 窗口到点：用最新光照再算一次目标。
-     * 仍等于候选目标 → 执行；已经被光线回摆打断 → 丢弃，避免误调。
+     * 窗口到点：用最新光照再算一次目标，不等于当前亮度就执行。
+     * 关键点：截止时间是从第一次偏离开始算的固定期限，窗口内光线再跳几次都只是
+     * 更新候选值、不会把计时器往后推，所以"变了 3 次"不会变成"再等 30 秒"。
      */
     private void commitPendingTarget() {
         int pending = pendingTarget;
         pendingTarget = Integer.MIN_VALUE;
+        pendingSinceMs = 0;
+        consecutiveCount = 0;
         if (pending == Integer.MIN_VALUE) return;
         if (!getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getBoolean(KEY_ENABLE, false)) return;
         if (manualBrightness) return;                       // 用户手动调过，先别抢
         if (lightLevel <= 0f) return;                       // 已进入全黑立即分支
         int now = targetForLight(lightLevel);
-        if (now == -1 || now != pending) return;            // 窗口期内又跳回别档
-        if (now == lastTargetBrightness) return;
+        if (now == -1) return;
+        if (now == lastTargetBrightness) {                  // 光线已经回到当前档，不折腾
+            Log.d(TAG, "窗口到点，目标已等于当前亮度 " + now + "，忽略");
+            return;
+        }
+        Log.d(TAG, "窗口到点，执行 " + now + "（候选 " + pending + "，光照 " + lightLevel + "）");
         setScreenBrightnessSmoothly(now);
     }
 
@@ -307,7 +327,7 @@ public class autobrightness extends Service {
             config = pref.getString(KEY_CONFIG, "");
         }
 
-        loadAlgorithm();
+        loadWindowConfig();
         parseConfig(config);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(this)) {
@@ -364,6 +384,16 @@ public class autobrightness extends Service {
                 .getBoolean(KEY_ENABLE, false);
         if (!enabled || manualBrightness) {
             return;
+        }
+        // 系统仍是自动亮度模式时，改 SCREEN_BRIGHTNESS 的是系统自己，不是用户；
+        // 这种情况绝不能判成"手动调节"，否则自动调节会被永久锁死到下一次亮屏
+        try {
+            int mode = Settings.System.getInt(getContentResolver(),
+                    Settings.System.SCREEN_BRIGHTNESS_MODE);
+            if (mode == SCREEN_BRIGHTNESS_MODE_AUTO) {
+                return;
+            }
+        } catch (Exception ignored) {
         }
         // 刚写过系统亮度（渐变动画期间），这次变化是自己造成的，忽略
         if (SystemClock.uptimeMillis() - lastOwnWriteTime < 2000) {
@@ -517,41 +547,39 @@ public class autobrightness extends Service {
                     return;
                 }
 
-                // 3a. 事件计数（原逻辑）：同一个目标连续上报 configLmd 次才切换。
-                //     完全按最初的实现，不掺时间窗口；间隔由 500ms 节流保证。
-                if (algorithm == ALGO_COUNT) {
-                    clearPending();                 // 这条路径不用确认窗口
-                    if (currentTarget == lastTargetBrightness) {
-                        consecutiveCount = 0;
-                        return;
-                    }
-                    if (currentTarget == pendingTarget) {
-                        consecutiveCount++;
-                    } else {
-                        pendingTarget = currentTarget;
-                        consecutiveCount = 1;
-                    }
-                    if (consecutiveCount >= configLmd) {
-                        setScreenBrightnessSmoothly(currentTarget);
-                        consecutiveCount = 0;
-                        pendingTarget = Integer.MIN_VALUE;
-                    }
+                // 3. 统一算法（只有一套）：次数优先，窗口兜底。
+                //   ① 次数：连续 lmd 次采样都落在"非当前档"，第 lmd 次立即按最新档切；
+                //   ② 兜底：勾选"确认窗口期"时，自第一次偏离起算固定截止时间，到点按最新光照裁决；
+                //      没勾选就是纯次数判定，不设时间兜底。
+                if (currentTarget == lastTargetBrightness) {
+                    clearPending();       // 回到当前档：计数清零，不做调整
                     return;
                 }
-
-                // 3b. 阶梯阈值（默认）：同一个目标要“稳扎”到确认窗口结束才生效。
-                //    窗口 = configLmd × 500ms。用定时器而不是数事件条数，
-                //    这样光线一次跳变后就不再上报（TYPE_LIGHT 是 on-change 传感器）
-                //    也能正常裁决；窗口内目标变了就重新计时。
-                if (currentTarget == lastTargetBrightness) {
-                    clearPending();
-                    return;
+                if (pendingTarget == Integer.MIN_VALUE) {
+                    // 从"没有候选"进入候选状态：这里才定截止起点
+                    pendingSinceMs = SystemClock.uptimeMillis();
                 }
                 if (currentTarget != pendingTarget) {
                     pendingTarget = currentTarget;
-                    armPendingConfirm();      // 目标变了：窗口重新开始
+                    if (windowEnabled) {
+                        armPendingConfirm();  // 换档：截止时间不变，只重排定时器
+                    }
                 }
-                // 目标没变：沿用已有窗口，到点由 commitPendingTarget() 统一处理
+                consecutiveCount++;           // 连续"偏离当前档"的采样次数
+                Log.d(TAG, "偏离第 " + consecutiveCount + "/" + configLmd + " 次，目标 "
+                        + currentTarget + "（光照 " + lightLevel + "，兜底窗口 "
+                        + (windowEnabled ? confirmWindowMs() + "ms" : "关") + "）");
+                if (consecutiveCount >= configLmd) {
+                    // 次数够了：马上切，不用等窗口到点
+                    cancelPendingConfirmOnly();
+                    consecutiveCount = 0;
+                    pendingTarget = Integer.MIN_VALUE;
+                    pendingSinceMs = 0;
+                    Log.d(TAG, "连续 " + configLmd + " 次偏离，立即执行 " + currentTarget);
+                    setScreenBrightnessSmoothly(currentTarget);
+                    return;
+                }
+                // 次数还没凑够：勾了窗口就等 commitPendingTarget()，没勾就等下一次采样
             }
 
             @Override

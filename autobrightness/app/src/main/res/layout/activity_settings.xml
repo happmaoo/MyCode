@@ -13,7 +13,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="调节算法"
+            android:text="调节方式"
             android:textColor="#000000"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -22,90 +22,64 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="阈值表（光照 → 亮度）在主页配置里维护，这里只决定“怎么用这张表”。切换后立即生效，不用重启服务。"
+            android:text="只有一套算法：连续 lmd 次采样都落在非当前档，就立即切到最新档（lmd 在主页配置里设）。阈值表（光照 → 亮度）也在主页维护。改完立即生效，不用重启服务。"
             android:textColor="#666666"
             android:textSize="13sp" />
 
-        <RadioGroup
-            android:id="@+id/rg_algo"
+        <CheckBox
+            android:id="@+id/cb_window"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="vertical">
+            android:layout_marginTop="14dp"
+            android:text="启用确认窗口期（次数凑不够时按时间兜底）"
+            android:textSize="15sp" />
 
-            <RadioButton
-                android:id="@+id/rb_step"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="阶梯阈值（新版，确认窗口）"
-                android:textSize="15sp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="10dp"
-                android:paddingStart="32dp"
-                android:paddingLeft="32dp"
-                android:text="阈值命中即切档，同一个目标需稳定 lmd×0.5s，到点后用最新光照复核再执行。"
-                android:textColor="#777777"
-                android:textSize="12sp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="14dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="32dp"
-                android:paddingLeft="32dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="确认窗口期（秒）"
-                    android:textColor="#444444"
-                    android:textSize="13sp" />
-
-                <EditText
-                    android:id="@+id/et_window"
-                    android:layout_width="76dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:layout_marginLeft="8dp"
-                    android:hint="2.0"
-                    android:inputType="numberDecimal"
-                    android:maxLength="4"
-                    android:textSize="14sp" />
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:layout_marginLeft="8dp"
-                    android:layout_weight="1"
-                    android:text="留空则用默认 2 秒"
-                    android:textColor="#999999"
-                    android:textSize="12sp" />
-            </LinearLayout>
-
-            <RadioButton
-                android:id="@+id/rb_count"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="事件计数（旧版：连续 n 次才变）"
-                android:textSize="15sp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="32dp"
+            android:paddingLeft="32dp">
 
             <TextView
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="10dp"
-                android:paddingStart="32dp"
-                android:paddingLeft="32dp"
-                android:text="consecutiveCount 原样保留，同一目标连续上报 lmd 次才执行。"
-                android:textColor="#777777"
-                android:textSize="12sp" />
+                android:text="确认窗口期（秒）"
+                android:textColor="#444444"
+                android:textSize="13sp" />
 
-        </RadioGroup>
+            <EditText
+                android:id="@+id/et_window"
+                android:layout_width="76dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_marginLeft="8dp"
+                android:hint="10.0"
+                android:inputType="numberDecimal"
+                android:maxLength="4"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_marginLeft="8dp"
+                android:layout_weight="1"
+                android:text="留空默认 10 秒，范围 2–30 秒"
+                android:textColor="#999999"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="32dp"
+            android:paddingLeft="32dp"
+            android:text="勾上：光线只跳一次就不再上报、或缓慢漂移时，到时按最新光照裁决。\n不勾：只按次数判定，不做任何等待。"
+            android:textColor="#777777"
+            android:textSize="12sp" />
 
         <Button
             android:id="@+id/btn_done"
