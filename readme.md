@@ -8,7 +8,6 @@
 配合termux和root后可以直接查看压缩包内容，复制压缩包文件，速度一流。
 自定义脚本，自定义文件打开方式，支持主题图标更换，自定义界面字体.
 适合喜欢折腾手机一族。
-[MyFileman](./MyFileman/)
 https://github.com/happmaoo/MyCode/tree/main/MyFileman/
 
 ## WifiDirectShare wifi快速文件互传
