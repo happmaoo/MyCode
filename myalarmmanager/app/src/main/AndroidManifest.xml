@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="MyAlarmManager"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="MyAlarmManager">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 不可见入口：am start 到这里只清“已停止”+ 拉起前台服务，不显示界面 -->
+        <activity
+            android:name=".StarterActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay" />
+
+        <activity
+            android:name=".HelpActivity"
+            android:exported="false"
+            android:label="帮助"
+            android:parentActivityName=".MainActivity" />
+
+        <service
+            android:name=".KeepAliveService"
+            android:exported="false" />
+
+        <!-- 供外部 App / 脚本发广播设定闹钟 -->
+        <receiver
+            android:name=".AlarmSetterReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.myapp.myalarmmanager.SET_ALARM" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 闹钟实际落地的接收器，只给自己用 -->
+        <receiver
+            android:name=".AlarmTriggerReceiver"
+            android:exported="false" />
+
+        <!-- 重启后恢复循环任务 -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>

@@ -55,6 +55,9 @@ https://github.com/happmaoo/MyCode/tree/main/MyAudioRecorder/app/release
 ## MyMQTT 可用于物联网卡小服务器APP控制
 MyMQTT 物联网卡小服务器,可用ipv6连接服务器控制设备  
 
+## myalarmmanager 定时运行脚本的app
+定时运行脚本的app
+https://github.com/happmaoo/MyCode/tree/main/myalarmmanager
 
 
 # 测试用的项目:

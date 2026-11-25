@@ -1,0 +1,29 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.myapp.myalarmmanager'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.myapp.myalarmmanager"
+        minSdkVersion 21
+        targetSdkVersion 29
+        versionCode 3
+        versionName "1.1.1"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}

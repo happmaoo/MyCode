@@ -66,6 +66,7 @@ exec app_process /system/bin BLEGattd \
   --psk "$PSK" \
   --pace 15 \
   --tx-pace 15 \
+  --max-out 20480 \
   --debug \
   --adv-keepalive-force "$ADV_FORCE_HOURS" \
   "$@"

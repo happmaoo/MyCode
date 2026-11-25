@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light">
+        <item name="android:colorPrimary">#FFFFFF</item>
+        <item name="android:colorPrimaryDark">#FFFFFF</item>
+        <item name="android:colorAccent">#00796B</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:actionBarStyle">@style/WhiteActionBar</item>
+    </style>
+
+    <style name="WhiteActionBar" parent="@android:style/Widget.Material.Light.ActionBar.Solid">
+        <item name="android:background">#FFFFFF</item>
+        <item name="android:titleTextStyle">@style/WhiteActionBar.Title</item>
+    </style>
+
+    <style name="WhiteActionBar.Title" parent="@android:style/TextAppearance.Material.Widget.ActionBar.Title">
+        <item name="android:textColor">#111111</item>
+    </style>
+</resources>
