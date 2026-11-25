@@ -1,11 +1,18 @@
 #!/bin/bash
 
-#xfce4-terminal -e 'bash -c "git add .;git commit -m "备份";git push;bash"' -T "Run and ready"
-# 说明，先复制config文件到.git目录覆盖，然后再运行本脚本
+: <<'EOF'
+xfce4-terminal -e 'bash -c "git add .;git commit -m "备份";git push;bash"' -T "Run and ready"
+说明，先复制config文件到.git目录覆盖，然后再运行本脚本
 
+发布到多个仓库
 
+git remote add mycode git@MyCode:happmaoo/MyCode.git
+git remote add gitee git@gitee.com:happmaoo/MyCode.git
 
+git push origin main
+git push gitee main
 
+EOF
 
 
 mdate=$(date +'%Y-%m-%d-%H-%M-%S')
