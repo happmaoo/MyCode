@@ -1,0 +1,15 @@
+cc_binary {
+    name: "gnss_cli",
+    srcs: ["gnss_cli.cpp"],
+    vendor: true,
+    cflags: ["-Wall", "-Wno-unused-parameter"],
+    shared_libs: [
+        "android.hardware.gnss@2.0",
+        "libhidlbase",
+        "libhidltransport",
+        "libutils",
+        "liblog",
+        "libbase",
+        "libcutils",
+    ],
+}
