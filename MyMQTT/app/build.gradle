@@ -10,8 +10,8 @@ android {
         applicationId "com.myapp.mymqtt"
         minSdk 21
         targetSdk 30
-        versionCode 51
-        versionName "3.30"
+        versionCode 54
+        versionName "3.33"
     }
 
     compileOptions {

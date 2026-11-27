@@ -51,7 +51,7 @@ public class MqttService extends Service implements MqttCore.Listener {
         }
 
         // 其他情况都保证是前台服务
-        startForeground(NOTIF_ID, buildNotif(MqttCore.get().stateText()));
+        startForeground(NOTIF_ID, buildNotif(notifText()));
 
         if (ACTION_CONNECT.equals(action)) {
             MqttCore.get().addListener(this);
@@ -94,12 +94,12 @@ public class MqttService extends Service implements MqttCore.Listener {
         } else if (!connected) {
             loggedConn = false;
         }
-        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if (nm != null) nm.notify(NOTIF_ID, buildNotif(text));
+        refreshNotif();
     }
 
     @Override
     public void onPeer(boolean online, String id) {
+        refreshNotif();     // 对端上下线时更新通知第二行
         // 控制端刚上线：立刻把当前电量补发一次，不用等电量变化
         if (online && P.isExecutor(this) && MqttCore.get().isConnected()) {
             lastLevel = -1;
@@ -112,7 +112,7 @@ public class MqttService extends Service implements MqttCore.Listener {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm != null) {
             String shortMsg = payload.length() > 60 ? payload.substring(0, 60) + "…" : payload;
-            nm.notify(NOTIF_ID, buildNotif(MqttCore.get().stateText() + "  ← " + topic + ": " + shortMsg));
+            nm.notify(NOTIF_ID, buildNotif(notifText()));
         }
     }
 
@@ -130,6 +130,23 @@ public class MqttService extends Service implements MqttCore.Listener {
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm != null) nm.createNotificationChannel(ch);
         }
+    }
+
+    /** 通知第二行：已连接 (对端设备名)；没连上时显示当前状态 */
+    private String notifText() {
+        MqttCore core = MqttCore.get();
+        if (core == null || !core.isConnected()) {
+            String st = core == null ? "" : core.stateText();
+            return (st == null || st.trim().isEmpty()) ? "未连接" : st;
+        }
+        String peer = core.peerId();
+        if (peer == null || peer.isEmpty()) return "已连接";
+        return "已连接 (" + peer + (core.isPeerOnline() ? "" : " 离线") + ")";
+    }
+
+    private void refreshNotif() {
+        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm != null) nm.notify(NOTIF_ID, buildNotif(notifText()));
     }
 
     @SuppressWarnings("deprecation")

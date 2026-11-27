@@ -20,6 +20,8 @@ import java.util.List;
  */
 public class SettingsActivity extends Activity {
 
+    private static final int MENU_SAVE = 1001;
+
     private EditText sHost, sPort, sUser, sPass, sKeepalive, sQos, sTimeout, sClientId, sPub, sQuick, sStartup, sOutLimit, sEditor;
     private CheckBox cWake, cBattopt;
     private CheckBox sTls, sDebug, sLogFile, sBoot, sAuto, cRootup;
@@ -74,8 +76,41 @@ public class SettingsActivity extends Activity {
             switchRole(want);
         });
 
-        ((Button) findViewById(R.id.s_save)).setOnClickListener(v -> save());
-        ((Button) findViewById(R.id.s_back)).setOnClickListener(v -> finish());
+    }
+
+    /** 标题栏右侧只放一个 SAVE：点它就保存并关闭本页 */
+    @Override
+    public boolean onCreateOptionsMenu(android.view.Menu menu) {
+        // 用自定义 action view 控制左右留白：默认菜单项会紧贴屏幕右边
+        android.widget.TextView tv = new android.widget.TextView(this);
+        tv.setText("SAVE");
+        tv.setGravity(android.view.Gravity.CENTER);
+        tv.setTextSize(14);
+        tv.setTextColor(0xFF12968A);
+        int pad = (int) (16 * getResources().getDisplayMetrics().density + 0.5f);
+        tv.setPadding(pad, 0, pad, 0);
+        tv.setLayoutParams(new android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        tv.setOnClickListener(v -> save());
+
+        android.view.MenuItem it = menu.add(0, MENU_SAVE, 0, "SAVE");
+        it.setActionView(tv);
+        it.setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(android.view.MenuItem item) {
+        if (item.getItemId() == MENU_SAVE) {
+            save();          // 校验通过才会 finish()
+            return true;
+        }
+        if (item.getItemId() == android.R.id.home) {   // 左上角返回 = 不保存退出
+            finish();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     private void load() {
@@ -243,6 +278,7 @@ public class SettingsActivity extends Activity {
 
         sInfo.setText("已保存 " + System.currentTimeMillis() / 1000 + "\n" + P.summary(this));
         toast("Saved");
+        finish();       // 只有一个按钮：保存即关闭
     }
 
     private int num(EditText et, int def) {

@@ -373,28 +373,6 @@
             android:paddingTop="8dp"
             android:text="Auto reconnect after disconnect (backoff 1s→30s)" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingTop="12dp">
-
-            <Button
-                android:id="@+id/s_save"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Save" />
-
-            <Button
-                android:id="@+id/s_back"
-                style="?android:attr/buttonBarButtonStyle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Back" />
-        </LinearLayout>
-
         <TextView
             android:id="@+id/s_info"
             android:layout_width="match_parent"

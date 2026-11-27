@@ -53,6 +53,7 @@ public final class MqttCore {
 
     /** 对端（控制端 / 执行端）是否在线，由 presence 更新 */
     private volatile boolean peerOnline;
+    private volatile String peerId = "";
 
     public static MqttCore get() {
         if (inst == null) {
@@ -338,6 +339,7 @@ public final class MqttCore {
             final String id = id0;
             LogFile.write("[在线状态] " + topic + " " + payload);
             peerOnline = online;
+            if (!id.isEmpty()) peerId = id;
             for (final Listener l : listeners) {
                 main.post(() -> l.onPeer(online, id));
             }
@@ -564,5 +566,10 @@ public final class MqttCore {
     /** 对端是否在线（控制端视角＝执行端，执行端视角＝控制端） */
     public boolean isPeerOnline() {
         return peerOnline;
+    }
+
+    /** 对端设备 id（mqtt-exec-xxx / mqtt-control-xxx），没收到 presence 时为空 */
+    public String peerId() {
+        return peerId;
     }
 }
