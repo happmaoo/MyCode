@@ -391,6 +391,7 @@ public class MainActivity extends Activity {
         syncRootMode();
         updateBottomBar();
         if (tabs.isEmpty()) return;
+        snapActiveTabVisible();   // 界面显示时确保当前标签可见（标签多且激活项在右侧时尤其需要）
         // 若结果窗口仍「被钉住」（命令尚未结束、未收到 [mycmd:exit] 且未手动关闭），回到前台时切回该窗口，
         // 而不是停留在主界面——满足「命令未结束就切后台、再次打开 APP 时自动回到窗口」的需求。
         // 命令已结束（收到 [mycmd:exit]）后窗口不再被钉住，切后台再打开不再自动切回。
@@ -4886,7 +4887,7 @@ public class MainActivity extends Activity {
             active = 0;
         }
         rebuildTabs();
-        ensureActiveTabVisible();   // 恢复的激活标签可能位于标签栏视野外
+        snapActiveTabVisible();     // 冷启动恢复的激活标签可能位于标签栏视野外，即时定位
         applyTabLockUi();   // 恢复标签后同步锁定态（地址栏/导航按钮可用性等）
         pathEdit.setText(cur().path);
         saveTabs();   // 立即写回一份规范化快照
@@ -4940,14 +4941,15 @@ public class MainActivity extends Activity {
      */
     private void ensureActiveTabVisible() {
         if (tabScroll == null || active < 0 || active >= tabViews.size()) return;
-        final View v = tabViews.get(active);
         final int[] tries = {0};
         final Runnable task = new Runnable() {
             @Override public void run() {
+                if (active < 0 || active >= tabViews.size()) return;
+                final View v = tabViews.get(active);
                 int t = tabScrollTarget(v.getLeft(), v.getRight(),
                         tabScroll.getWidth(), tabScroll.getScrollX());
                 if (t == -2) {                       // 冷启动 / rebuild 后布局未完成，下一帧再试
-                    if (tries[0]++ < 8) tabScroll.post(this);
+                    if (tries[0]++ < 30) tabScroll.post(this);
                     return;
                 }
                 if (t >= 0) {
@@ -4955,6 +4957,25 @@ public class MainActivity extends Activity {
                             + " -> scrollX=" + t);
                     tabScroll.smoothScrollTo(t, 0);
                 }
+            }
+        };
+        tabScroll.post(task);
+    }
+
+    /** 窗口可见时把当前标签即时定位到可视区域（不带动画）：冷启动/onResume 时
+     *  smoothScrollTo 的动画在窗口尚未完成显示时常被系统吞掉，导致激活标签停在视野外。
+     *  这里用 scrollTo 保证一定到位，位置已正确时为空操作。 */
+    private void snapActiveTabVisible() {
+        if (tabScroll == null || active < 0 || active >= tabViews.size()) return;
+        final View v = tabViews.get(active);
+        final int[] tries = {0};
+        final Runnable task = new Runnable() {
+            @Override public void run() {
+                if (active < 0 || active >= tabViews.size()) return;
+                int t = tabScrollTarget(v.getLeft(), v.getRight(),
+                        tabScroll.getWidth(), tabScroll.getScrollX());
+                if (t == -2) { if (tries[0]++ < 30) tabScroll.post(this); return; }
+                if (t >= 0) tabScroll.scrollTo(t, 0);
             }
         };
         tabScroll.post(task);
@@ -6157,7 +6178,17 @@ public class MainActivity extends Activity {
         }
 
         // 第三节：Bash 脚本（加载脚本目录下全部 .sh，标题取文件名）
-        drawerPanel.addView(sectionTitle("Bash"));
+        // 标题可点击：打开独立对话框列出全部脚本按钮（运行脚本不关闭对话框）
+        TextView bashTitle = sectionTitle("Bash");
+        // 英文同样 sp 下字形视觉偏小，适当放大以与中文标题栏视觉统一
+        bashTitle.setTextSize(Ui.sp(textLv, 14, 15, 16));
+        TypedValue ddb = new TypedValue();
+        getTheme().resolveAttribute(android.R.attr.selectableItemBackground, ddb, true);
+        if (ddb.resourceId != 0) bashTitle.setBackgroundResource(ddb.resourceId);
+        bashTitle.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { closeDrawer(); showBashDialog(); }
+        });
+        drawerPanel.addView(bashTitle);
         ArrayList<ScriptItem> scripts = loadScripts();
         if (scripts.isEmpty()) {
             TextView empty = new TextView(this);
@@ -6611,6 +6642,32 @@ public class MainActivity extends Activity {
             row.addView(b);
         }
         return grid;
+    }
+
+    /** 点击抽屉「Bash」标题打开的脚本面板对话框：列出全部脚本按钮 + 关闭按钮。
+     *  脚本按钮复用 scriptGrid（其 closeDrawer() 在抽屉已关时为空操作），点击只运行脚本、
+     *  不 dismiss 对话框，方便连续运行多个脚本。 */
+    private void showBashDialog() {
+        ArrayList<ScriptItem> scripts = loadScripts();
+        ScrollView sv = new ScrollView(this);
+        if (scripts.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText("（在「设置 → 自定义脚本」指定目录后，自动加载其中全部 .sh）");
+            empty.setTextColor(Ui.HINT);
+            empty.setTextSize(Ui.sp(textLv, 11, 12, 13));
+            int p = Util.dp(this, 16);
+            empty.setPadding(p, p, p, p);
+            sv.addView(empty, new ScrollView.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        } else {
+            sv.addView(scriptGrid(scripts), new ScrollView.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Bash 脚本")
+                .setView(sv)
+                .setPositiveButton("关闭", null)
+                .show();
     }
 
     /** 在结果窗口流式运行一个 .sh 脚本（沿用自定义命令的 Root 会话逻辑）。 */

@@ -18,6 +18,9 @@ import android.os.Message;
 import android.os.PowerManager;
 import android.os.ParcelUuid;
 import android.os.Process;
+import android.system.Os;
+import android.system.StructStat;
+import android.util.Base64;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -103,7 +106,7 @@ public class BLEGattd {
     static String psk = null;               // 预共享密钥：非空则命令通道强制先 AUTH
     static int maxOutBytes = 10240;         // 命令输出上限（10KB），超出截断；可用 --max-out 调整
     static int cmdTimeoutSec = 10;          // 单条命令最长执行时间
-    static int streamFlushBytes = 256;      // 流式下发：累计该字节数冲刷一次；首段立即冲刷以取消客户端 5s 守卫
+    static int streamFlushBytes = 477;      // 流式下发：累计该字节数冲刷一次；首段立即冲刷以取消客户端 5s 守卫
     // 通知（confirm=false）在很多 Android 协议栈上 onNotificationSent 不可靠/偏慢，
     // 背靠背快发会被控制器通知缓冲区冲掉中间片。故默认"匀速节奏发送"：
     // 每片之间固定留 paceMs 间隔，不依赖回调，最坏也只是走重传，链路更稳。
@@ -120,6 +123,22 @@ public class BLEGattd {
     static final Map<String, Long> fileRecvLen = new HashMap<>();
     static final Map<String, Long> fileRecvTarget = new HashMap<>();
     static final Map<String, String> fileRecvName = new HashMap<>();
+    // ---- 持久 shell：cd / export 跨命令保留（每连接一个常驻 sh）----
+    static final class ShellSession {
+        final java.lang.Process p;
+        final java.io.OutputStream in;
+        volatile boolean alive = true;
+        // 当前命令的哨兵参数（由命令线程写，reader 线程读；都在 synchronized(ss) 内）
+        int[] rcRef; String[] cwdRef; java.util.concurrent.CountDownLatch done; String prefix;
+        ShellSession(java.lang.Process p) { this.p = p; this.in = p.getOutputStream(); }
+    }
+    static final Map<String, ShellSession> shells = new java.util.concurrent.ConcurrentHashMap<String, ShellSession>();
+    static final Map<String, String> shellCwd = new java.util.concurrent.ConcurrentHashMap<String, String>();
+    /** 经 fs edget 授权可回写的绝对路径；断开即清，防止任意路径写入 */
+    static final Map<String, java.util.Set<String>> editAllowed = new java.util.concurrent.ConcurrentHashMap<String, java.util.Set<String>>();
+    static final Map<String, String> fileRecvAbs = new HashMap<>();   // PUTE 目标绝对路径
+    static final Map<String, String> fileRecvMode = new HashMap<>();  // PUTE 目标权限(八进制)
+    static final Map<String, int[]> fileRecvOwn = new HashMap<>();    // PUTE 目标 uid/gid
     // ---- 可靠传输（v2 T 帧）：断点/全量重传所需的服务端侧状态 ----
     static final Map<String, byte[][]> txChunks = new HashMap<>(); // 当前传输的全部分片
     static final Map<String, byte[]> txDigest = new HashMap<>();   // 当前传输 SHA-256（total>1 才有）
@@ -158,6 +177,7 @@ public class BLEGattd {
     static BluetoothGattCharacteristic authChar;
     static BluetoothGattCharacteristic fileChar;   // v3 文件上传专用（二进制直写，不用 '>'/'<' 分片）
     static PowerManager.WakeLock cmdWake = null;   // 命令执行期 Partial-WakeLock：防浅休眠拖慢/误杀，执行完释放
+    static PowerManager.WakeLock connWake = null;  // 连接期 Partial-WakeLock：有客户端连着就持锁不休眠，最后一个断开才释放
     // 每连接的鉴权/MTU/待发通知队列（全部只在主线程访问，除了 executor 线程通过 post 投递）
     static final java.util.Set<String> authed = new java.util.HashSet<String>();
     static final Map<String, byte[]> nonceByAddr = new HashMap<>();   // AUTH 挑战：每连接一次性 nonce（挑战-响应，防明文/重放）
@@ -172,6 +192,10 @@ public class BLEGattd {
     static final Map<String, Integer> lostAck = new HashMap<>();    // 连续丢失回调次数
     static final Map<String, Boolean> trustSentCb = new HashMap<>();// false=该设备不再等回调，改节流
     static final Map<String, Long> stallLogAt = new HashMap<>();    // "仍在途"日志节流
+    // 重传请求节流：同一 (tid,fromSeq) 在窗口内只处理一次，避免迟到片反复触发清队列让 seq0 永远发不出
+    static final Map<String, Long> retransAt = new HashMap<>();
+    static final Map<String, Integer> retransFrom = new HashMap<>();
+    static final long RETRANS_DEDUP_MS = 800;
     // 泵送全局锁：onNotificationSent 在 binder 线程回调，与主线程的补泵并发时，
     // 非线程安全的 ArrayDeque 可能被并发取出——同一片发两次（客户端看到内容重复）
     // 或迭代器损坏跳片（客户端丢 513 字节）。所有入队/出队/泵送都必须持锁。
@@ -369,8 +393,34 @@ public class BLEGattd {
             cmdWake = null;
             log("命令唤醒锁初始化失败（" + t + "），降级为不持锁");
         }
+        // 连接期唤醒锁：有客户端连着就持有，防止传输/编辑过程中被浅休眠打断
+        try {
+            connWake = ((PowerManager) ctx.getSystemService(Context.POWER_SERVICE))
+                    .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "blegatt:conn");
+            connWake.setReferenceCounted(false);
+            log("连接唤醒锁(PARTIAL_WAKE_LOCK) 已就绪");
+        } catch (Throwable t) {
+            connWake = null;
+            log("连接唤醒锁初始化失败（" + t + "），降级为不持锁");
+        }
 
         rebuildGatt();
+    }
+
+    /** 连接期唤醒锁：连接表里还有设备就确保持有（非引用计数，幂等） */
+    static void acquireConnWakeIfNeeded() {
+        if (connWake == null || connected.isEmpty()) return;
+        try { if (!connWake.isHeld()) { connWake.acquire(); log("连接唤醒锁：已获取（客户端数=" + connected.size() + "）"); } }
+        catch (Throwable t) { log("连接唤醒锁 acquire 失败: " + t); }
+    }
+    /** 最后一个客户端断开后释放连接锁；仍连着则不释放（幂等） */
+    static void releaseConnWakeIfIdle() {
+        if (connWake == null) return;
+        try {
+            if (connected.isEmpty() && connWake.isHeld()) {
+                connWake.release(); log("连接唤醒锁：已释放（无客户端）");
+            }
+        } catch (Throwable t) { log("连接唤醒锁 release 失败: " + t); }
     }
 
     static volatile boolean gattBroken = false;   // GATT 重建失败标记：监控线程据此自动重试
@@ -397,9 +447,12 @@ public class BLEGattd {
             try { if (serverBatt != null) serverBatt.close(); } catch (Throwable ignored) { }
             server = null; serverBatt = null;
             connected.clear(); authed.clear(); nonceByAddr.clear(); connHandled.clear();
+            releaseConnWakeIfIdle();   // 连接表被清空：释放连接锁，避免蓝牙重启后锁泄漏
             cccdEnabled.clear(); cccdIndicate.clear(); mtuOf.clear();
             queues.clear(); sending.clear(); cmdAccum.clear();
+            retransAt.clear(); retransFrom.clear();
             txChunks.clear(); txDigest.clear(); txId.clear();
+            for (String sk : new java.util.ArrayList<String>(shells.keySet())) killShell(sk);
             advActive = false;
 
             gattCb = new GattCb();
@@ -532,6 +585,7 @@ public class BLEGattd {
                 }
                 event("connect " + k);
                 log("CONNECTED " + k + " status=" + status + "（会话状态已重置）");
+                acquireConnWakeIfNeeded();   // 有客户端连着：持连接锁，防传输/编辑中被休眠打断
                 // 省电大头：连接建立后广播已无意义（一个外设一次只服务一个主设备），
                 // 停掉广播让射频进入低占空比；断开时会自动重启广播等重连
                 if (!keepAdv && advertiser != null && advActive) {
@@ -561,12 +615,16 @@ public class BLEGattd {
                     @Override public void run() {
                         if (connHandled.contains(k)) {
                             log("DISCONNECTED 延迟清理取消：" + k + " 已重新连接（新会话）");
+                            // 新连接 CONNECTED 时已无条件 resetSession 全清（队列/txChunks/nonce/序号）。
+                            // 这里绝不能再清一次：此刻客户端可能已订阅 RES、nonce/版本号刚入队未发，
+                            // 再清会把 nonce 冲掉，导致新会话认证永远收不到挑战（重连卡 AUTH 的根因）。
                             return;
                         }
                         connected.remove(k);
                         authed.remove(k);
                         nonceByAddr.remove(k);
                         resetSession(k);   // 队列/在途/序号/CCCD 全部归零
+                        releaseConnWakeIfIdle();   // 最后一个客户端断开：释放连接锁，恢复可休眠
                         event("disconnect " + k);
                         log("DISCONNECTED " + k + " status=" + finStatus + "（延迟清理已完成）");
                         // 断开后自动重启广播，等客户端重连；载荷用当前最新值
@@ -589,14 +647,19 @@ public class BLEGattd {
             synchronized (PUMP_LOCK) { queues.remove(k); }
             mtuOf.remove(k);
             sending.remove(k);
+            retransAt.remove(k); retransFrom.remove(k);
             cmdAccum.remove(k);
             txChunks.remove(k);
             txDigest.remove(k);
-            txId.remove(k);
+            // tid 计数器跨连接保留：单调递增，避免重连后与客户端"已结束 tid 残帧吞掉"机制撞号，
+            // 否则新传输 tid 若重复旧值会被当残帧吞掉。txChunks 已清，保留计数器无副作用。
             fileOut.remove(k);
             fileRecvName.remove(k);
             fileRecvTarget.remove(k);
             fileRecvLen.remove(k);
+            fileRecvAbs.remove(k);
+            fileRecvMode.remove(k);
+            killShell(k);   // 断开：销毁持久 shell（cd/export 状态随之清空）
             sendSeq.remove(k);
             ackSeq.remove(k);
             lastSendAt.remove(k);
@@ -727,6 +790,14 @@ public class BLEGattd {
                 // 不再等待 FILEDONE，也不把已收到的碎片当有效数据。放在鉴权判断之前，随时可用。
                 if ("blegatt-upload-abort".equals(cmdText.trim())) {
                     abortUpload(device);
+                    return;
+                }
+                // 下载中止指令：客户端取消下载时发出。此时服务端仍在泵送该文件剩下的几千片，
+                // 若不清队列，后续命令回包会排在队尾等文件片全发完才轮到（表现为"命令无反应"）。
+                // 立即丢弃本连接的 bulk 文件片/校验帧；客户端已用 tid 集合吞残帧，无需再补发。
+                // 放在鉴权判断之前，随时可用。
+                if ("blegatt-download-abort".equals(cmdText.trim())) {
+                    abortDownload(device);
                     return;
                 }
                 if (psk != null) {
@@ -1252,76 +1323,78 @@ public class BLEGattd {
         });
     }
 
+    /** 杀掉并移除某连接的持久 shell（超时/超限/异常/断连时调用） */
+    static void killShell(String addr) {
+        ShellSession ss = shells.remove(addr);
+        shellCwd.remove(addr);
+        editAllowed.remove(addr);
+        if (ss == null) return;
+        ss.alive = false;
+        try { ss.in.close(); } catch (Throwable ignored) { }
+        try { ss.p.destroyForcibly(); } catch (Throwable ignored) { }
+        log("SHELL 已销毁 " + addr);
+    }
+
+    /**
+     * 持久 shell：每条命令写入常驻 sh 的 stdin，命令后紧跟一条哨兵 printf 输出 rc 与 cwd。
+     * 因为 shell 不退出，cd / export / alias 全部跨命令保留；结束判定靠唯一 token 哨兵，不靠进程退出。
+     */
     static void execCommand(final BluetoothDevice device, final String cmd) {
         if (cmdExec == null) { log("命令通道未初始化"); return; }
         cmdExec.execute(new Runnable() {
             @Override public void run() {
                 final String addr = device.getAddress();
                 log("EXEC " + addr + " <- " + cmd);
-                // 执行前持唤醒锁：防设备浅休眠拖慢 shell / 触发看门狗误杀（无参 acquire，finally 释放）
-                if (cmdWake != null) {
-                    try { cmdWake.acquire(); }
-                    catch (Throwable ignored) { }
-                }
-                java.lang.Process p = null;
+                if (cmdWake != null) { try { cmdWake.acquire(); } catch (Throwable ignored) { } }
                 try {
-                    p = new ProcessBuilder("/system/bin/sh", "-c", cmd)
-                            .redirectErrorStream(true).start();
-                    try { p.getOutputStream().close(); } catch (Throwable ignored) { } // 关 stdin，避免 ffmpeg 等卡在交互提示
-                    final java.lang.Process fp = p;
-                    final java.io.ByteArrayOutputStream pending = new java.io.ByteArrayOutputStream();
-                    final int[] total = {0};
-                    final boolean[] overflow = {false};
-                    final boolean[] sentFirst = {false};
-                    // 读线程：阻塞读 stdout 并边读边发；进程被强杀或自然退出（EOF）时 read 抛异常/返回 -1，自然退出
+                    ShellSession ss = shells.get(addr);
+                    if (ss == null || !ss.alive) {
+                        java.lang.Process p = new ProcessBuilder("/system/bin/sh")
+                                .redirectErrorStream(true).start();
+                        ss = new ShellSession(p);
+                        shells.put(addr, ss);
+                        log("SHELL 新建持久 sh " + addr + " pid=" + pidOf(p));
+                    }
+                    final ShellSession sess = ss;
+                    final String token = Long.toHexString(System.nanoTime() & 0x7fffffffL);
+                    final String prefix = "__BLECMD_" + token + "__";
+                    final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+                    final int[] rc = {-1};
+                    final String[] cwd = {""};
+                    // printf 前导 \n 保证哨兵独占一行；$? 必须在用户命令后第一时间取
+                    String line = cmd + "\nprintf '\\n" + prefix + "%d|%s\\n' \"$?\" \"$PWD\"\n";
+                    sess.in.write(line.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    sess.in.flush();
                     Thread reader = new Thread(new Runnable() {
                         @Override public void run() {
-                            byte[] buf = new byte[2048];
-                            int n;
-                            try {
-                                while ((n = fp.getInputStream().read(buf)) > 0) {
-                                    total[0] += n;
-                                    if (total[0] > maxOutBytes) {            // 输出超限：立即杀进程并截断
-                                        overflow[0] = true;
-                                        try { fp.destroy(); } catch (Throwable ignored) { }
-                                        break;
-                                    }
-                                    pending.write(buf, 0, n);
-                                    // 边读边发：首段立即发（取消客户端 5s 守卫），其后累计到阈值再冲刷
-                                    if (!sentFirst[0] || pending.size() >= streamFlushBytes) {
-                                        streamChunk(device, new String(pending.toByteArray()));
-                                        pending.reset();
-                                        sentFirst[0] = true;
-                                    }
-                                }
-                            } catch (Throwable ignored) { } // 进程被强杀时 read 抛异常，属正常退出路径
-                            if (pending.size() > 0) streamChunk(device, new String(pending.toByteArray()));
+                            readShellOutput(device, sess, prefix, rc, cwd, done);
                         }
-                    });
+                    }, "ble-shell-reader-" + addr);
+                    reader.setDaemon(true);
                     reader.start();
-                    // 看门狗（真正生效的超时）：主线程等进程在 cmdTimeoutSec 内结束，否则强杀
-                    boolean finished = p.waitFor(cmdTimeoutSec, TimeUnit.SECONDS);
-                    if (!finished) {
-                        log("EXEC 超时 " + addr + " > " + cmdTimeoutSec + "s，强杀进程");
-                        try { p.destroyForcibly(); } catch (Throwable ignored) { }
+                    boolean ok = done.await(cmdTimeoutSec, TimeUnit.SECONDS);
+                    try { reader.join(1500); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                    if (!ok) {
+                        log("EXEC 超时 " + addr + " > " + cmdTimeoutSec + "s，销毁 shell 重置状态");
+                        killShell(addr);
+                        streamChunk(device, "!timeout " + cmdTimeoutSec + "s（shell 已重置）\n");
+                    } else if (!sess.alive) {
+                        // shell 在命令执行中意外退出：状态已失效，下条命令重建
+                        killShell(addr);
+                        streamChunk(device, "#rc=" + rc[0] + "\n");
+                    } else {
+                        String c = cwd[0];
+                        if (c != null && c.length() > 0) {
+                            shellCwd.put(addr, c);
+                            streamChunk(device, "#cwd=" + c + "\n");
+                        }
+                        streamChunk(device, "#rc=" + rc[0] + "\n");
                     }
-                    try { reader.join(2000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
-                    if (p.isAlive()) { try { p.destroyForcibly(); } catch (Throwable ignored) { } } // 兜底：仍存活再补一刀
-                    boolean cleanEnd = finished && !overflow[0];
-                    // 结尾帧：正常结束给 #rc=；超限给 !killed；超时给 !timeout
-                    StringBuilder foot = new StringBuilder();
-                    if (overflow[0]) foot.append("!cmd-too-long: 输出超过 ").append(maxOutBytes).append(" 字节已截断\n");
-                    if (cleanEnd) foot.append("#rc=").append(p.exitValue()).append("\n");
-                    else if (overflow[0]) foot.append("!killed 输出过大已被终止\n");
-                    else foot.append("!timeout " + cmdTimeoutSec + "s\n");
-                    streamChunk(device, foot.toString());
-                    log("EXEC 结束 " + addr + " cleanEnd=" + cleanEnd + " 共 " + total[0]
-                            + " 字节" + (overflow[0] ? "（截断）" : "") + (!cleanEnd ? "（超时/超限强杀）" : ""));
                 } catch (Throwable t) {
+                    log("EXEC 异常 " + addr + ": " + t);
+                    killShell(addr);
                     streamChunk(device, "!exec-failed " + t + "\n");
                 } finally {
-                    if (p != null) { try { p.destroyForcibly(); } catch (Throwable ignored) { } }
-                    // 命令结束（正常/超时强杀/异常）一律释放唤醒锁，让设备回到可休眠状态
                     if (cmdWake != null) {
                         try { if (cmdWake.isHeld()) cmdWake.release(); } catch (Throwable ignored) { }
                     }
@@ -1330,13 +1403,87 @@ public class BLEGattd {
         });
     }
 
+    static String pidOf(java.lang.Process p) {
+        try {
+            java.lang.reflect.Field f = p.getClass().getDeclaredField("pid");
+            f.setAccessible(true);
+            return String.valueOf(f.getInt(p));
+        } catch (Throwable ignored) { return "?"; }
+    }
+
+    /** 逐行读 shell 输出：普通行流式下发，命中本命令哨兵则解析 rc/cwd 并 countDown */
+    static void readShellOutput(BluetoothDevice device, ShellSession ss, String prefix,
+                                int[] rc, String[] cwd, java.util.concurrent.CountDownLatch done) {
+        int total = 0;
+        boolean got = false;
+        java.io.ByteArrayOutputStream pending = new java.io.ByteArrayOutputStream();   // 未成行的残留字节
+        final java.io.ByteArrayOutputStream flush = new java.io.ByteArrayOutputStream(); // 待冲刷的完整输出（攒块发送）
+        try {
+            java.io.InputStream in = ss.p.getInputStream();
+            byte[] buf = new byte[2048];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                pending.write(buf, 0, n);
+                total += n;
+                if (total > maxOutBytes) {
+                    flushOutput(device, flush);
+                    streamChunk(device, "!cmd-too-long: 输出超过 " + maxOutBytes + " 字节已截断\n");
+                    ss.alive = false;
+                    break;
+                }
+                byte[] all = pending.toByteArray();
+                int start = 0;
+                for (int i = 0; i < all.length; i++) {
+                    if (all[i] != '\n') continue;
+                    int lineStart = start;
+                    start = i + 1;
+                    String ln = new String(all, lineStart, i - lineStart, java.nio.charset.StandardCharsets.UTF_8);
+                    if (ln.startsWith(prefix)) {
+                        String rest = ln.substring(prefix.length());
+                        int bar = rest.indexOf('|');
+                        if (bar >= 0) {
+                            try { rc[0] = Integer.parseInt(rest.substring(0, bar).trim()); } catch (Throwable ignored) { }
+                            cwd[0] = rest.substring(bar + 1);
+                        }
+                        got = true;
+                        break;
+                    }
+                    // 普通行：按原始字节攒入缓冲（保留 \n），攒够 streamFlushBytes 再一次性冲刷。
+                    // 不要每行一次 streamChunk —— 每行一个 tid 会让 BLE 事务数暴涨、速度骤降。
+                    flush.write(all, lineStart, i - lineStart + 1);
+                    if (flush.size() >= streamFlushBytes) flushOutput(device, flush);
+                }
+                pending.reset();
+                if (got) break;
+                if (start < all.length) pending.write(all, start, all.length - start);
+            }
+            if (!got) ss.alive = false;   // EOF/超限但未拿到哨兵：shell 状态不可信
+        } catch (Throwable t) {
+            ss.alive = false;
+        } finally {
+            flushOutput(device, flush);   // 剩余不足一块的输出收尾发出
+            done.countDown();
+        }
+    }
+
+    /** 把攒够的输出一次性冲刷为一个 BLE 事务（恢复旧版分块发送的速度） */
+    static void flushOutput(BluetoothDevice device, java.io.ByteArrayOutputStream flush) {
+        if (flush.size() == 0) return;
+        streamChunk(device, new String(flush.toByteArray(), java.nio.charset.StandardCharsets.UTF_8));
+        flush.reset();
+    }
+
     /** 一次待发通知：特征 + 原始字节。Battery Level 必须纯 1 字节，RES 才带 +/- 前缀 */
     static final class NotifyItem {
         final BluetoothGattServer srv;
         final BluetoothGattCharacteristic ch;
         final byte[] value;
+        final boolean bulk;   // true=文件传输片/校验帧：trimQueue 溢出保护时不得丢弃，避免大文件被腰斩
         NotifyItem(BluetoothGattServer srv, BluetoothGattCharacteristic ch, byte[] value) {
-            this.srv = srv; this.ch = ch; this.value = value;
+            this(srv, ch, value, false);
+        }
+        NotifyItem(BluetoothGattServer srv, BluetoothGattCharacteristic ch, byte[] value, boolean bulk) {
+            this.srv = srv; this.ch = ch; this.value = value; this.bulk = bulk;
         }
     }
 
@@ -1394,6 +1541,13 @@ public class BLEGattd {
     /** RES 通道字节版：按 MTU 切片入队（T 帧 + CRC16 + SHA-256），二进制文件直接传、字节安全。
      *  客户端还没订阅就先攒着 */
     static void enqueueBytes(BluetoothDevice device, byte[] raw) {
+        enqueueBytes(device, raw, false);
+    }
+
+    /** fileTransfer=true 时跳过 200 片队列上限：文件下载会把整文件一次性切片入队，
+     *  大文件轻松超过 200 片（MTU500 时 200 片≈95KB），不能用 shell 输出的"超限整队丢弃"策略。
+     *  文件靠客户端 SHA-256 校验 + 断点续传保证完整，不应中途清空。 */
+    static void enqueueBytes(BluetoothDevice device, byte[] raw, boolean fileTransfer) {
         if (notifyChar == null) return;
         String addr = device.getAddress();
         int per = Math.max(1, chunkSize(addr) - FRAME_OVERHEAD);  // 9 字节帧开销
@@ -1424,12 +1578,12 @@ public class BLEGattd {
                 }
             }
             Deque<NotifyItem> q = queueOf(addr);
-            for (byte[] f : list) q.addLast(new NotifyItem(server, notifyChar, f));
+            for (byte[] f : list) q.addLast(new NotifyItem(server, notifyChar, f, fileTransfer));
             byte[] dg = txDigest.get(addr);
-            if (dg != null) q.addLast(new NotifyItem(server, notifyChar, makeDigestFrame(tid, dg)));
+            if (dg != null) q.addLast(new NotifyItem(server, notifyChar, makeDigestFrame(tid, dg), fileTransfer));
             log("TX " + addr + " tid=" + tid + " " + raw.length + " 字节 -> " + list.size()
                     + " 片" + (dg != null ? " +校验帧" : ""));
-            trimQueue(addr);
+            if (!fileTransfer) trimQueue(addr);   // 文件传输豁免 200 片上限，避免大文件被整队丢弃
             pumpQueueLocked(addr);
         }
     }
@@ -1450,16 +1604,47 @@ public class BLEGattd {
                         + cur + "），忽略");
                 return;
             }
-            Deque<NotifyItem> q = queueOf(addr);
-            q.clear();          // 清掉排队中的重复片，按断点重排
             int fromClamped = Math.max(0, Math.min(from, chunks.length));
+            long now = System.currentTimeMillis();
+            Long lastAt = retransAt.get(addr);
+            Integer lastFrom = retransFrom.get(addr);
+            boolean sameGap = lastFrom != null && lastFrom.intValue() == fromClamped;
+
+            // A（治本）：同一断点的重复 NACK 绝不再 q.clear() 重排。
+            // 迟到片每来一片就 NACK 同一个断点；若每次都清空重排，而上一片仍在途
+            // （sending=true）让队首缺片发不出去，下一拍又被清掉 —— 形成重传活锁。
+            // 这里只做 B：把卡住的"在途"标志复位，让已排好队的缺片继续发出去。
+            if (sameGap) {
+                if (Boolean.TRUE.equals(sending.get(addr))) {
+                    sending.put(addr, Boolean.FALSE);
+                    log("RETRANS " + addr + " tid=" + tid + " from=" + fromClamped
+                            + " 同断点重复：复位在途标志，继续排空队首缺片");
+                }
+                retransAt.put(addr, now);
+                pumpQueueLocked(addr);
+                return;
+            }
+
+            // 断点刚变化：800ms 内节流，避免风暴
+            if (lastAt != null && now - lastAt.longValue() < RETRANS_DEDUP_MS) {
+                log("RETRANS " + addr + " tid=" + tid + " from=" + fromClamped
+                        + " 断点刚变，" + RETRANS_DEDUP_MS + "ms 内节流忽略");
+                return;
+            }
+            retransAt.put(addr, now);
+            retransFrom.put(addr, fromClamped);
+
+            // B：重排前强制复位在途标志，保证缺片一定泵得出去（不再被上一片卡住）
+            sending.put(addr, Boolean.FALSE);
+            Deque<NotifyItem> q = queueOf(addr);
+            q.clear();          // 断点确实变了：清掉旧断点残留，按新断点重排
             if (fromClamped < chunks.length) {
                 for (int i = fromClamped; i < chunks.length; i++) {
-                    q.addLast(new NotifyItem(server, notifyChar, chunks[i]));
+                    q.addLast(new NotifyItem(server, notifyChar, chunks[i], true));
                 }
             }
             byte[] dg = txDigest.get(addr);
-            if (dg != null) q.addLast(new NotifyItem(server, notifyChar, makeDigestFrame(tid, dg)));
+            if (dg != null) q.addLast(new NotifyItem(server, notifyChar, makeDigestFrame(tid, dg), true));
             log("RETRANS " + addr + " tid=" + tid + " 从 seq=" + fromClamped
                     + " 重发 " + q.size() + " 帧");
             pumpQueueLocked(addr);
@@ -1507,11 +1692,52 @@ public class BLEGattd {
         return n;
     }
 
-    /** 文件命令：fs ls [path] / fs get <path>；相对路径以 FILE_BASE 为基准且不可逃逸 */
+    /** 文件命令：fs ls [path] / fs get <path>（相对 FILE_BASE，不可逃逸）
+     *  fs edget <绝对路径>：供客户端编辑器下载任意文件，头带绝对路径+权限，回写时才放行该路径 */
     static void handleFs(final BluetoothDevice device, final String cmd) {
         String[] sp = cmd.split(" ", 3);
         String op = sp.length > 1 ? sp[1] : "";
         String path = sp.length > 2 ? sp[2] : ".";
+        String addr = device.getAddress();
+
+        if ("edget".equals(op)) {
+            // 绝对路径（相对则以 shell 当前目录为基准）；服务端 root，可读取任意文件
+            java.io.File target;
+            try {
+                target = path.startsWith("/") ? new java.io.File(path).getCanonicalFile()
+                        : new java.io.File(shellCwd.containsKey(addr) ? shellCwd.get(addr) : "/", path).getCanonicalFile();
+            } catch (Throwable t) { enqueueNotify(device, "!fs: bad path " + t); return; }
+            if (!target.isFile()) { enqueueNotify(device, "!fs: not a file: " + path); return; }
+            long size = target.length();
+            if (size <= 0) { enqueueNotify(device, "!fs: empty file"); return; }
+            if (size > 25L * 1024 * 1024) { enqueueNotify(device, "!fs: file too large (>25MB): " + size); return; }
+            try {
+                byte[] data = readFile(target);
+                String sha = sha256hex(data);
+                String abs = target.getAbsolutePath();
+                int mode = 0644;
+                try {
+                    StructStat st = Os.stat(abs);
+                    mode = st.st_mode & 0777;
+                } catch (Throwable ignored) { }
+                String modeOct = Integer.toOctalString(mode);
+                while (modeOct.length() < 3) modeOct = "0" + modeOct;
+                String b64 = Base64.encodeToString(abs.getBytes(java.nio.charset.StandardCharsets.UTF_8), Base64.NO_WRAP);
+                // FILM:<base64绝对路径>:<mode八进制>:<size>:<sha>\n<原始字节>
+                byte[] hdr = ("FILM:" + b64 + ":" + modeOct + ":" + size + ":" + sha + "\n")
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                byte[] payload = new byte[hdr.length + data.length];
+                System.arraycopy(hdr, 0, payload, 0, hdr.length);
+                System.arraycopy(data, 0, payload, hdr.length, data.length);
+                java.util.Set<String> allow = editAllowed.get(addr);
+                if (allow == null) { allow = java.util.Collections.synchronizedSet(new java.util.HashSet<String>()); editAllowed.put(addr, allow); }
+                allow.add(abs);
+                enqueueBytes(device, payload, true);
+                log("FS EDGET " + abs + " " + size + "B mode=" + modeOct + " sha=" + sha);
+            } catch (Throwable t) { enqueueNotify(device, "!fs: read failed " + t); }
+            return;
+        }
+
         java.io.File base = new java.io.File(FILE_BASE);
         try { base.mkdirs(); } catch (Throwable ignored) { }
         java.io.File target;
@@ -1545,15 +1771,38 @@ public class BLEGattd {
                 byte[] payload = new byte[hdr.length + data.length];
                 System.arraycopy(hdr, 0, payload, 0, hdr.length);
                 System.arraycopy(data, 0, payload, hdr.length, data.length);
-                enqueueBytes(device, payload);
+                enqueueBytes(device, payload, true);
                 log("FS GET " + target + " " + size + "B sha=" + sha);
             } catch (Throwable t) { enqueueNotify(device, "!fs: read failed " + t); }
+        } else if ("getabs".equals(op)) {
+            // 绝对路径直读（root 通吃，用于客户端 DOWN 下载任意服务端文件）：
+            // 与 edget 的区别是不写入 editAllowed、不校验/回写，纯下载；返回同格式 FILD 帧复用客户端解析。
+            if (!path.startsWith("/")) { enqueueNotify(device, "!fs: getabs needs absolute path"); return; }
+            java.io.File absTarget;
+            try { absTarget = new java.io.File(path).getCanonicalFile(); }
+            catch (Throwable t) { enqueueNotify(device, "!fs: bad path " + t); return; }
+            if (!absTarget.isFile()) { enqueueNotify(device, "!fs: not a file: " + path); return; }
+            long absSize = absTarget.length();
+            if (absSize <= 0) { enqueueNotify(device, "!fs: empty file"); return; }
+            if (absSize > 25L * 1024 * 1024) { enqueueNotify(device, "!fs: file too large (>25MB): " + absSize); return; }
+            try {
+                byte[] data = readFile(absTarget);
+                String sha = sha256hex(data);
+                byte[] hdr = ("FILD:" + absTarget.getName() + ":" + absSize + ":" + sha + "\n")
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                byte[] payload = new byte[hdr.length + data.length];
+                System.arraycopy(hdr, 0, payload, 0, hdr.length);
+                System.arraycopy(data, 0, payload, hdr.length, data.length);
+                enqueueBytes(device, payload, true);
+                log("FS GETABS " + absTarget + " " + absSize + "B sha=" + sha);
+            } catch (Throwable t) { enqueueNotify(device, "!fs: read failed " + t); }
         } else {
-            enqueueNotify(device, "!fs: unknown op '" + op + "' (use 'fs ls [path]' or 'fs get <path>')");
+            enqueueNotify(device, "!fs: unknown op '" + op + "' (use 'fs ls|get|getabs <abs-path>' or 'fs edget <abs-path>')");
         }
     }
 
-    /** 文件上传：首包 PUT:name:size\n 头，其后为原始二进制分片（WRITE_NO_RESPONSE） */
+    /** 文件上传：首包 PUT:name:size\n 头，其后为原始二进制分片（WRITE_NO_RESPONSE）
+     *  编辑回写：首包 PUTE:<base64路径>:<size>:<mode>\n，写回原绝对路径并恢复权限 */
     static void handleFileUpload(BluetoothDevice device, byte[] value) {
         String addr = device.getAddress();
         try {
@@ -1561,23 +1810,48 @@ public class BLEGattd {
             if (out == null) {
                 // 文件名可能含中文等多字节 UTF-8 字符，必须以 UTF_8 解析，用 US_ASCII 会把多字节拆成替换符(乱码)
                 String hdr = new String(value, 0, value.length, java.nio.charset.StandardCharsets.UTF_8);
-                if (!hdr.startsWith("PUT:")) { enqueueNotify(device, "!upload: bad header (expect PUT:name:size)"); return; }
-                String rest = hdr.substring(4).trim();
+                boolean isEdit = hdr.startsWith("PUTE:");
+                if (!isEdit && !hdr.startsWith("PUT:")) { enqueueNotify(device, "!upload: bad header (expect PUT:name:size)"); return; }
+                String rest = hdr.substring(isEdit ? 5 : 4).trim();
                 int nl = rest.indexOf('\n'); if (nl >= 0) rest = rest.substring(0, nl);
-                int c = rest.lastIndexOf(':');
-                if (c < 0) { enqueueNotify(device, "!upload: bad header format"); return; }
-                String name = sanitizeName(rest.substring(0, c));
-                if (name == null) { enqueueNotify(device, "!upload: illegal filename"); return; }
-                long size = Long.parseLong(rest.substring(c + 1).trim());
-                java.io.File base = new java.io.File(FILE_BASE);
-                try { base.mkdirs(); } catch (Throwable ignored) { }
-                java.io.File f = new java.io.File(base, name);
+                java.io.File f;
+                String mode = null;
+                long size;
+                if (isEdit) {
+                    // PUTE:base64(absPath):size:octalMode
+                    String[] parts = rest.split(":");
+                    if (parts.length < 3) { enqueueNotify(device, "!upload: bad PUTE header"); return; }
+                    String absPath;
+                    try {
+                        absPath = new String(Base64.decode(parts[0], Base64.NO_WRAP), java.nio.charset.StandardCharsets.UTF_8);
+                    } catch (Throwable e) { enqueueNotify(device, "!upload: bad path encoding"); return; }
+                    if (absPath.length() == 0 || !absPath.startsWith("/")) { enqueueNotify(device, "!upload: path must be absolute"); return; }
+                    java.util.Set<String> allow = editAllowed.get(addr);
+                    if (allow == null || !allow.contains(absPath)) {
+                        enqueueNotify(device, "!upload: path not permitted (not opened via fs edget)"); return;
+                    }
+                    size = Long.parseLong(parts[1].trim());
+                    mode = parts[2].trim();
+                    f = new java.io.File(absPath);
+                    fileRecvAbs.put(addr, absPath);
+                    fileRecvMode.put(addr, mode);
+                    log("UPLOAD(edit) start " + addr + " -> " + absPath + " mode=" + mode + " size=" + size);
+                } else {
+                    int c = rest.lastIndexOf(':');
+                    if (c < 0) { enqueueNotify(device, "!upload: bad header format"); return; }
+                    String name = sanitizeName(rest.substring(0, c));
+                    if (name == null) { enqueueNotify(device, "!upload: illegal filename"); return; }
+                    size = Long.parseLong(rest.substring(c + 1).trim());
+                    java.io.File base = new java.io.File(FILE_BASE);
+                    try { base.mkdirs(); } catch (Throwable ignored) { }
+                    f = new java.io.File(base, name);
+                    log("UPLOAD start " + addr + " " + name + " size=" + size);
+                }
                 out = new java.io.FileOutputStream(f);
                 fileOut.put(addr, out);
-                fileRecvName.put(addr, name);
+                fileRecvName.put(addr, f.getName());
                 fileRecvTarget.put(addr, size);
                 fileRecvLen.put(addr, 0L);
-                log("UPLOAD start " + addr + " " + name + " size=" + size);
             } else {
                 out.write(value);
                 long len = fileRecvLen.get(addr) + value.length;
@@ -1588,10 +1862,20 @@ public class BLEGattd {
                     String name = fileRecvName.remove(addr);
                     long got = fileRecvTarget.remove(addr);
                     fileRecvLen.remove(addr);
-                    java.io.File f = new java.io.File(FILE_BASE, name);
+                    String abs = fileRecvAbs.remove(addr);
+                    String mode = fileRecvMode.remove(addr);
+                    java.io.File f = (abs != null) ? new java.io.File(abs) : new java.io.File(FILE_BASE, name);
+                    // 恢复原权限（仅编辑回写）。use chmod via Os.chmod
+                    if (abs != null && mode != null) {
+                        try {
+                            int m = Integer.parseInt(mode, 8);
+                            Os.chmod(abs, m);
+                            log("UPLOAD(edit) chmod " + mode + " " + abs);
+                        } catch (Throwable t) { log("UPLOAD(edit) chmod 失败 " + t); }
+                    }
                     String sha = sha256hex(readFile(f));
                     enqueueNotify(device, "FILEDONE:" + name + ":" + sha + ":" + got);
-                    log("UPLOAD done " + name + " " + got + "B sha=" + sha);
+                    log("UPLOAD done " + name + " " + got + "B sha=" + sha + (abs != null ? " -> " + abs : ""));
                 }
             }
         } catch (Throwable t) {
@@ -1599,6 +1883,7 @@ public class BLEGattd {
             enqueueNotify(device, "!upload: " + t);
             try { java.io.OutputStream o = fileOut.remove(addr); if (o != null) o.close(); } catch (Throwable ignored) { }
             fileRecvName.remove(addr); fileRecvTarget.remove(addr); fileRecvLen.remove(addr);
+            fileRecvAbs.remove(addr); fileRecvMode.remove(addr);
         }
     }
 
@@ -1628,6 +1913,33 @@ public class BLEGattd {
         enqueueNotify(device, "FILEABORT:" + (name == null ? "" : name));
     }
 
+    /**
+     * 中止下载：客户端取消下载时调用。清掉本连接待发队列里尚未发出的 bulk 文件片/校验帧，
+     * 让紧随其后的命令回包不必等几千片文件发完（否则表现为"取消下载后命令无反应"）。
+     * 只清队列里的片；若有一片正在途（sending=true，已从队列取出）不动它，它发出去后
+     * 会被客户端的 tid 结束集合吞掉。同时清传输态，避免迟到的 #retrans 重排再灌满队列。
+     */
+    static void abortDownload(BluetoothDevice device) {
+        String addr = device.getAddress();
+        int dropped = 0;
+        synchronized (PUMP_LOCK) {
+            Deque<NotifyItem> q = queues.get(addr);
+            if (q != null) {
+                java.util.Iterator<NotifyItem> it = q.iterator();
+                while (it.hasNext()) {
+                    if (it.next().bulk) { it.remove(); dropped++; }
+                }
+            }
+            txChunks.remove(addr);
+            txDigest.remove(addr);
+            retransAt.remove(addr); retransFrom.remove(addr);
+        }
+        log("DOWNLOAD abort " + addr + "：丢弃 " + dropped + " 个待发文件片（在途至多 1 片由客户端吞掉）");
+        // 不用 '!' 错误帧：客户端会当"下载失败"弹提示；用户主动取消不该报错。
+        // 用一个普通文本回包，客户端 completeRx 会当普通结果输出；其 tid 记入已结束集合不影响后续。
+        enqueueNotify(device, "download:aborted");
+    }
+
     /** 命令分发：fs 文件命令走专用逻辑，其余照旧当 shell 执行 */
     static void dispatchCommand(final BluetoothDevice device, final String cmd) {
         if (cmd.startsWith("fs ")) { handleFs(device, cmd); return; }
@@ -1642,6 +1954,25 @@ public class BLEGattd {
     static void trimQueue(String addr) {
         Deque<NotifyItem> q = queues.get(addr);
         if (q == null || q.size() <= MAX_QUEUE_ITEMS) return;
+        // 大文件传输：文件片/校验帧带 bulk 标记，数量必然远超 200（MTU500 时 200 片≈95KB）。
+        // 绝不能整队 clear——否则一次普通入队（电量推送/命令输出）触发 trimQueue 就会把
+        // 已排队的文件片全部丢弃，下载被腰斩，客户端收到 !queue-overflow 后卡死。
+        // 这里改为：保留全部 bulk 片，只丢弃溢出的普通输出片。
+        int bulkCnt = 0;
+        for (NotifyItem it : q) if (it.bulk) bulkCnt++;
+        if (bulkCnt > 0) {
+            int n = q.size(), dropped = 0;
+            java.util.Iterator<NotifyItem> iter = q.iterator();
+            while (iter.hasNext()) {
+                if (!iter.next().bulk) { iter.remove(); dropped++; }
+            }
+            if (dropped > 0) {
+                log("!! " + addr + " 待发队列超限（" + n + " > " + MAX_QUEUE_ITEMS
+                        + "）：文件传输中，仅丢弃 " + dropped + " 个普通片，保留 " + bulkCnt + " 个文件片");
+            }
+            return;
+        }
+        // 无文件传输：维持原策略——整队丢弃 + 补发错误帧，避免客户端卡在半包
         int n = q.size();
         q.clear();
         log("!! " + addr + " 待发队列超限（" + n + " > " + MAX_QUEUE_ITEMS
@@ -1976,6 +2307,7 @@ public class BLEGattd {
                 case "--max-out": maxOutBytes = Integer.parseInt(args[++i]); break;
                 case "--cmd-timeout": cmdTimeoutSec = Integer.parseInt(args[++i]); break;
                 case "--tx-pace": txPaceMs = Integer.parseInt(args[++i]); break;
+                case "--pace": paceMs = Integer.parseInt(args[++i]); break;
                 default: break;
             }
         }
@@ -2030,6 +2362,8 @@ public class BLEGattd {
                 + "  --max-out <bytes>    命令输出上限（默认 10240=10KB，超出截断）\n"
                 + "  --cmd-timeout <sec>  单条命令最长执行时间（默认 10）\n"
                 + "  --tx-pace <ms>       传输帧最小间隔下限（默认 40，连发易被协议栈丢包）\n"
+                + "  --pace <ms>          降级节流间隔（默认 50）：onNotificationSent 回调不可信时每片间隔，\n"
+                + "                       仅在回调丢失降级后生效；正常路径由 --tx-pace 控节奏\n"
                 + "  --debug              把 log() 同步写入 Download/blegatt.log（排查用，默认关）\n"
                 + "\n其余参数均使用内置默认值（服务 UUID 8e7a1f01…，广播自带 180f 电池服务 UUID）。\n"
                 + "\n命令通道用法（nRF Connect）：\n"

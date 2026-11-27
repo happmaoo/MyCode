@@ -149,7 +149,20 @@ public class BleService extends Service {
 
     // ---- 可靠传输 v2 接收状态（T 帧：'T'+tid+seq+total+payload+CRC16）----
     int rvTid = -1;            // 当前传输号（-1 = 空闲）
-    int rvDoneTid = -1;        // 已结束（完成/放弃/超时）的传输号：忽略其残帧，防止同一 tid 重复收/重复输出
+    int rvDoneTid = -1;        // 最近结束的传输号：忽略其残帧，防止同一 tid 重复收/重复输出
+    // 已结束 tid 集合：重连后服务端仍在泵送的旧传输残帧会被误当新传输从头 NACK。
+    // 单值 rvDoneTid 会被后续命令回包覆盖，故用集合保留最近若干个已结束 tid。
+    final java.util.LinkedHashSet<Integer> rvDoneTids = new java.util.LinkedHashSet<Integer>();
+    void markDoneTid(int tid) {
+        if (tid < 0) return;
+        rvDoneTid = tid;
+        rvDoneTids.add(tid);
+        while (rvDoneTids.size() > 32) {
+            java.util.Iterator<Integer> it = rvDoneTids.iterator();
+            it.next(); it.remove();
+        }
+    }
+    boolean isDoneTid(int tid) { return tid == rvDoneTid || rvDoneTids.contains(tid); }
     String serverVer = "";      // 服务端下发的版本号（连接后由 blegatt-ver: 帧填充，状态栏展示）
     // App 版本号直接读取 APK 自身的 versionName（构建时由脚本注入编译时刻）。
     // 这样“界面显示的版本”与“安卓 APP 属性里的版本”永远一致，且为编译时固定值（不再是运行时当前时间）。
@@ -783,7 +796,7 @@ public class BleService extends Service {
         cBatt = null; cCmd = null; cRes = null; cAuth = null;
         wq.clear();
         inflight = 0;
-        abortRx();
+        abortRx(rvDoneTid);   // D：保留"已结束 tid"，让断链前那笔传输的迟到残帧继续被吞掉
         step = 0;
         mtuText = "";
         curMtu = 23;
@@ -932,7 +945,8 @@ public class BleService extends Service {
             curDevice = null;
             linkUp = false;
             connecting = false;
-            resetState();
+            if (rvTid >= 0) markDoneTid(rvTid);   // 断链即标记该 tid 结束，重连后其迟到残帧一律吞掉
+            resetState();   // 内部 abortRx 会再次确保标记（覆盖各条断链路径）
             setBattIdle();
             releaseWake();
             stopForeground(true);        // 链路没了，通知也撤下
@@ -1214,7 +1228,7 @@ public class BleService extends Service {
             int crc = ((v[v.length - 2] & 0xFF) << 8) | (v[v.length - 1] & 0xFF);
             int tid = ((v[1] & 0xFF) << 8) | (v[2] & 0xFF);
             int seq = ((v[3] & 0xFF) << 8) | (v[4] & 0xFF);
-            if (tid == rvDoneTid) return;                     // 已放弃传输的迟到残帧：吞掉，防止被误当新传输从头再来
+            if (isDoneTid(tid)) return;                     // 已结束传输的迟到残帧：吞掉，防止被误当新传输从头再来
             if (crc16(v, 0, v.length - 2) != crc) {          // 单帧 CRC 失败：按缺片请求该帧
                 if (tid == rvTid) requestMissing(tid, seq, "CRC16 check failed");
                 return;
@@ -1273,7 +1287,7 @@ public class BleService extends Service {
             int crc = ((v[v.length - 2] & 0xFF) << 8) | (v[v.length - 1] & 0xFF);
             if (crc16(v, 0, v.length - 2) != crc) return;    // 坏校验帧：等 chunkTimeout 补请求
             int tid = ((v[1] & 0xFF) << 8) | (v[2] & 0xFF);
-            if (tid == rvDoneTid) return;                     // 已放弃传输的迟到校验帧：吞掉
+            if (isDoneTid(tid)) return;                     // 已放弃传输的迟到校验帧：吞掉
             if (tid == rvTid && !rvDigestGot && rvTotal > 1) {
                 rvDigest = new byte[32];
                 System.arraycopy(v, 3, rvDigest, 0, 32);
@@ -1283,9 +1297,19 @@ public class BleService extends Service {
             return;
         }
         if (mark == '!') {
+            // 裸 ! 错误帧（如 !queue-overflow）不经 completeRx 的文本分支，
+            // 必须在这里复位下载状态：abortRx 虽已把 downBusy 置 false，但若不通知 UI，
+            // 按钮会永久停在 cancel；且用户点 cancel 时 cancelDownload() 的 !downBusy 门槛直接 return，无从恢复。
+            boolean wasDownload = downBusy;
             int done = rvTid;
             abortRx(done);
             appendResult("✗ " + new String(v, 1, v.length - 1, UTF8));
+            if (wasDownload) {
+                notifyDownloadState(false);        // down 按钮 → down
+                unlockPriority();                  // 别让 HIGH 锁残留
+                Ui du = uiCb;
+                if (du != null) { try { du.onProgress("download failed"); } catch (Throwable ignored) { } }
+            }
         }
         // 其他帧型不认识：忽略
     }
@@ -1419,6 +1443,14 @@ public class BleService extends Service {
             finishStream();                        // 先收尾当前输出流（若正在流式显示）
             appendResult("✗ " + whole.trim().substring(1));
             logEvent("Server: " + whole.trim());
+            // 下载请求失败（如 !fs: not a file / !auth:denied）：服务端不会回 FILD 帧，
+            // 这里必须复位下载状态并通知 UI，否则 down 按钮永久卡在 cancel、无法再次下载。
+            if (downBusy) {
+                downBusy = false;
+                notifyDownloadState(false);        // down 按钮 → down
+                Ui du = uiCb;
+                if (du != null) { try { du.onProgress("download failed"); } catch (Throwable ignored) { } }
+            }
             // fs edget/fs get 等传输请求若返回文本错误（如 !fs: not a file），
             // 之前为保证速度锁了 HIGH，这里没有 FILD 回包来解锁，需主动释放，避免永久卡在 HIGH
             if (highPrioLocked && !upBusy && upQueue.isEmpty() && editRemotePath == null) unlockPriority();
@@ -1519,7 +1551,14 @@ public class BleService extends Service {
             if (!dir.exists()) dir.mkdirs();
             String base = remote.substring(remote.lastIndexOf('/') + 1);
             if (base.length() == 0) base = "edit.txt";
-            String localName = base + "." + System.currentTimeMillis();
+            // 时间戳插在扩展名之前，保留原扩展名在末尾：
+            // 编辑器（Acode/代码编辑器等）靠扩展名识别文件类型与语法高亮，
+            // 若写成 "x.json.170000..." 末尾变成数字，高亮/类型全丢。
+            String stem, ext;
+            int dot = base.lastIndexOf('.');
+            if (dot > 0) { stem = base.substring(0, dot); ext = base.substring(dot); }
+            else { stem = base; ext = ""; }
+            String localName = stem + "." + System.currentTimeMillis() + ext;
             java.io.File out = new java.io.File(dir, localName);
             java.io.FileOutputStream fos = new java.io.FileOutputStream(out);
             fos.write(fileBytes);
@@ -1780,13 +1819,19 @@ public class BleService extends Service {
 
     /** 取消下载：中断当前接收、吞掉该 tid 迟到残帧、复位状态并解锁 HIGH。
      *  由 UI 的 down→cancel 按钮触发。服务端随后发来的该 tid 残帧会被 rvDoneTid 吞掉，
-     *  不会被误当新传输。 */
+     *  不会被误当新传输。同时通知服务端丢弃待发队列里的文件片，否则后续命令回包
+     *  会排在几千片后面，表现为"取消下载后命令无反应"。 */
     public void cancelDownload() {
         th.post(new Runnable() { public void run() {
             if (!downBusy) return;
             int doneTid = rvTid;
             abortRx(doneTid >= 0 ? doneTid : -1);   // 清接收状态；标记 tid 已结束，迟到残帧吞掉
             downBusy = false;
+            // 通知服务端立即丢弃待发文件片，让命令通道恢复可用（走 CMD，鉴权前拦截）
+            if (gatt != null && cCmd != null) {
+                wq.add(new W(cCmd, "blegatt-download-abort\n".getBytes(UTF8)));
+                drain();
+            }
             unlockPriority();   // 用户取消下载：解锁并降回省电档
             flushDeferredCmds();
             Ui u = uiCb;
@@ -1897,11 +1942,15 @@ public class BleService extends Service {
     void abortRx() { abortRx(-1); }
     void abortRx(int doneTid) {
         th.removeCallbacks(chunkTimeout);
+        // 统一在这里标记"正在进行的传输"已结束：不管从断链/取消/完成/哪条路径进来，
+        // 只要 rvTid 有效就把它归入已结束集合。杜绝"取消下载时 rvTid 被清掉却没标记、
+        // 重连后旧 tid 残帧被当新传输"的漏洞。doneTid 是显式指定的优先标记。
+        if (rvTid >= 0) markDoneTid(rvTid);
+        if (doneTid >= 0 && doneTid != rvTid) markDoneTid(doneTid);
         rx.reset(); rvPend.clear();
         rvTid = -1; rvTotal = 0; rvNext = 0; rvNacks = 0;
         rvDigest = null; rvDigestGot = false;
         rvNackGuardSeq = -1; rvNackGuardAt = 0; rvTimeouts = 0;
-        rvDoneTid = doneTid;
         downBusy = false;   // 接收放弃/断链复位：下载状态一并清掉
     }
 
