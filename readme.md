@@ -43,6 +43,7 @@ ble速度有限，玩玩还是不错的
 ## MyMQTT MQTT订阅端和控制端
 一个MQTT客户端
 我用来远程控制我的旧手机，可以在主力机上运行shell命令，查看文件等，极致省流量，我一般一天1MB。
+免费MQTT服务器:cloud.emqx.com
 [MyMQTT](MyMQTT)
 
 ## MyFM 红米Note4x 的收音机APP
