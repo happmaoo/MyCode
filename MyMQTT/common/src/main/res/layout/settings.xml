@@ -1,0 +1,407 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
+            android:text="Settings (saved on this device)"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <!-- ================= 角色 ================= -->
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="4dp"
+            android:text="Role of this app"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <RadioGroup
+            android:id="@+id/s_role"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/s_role_control"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Control (发命令)" />
+
+            <RadioButton
+                android:id="@+id/s_role_exec"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Executor (执行)" />
+        </RadioGroup>
+
+        <TextView
+            android:id="@+id/s_role_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="12sp"
+            android:textColor="#666666" />
+
+        <!-- ================= 连接参数 ================= -->
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="12dp"
+            android:text="Broker host (IP or domain)"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_host"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="broker.hivemq.com"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Broker port (1883 = tcp, 8883 = tls)"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_port"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="1883"
+            android:inputType="number"
+            android:singleLine="true" />
+
+        <CheckBox
+            android:id="@+id/c_rootup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="root：mqttup 直读本机路径（su 读文件，不弹系统文件选择器）" />
+
+        <CheckBox
+            android:id="@+id/s_tls"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Use TLS / SSL (uses the system trust store, no certificate file needed)" />
+
+        <CheckBox
+            android:id="@+id/s_debug"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Debug (log shows timestamps, send/receive packets, subscribe info; off = log shows only the command output)" />
+
+        <CheckBox
+            android:id="@+id/s_logfile"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Save logs to file (one file per day)" />
+
+        <TextView
+            android:id="@+id/s_logpath"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="#666666"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Username (empty = anonymous)"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_user"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="(anonymous)"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Password"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_pass"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="(empty)"
+            android:inputType="textPassword"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Keepalive (seconds, 5~3600)"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_keepalive"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="60"
+            android:inputType="number"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="QoS for publish / subscribe (0, 1 or 2)"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_qos"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="0"
+            android:inputType="number"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Connect timeout (seconds, 1~120; 0 = wait forever)"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_timeout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="10"
+            android:inputType="number"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Client ID (must be unique per broker)"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_clientid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="mqtt-control-xxxx"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true" />
+
+        <!-- ================= 主题 ================= -->
+
+        <TextView
+            android:id="@+id/s_pub_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="12dp"
+            android:text="Publish topic (what SEND uses)"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/s_pub"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="control/command"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true" />
+
+        <TextView
+            android:id="@+id/s_sub_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="6dp"
+            android:text=""
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="4dp"
+            android:text="Subscribed topics are managed in the top-right menu (Subscribe topics); they are subscribed automatically after connect."
+            android:textSize="12sp"
+            android:textColor="#666666" />
+
+        <!-- ================= 仅控制端 ================= -->
+
+        <LinearLayout
+            android:id="@+id/s_box_quick"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="10dp"
+                android:text="Quick commands (one per line, write the shell command directly; shown in the ⌄CMD panel; tap an item to send it)"
+                android:textSize="13sp" />
+
+            <EditText
+                android:id="@+id/s_quick"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:gravity="top"
+                android:hint="ls /"
+                android:inputType="textMultiLine|textNoSuggestions"
+                android:minLines="3"
+                android:textSize="13sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="10dp"
+                android:text="vi/vim 外部编辑器：包名/Activity 全类名，一行即可。例：in.mfile/com.nmmedit.nmm.TextEditorActivity（留空弹系统选择框）"
+                android:textSize="13sp" />
+
+            <EditText
+                android:id="@+id/s_editor"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:hint="in.mfile/com.nmmedit.nmm.TextEditorActivity"
+                android:inputType="textNoSuggestions"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- ================= 仅执行端 ================= -->
+
+        <LinearLayout
+            android:id="@+id/s_box_exec"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="10dp"
+                android:text="Executor: every message on the subscribed topic is run as a shell command (no JSON parsing), and the result is published to the publish topic above."
+                android:textColor="#1B5E20"
+                android:textSize="13sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="10dp"
+                android:text="Startup command (run once after every successful connect; empty = do nothing)\n多行可写多条；开了 debug 会看到执行结果。\n要让整个会话换 shell/换用户，加一行 !shell，例如：\n!shell su -c &#39;sh /data/data/com.termux/files/home/logintermux.sh&#39;\n（!shell 后面是启动持久 shell 的命令，不参与普通命令执行）"
+                android:textSize="13sp" />
+
+            <EditText
+                android:id="@+id/s_startup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:gravity="top"
+                android:hint="(empty)"
+                android:inputType="textMultiLine|textNoSuggestions"
+                android:minLines="2"
+                android:textSize="13sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="10dp"
+                android:text="Output limit (chars): 单条命令输出超过这个字符数就截断，默认 4000，可填 100–500000"
+                android:textSize="13sp" />
+
+            <EditText
+                android:id="@+id/s_outlimit"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="4000"
+                android:inputType="number"
+                android:singleLine="true"
+                android:textSize="13sp" />
+
+        </LinearLayout>
+
+        <!-- ================= 开关 ================= -->
+
+        <CheckBox
+            android:id="@+id/c_wake"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="12dp"
+            android:text="连接期间保持 wakelock（防止锁屏/Doze 时 CPU 挂起、心跳发不出去而掉线；断开自动释放）" />
+
+        <CheckBox
+            android:id="@+id/c_battopt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="忽略电池优化（Doze 时仍允许联网；勾选会跳到系统授权页）" />
+
+        <CheckBox
+            android:id="@+id/s_boot"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="12dp"
+            android:text="Auto connect on boot (starts the foreground service at device startup)" />
+
+        <CheckBox
+            android:id="@+id/s_auto"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Auto reconnect after disconnect (backoff 1s→30s)" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingTop="12dp">
+
+            <Button
+                android:id="@+id/s_save"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Save" />
+
+            <Button
+                android:id="@+id/s_back"
+                style="?android:attr/buttonBarButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Back" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/s_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="12dp"
+            android:text=""
+            android:textColor="#666666"
+            android:textSize="13sp" />
+    </LinearLayout>
+</ScrollView>

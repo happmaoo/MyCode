@@ -1,0 +1,28 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'com.myapp.mqtt.base'
+    compileSdk 34
+
+    defaultConfig {
+        minSdk 21
+        targetSdk 30
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+        coreLibraryDesugaringEnabled true
+    }
+
+    buildFeatures {
+        buildConfig false
+    }
+}
+
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    api 'com.hivemq:hivemq-mqtt-client:1.3.3'
+}

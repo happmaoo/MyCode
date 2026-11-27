@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Android 6~10 直接按路径读 /sdcard 上的证书文件需要它；Android 11+ 系统已禁止直接路径访问，走设置页的「选择证书文件」(SAF) -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <application
+        android:name="com.myapp.mqtt.base.MqttApp"
+        android:allowBackup="false"
+        android:requestLegacyExternalStorage="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="MyMQTTExec"
+        android:theme="@android:style/Theme.Material.Light">
+
+        <meta-data
+            android:name="app_role"
+            android:value="executor" />
+
+        <activity
+            android:name="com.myapp.mqtt.base.MainActivity"
+            android:exported="true"
+            android:label="MyMQTTExec"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="stateHidden|adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name="com.myapp.mqtt.base.SettingsActivity"
+            android:exported="false"
+            android:label="Settings" />
+
+        <activity
+            android:name="com.myapp.mqtt.base.TopicsActivity"
+            android:exported="false"
+            android:label="Subscribe topics" />
+
+        <service
+            android:name="com.myapp.mqtt.base.MqttService"
+            android:exported="false"
+            android:stopWithTask="false" />
+
+        <receiver
+            android:name="com.myapp.mqtt.base.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -40,9 +40,15 @@ ble速度有限，玩玩还是不错的
 经典蓝牙协议，支持摄像头切换，开机自启动，分辨率，码率调整。
 [MyBtCam](MyBtCam)
 
+## MyMQTT MQTT订阅端和控制端
+一个MQTT客户端
+我用来远程控制我的旧手机，可以在主力机上运行shell命令，查看文件等，极致省流量，我一般一天1MB。
+[MyMQTT](MyMQTT)
+
 ## MyFM 红米Note4x 的收音机APP
 红米Note4x和lineageOS自带的收音机不好用，自己写的代码，需要root，我的机子是 lineageOS 15.1 安卓8.1版本，可能其他高版本不能使用请自己测试。  
 [MyFM](MyFM/app/release)
+
 
 ## MyDeskNote 超小的桌面便签APP
 功能简单，可以设置字体大小，可以很小，不占用桌面空间。  
@@ -52,8 +58,6 @@ ble速度有限，玩玩还是不错的
 一个简单的录音APP，本地和网络传输录音  
 [MyAudioRecorder](MyAudioRecorder/app/release)
 
-## MyMQTT 可用于物联网卡小服务器APP控制
-MyMQTT 物联网卡小服务器,可用ipv6连接服务器控制设备  
 
 ## myalarmmanager 定时运行脚本的app
 定时运行脚本的app

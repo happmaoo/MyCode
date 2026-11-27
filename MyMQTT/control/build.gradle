@@ -1,0 +1,45 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.myapp.mymqtt'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.myapp.mymqtt"
+        minSdk 21
+        targetSdk 30
+        versionCode 7
+        versionName "1.6"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+        coreLibraryDesugaringEnabled true
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    packaging {
+        resources {
+            excludes += ['META-INF/INDEX.LIST', 'META-INF/io.netty.versions.properties',
+                         'META-INF/LICENSE*', 'META-INF/NOTICE*', 'META-INF/DEPENDENCIES',
+                         'META-INF/MANIFEST.MF', 'META-INF/*.kotlin_module', 'META-INF/*.SF',
+                         'META-INF/*.DSA', 'META-INF/*.RSA']
+        }
+        jniLibs {
+            excludes += ['**/*.so']
+        }
+    }
+}
+
+dependencies {
+    implementation project(':common')
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+}

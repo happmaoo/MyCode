@@ -1,45 +1,68 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.myapp.mymqtt">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-
-
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="geo" />
-        </intent>
-    </queries>
-
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
-        android:name=".MyMQTT"
-        android:allowBackup="true"
+        android:name="com.myapp.mqtt.base.MqttApp"
+        android:allowBackup="false"
+        android:requestLegacyExternalStorage="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
+        android:label="MyMQTT"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/AppTheme">
+        android:theme="@android:style/Theme.Material.Light">
 
-        <service
-            android:name=".MyService"
-            android:enabled="true"
-            android:exported="true" />
+        <!-- 默认角色：控制端；设置页可以切换成执行端 -->
+        <meta-data
+            android:name="app_role"
+            android:value="control" />
 
-        <activity android:name=".settings"></activity>
         <activity
-            android:name=".MainActivity"
-            android:exported="true">
+            android:name="com.myapp.mqtt.base.MainActivity"
+            android:exported="true"
+            android:label="MyMQTT"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|smallestScreenSize|screenLayout|uiMode|fontScale|density"
+            android:windowSoftInputMode="stateHidden|adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-    </application>
 
+        <provider
+            android:name="com.myapp.mqtt.base.EditFileProvider"
+            android:authorities="com.myapp.mymqtt.editfile"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
+        <activity
+            android:name="com.myapp.mqtt.base.SettingsActivity"
+            android:exported="false"
+            android:label="Settings" />
+
+        <activity
+            android:name="com.myapp.mqtt.base.TopicsActivity"
+            android:exported="false"
+            android:label="Subscribe topics" />
+
+        <service
+            android:name="com.myapp.mqtt.base.MqttService"
+            android:exported="false"
+            android:stopWithTask="false" />
+
+        <receiver
+            android:name="com.myapp.mqtt.base.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+    </application>
 </manifest>
