@@ -297,6 +297,11 @@ public final class P {
     }
 
     /** 发送历史：最近在前，最多 50 条，重复的提到最前 */
+    /** shell 控制广播的口令；默认 mymqtt，可在 prefs 的 ctrl_token 改 */
+    public static String ctrlToken(Context c) {
+        return sp(c).getString("ctrl_token", "mymqtt");
+    }
+
     public static String[] histCmds(Context c) {
         String raw = sp(c).getString("hist_cmds", "[]");
         java.util.ArrayList<String> out = new java.util.ArrayList<>();

@@ -7,6 +7,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
@@ -37,6 +38,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import org.json.JSONObject;
+
+import java.lang.ref.WeakReference;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -82,6 +85,11 @@ public class MainActivity extends Activity implements MqttCore.Listener {
 
     private ArrayAdapter<String> padAdapter;
     private String curTab = "quick";
+    private boolean padCollapsePending;   // 本次触摸起的点在 CMD 面板外：抬手后收起面板
+    private final Rect padHitRect = new Rect();
+    private View padTouchChild;           // 正被按住高亮的 CMD 条目
+    private float padTouchDownY;
+    private static final int PAD_HL_COLOR = 0xFFCFEAE6;   // 按住反馈色
 
     private final StringBuilder plain = new StringBuilder();
     private boolean wrap = true;
@@ -92,10 +100,25 @@ public class MainActivity extends Activity implements MqttCore.Listener {
     private int histIdx = -1;
     private String histDraft = "";
 
+
     private boolean executor;
     private boolean debugMode;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final SimpleDateFormat hm = new SimpleDateFormat("HH:mm:ss", Locale.US);
+
+    private static WeakReference<MainActivity> curRef;
+
+    /** 给控制广播用：把界面全部收掉（没有界面时什么也不做） */
+    public static void closeAll() {
+        MainActivity a = curRef == null ? null : curRef.get();
+        if (a != null && !a.isFinishing()) a.finishAffinity();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (curRef != null && curRef.get() == this) curRef = null;
+        super.onDestroy();
+    }
 
     private final Runnable ticker = new Runnable() {
         @Override
@@ -110,6 +133,7 @@ public class MainActivity extends Activity implements MqttCore.Listener {
         super.onCreate(savedInstanceState);
         executor = P.isExecutor(this);
         debugMode = P.debug(this);
+        curRef = new WeakReference<>(this);
         setContentView(R.layout.main);
 
         tvServer = findViewById(R.id.tv_server);
@@ -133,31 +157,14 @@ public class MainActivity extends Activity implements MqttCore.Listener {
             if (saved != null && !saved.isEmpty()) {
                 plain.append(saved);
                 rendered = "";
-                forcePin = true;
             }
         }
         cbWrap = findViewById(R.id.cb_wrap);
         hsvOut = findViewById(R.id.hsv_out);
         svOut = findViewById(R.id.sv_out);
-        // 常驻监听布局：软键盘、切全屏、从桌面回来导致的高度变化，都能补一次贴底
-        svOut.getViewTreeObserver().addOnGlobalLayoutListener(pinListener);
         svOut.setOnTouchListener((v, e) -> {
-            int a = e.getActionMasked();
-            if (a == MotionEvent.ACTION_DOWN) {
-                collapseCmdPad();       // 点日志区域收起 CMD 面板
-                touchingLog = true;
-                touchAt = SystemClock.uptimeMillis();
-            } else if (a == MotionEvent.ACTION_MOVE) {
-                touchingLog = true;
-                touchAt = SystemClock.uptimeMillis();
-            } else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
-                touchingLog = false;
-                autoFollow = isNearBottom();    // 松手时按真实位置决定要不要继续跟随
-            }
+            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) collapseCmdPad();  // 点日志区收起 CMD 面板
             return false;
-        });
-        svOut.getViewTreeObserver().addOnScrollChangedListener(() -> {
-            if (touchingLog) autoFollow = isNearBottom();
         });
         llCmdpad = findViewById(R.id.ll_cmdpad);
         lvCmdpad = findViewById(R.id.lv_cmdpad);
@@ -210,6 +217,31 @@ public class MainActivity extends Activity implements MqttCore.Listener {
         btnQuick.setOnClickListener(v -> toggleCmdPad());
         tabQuick.setOnClickListener(v -> setTab("quick"));
         tabHist.setOnClickListener(v -> setTab("hist"));
+        // ListView 默认的 selector 高亮靠主题 drawable，在深色/无 selector 主题下几乎看不到，按下后要等抬手才变色。
+        // 这里自己给按住的条目上色，DOWN 即生效；返回 false 不消费事件，滚动与点击照常交给 ListView。
+        lvCmdpad.setOnTouchListener((v, e) -> {
+            int a = e.getActionMasked();
+            if (a == MotionEvent.ACTION_DOWN) {
+                padTouchDownY = e.getY();
+                int pos = lvCmdpad.pointToPosition((int) e.getX(), (int) e.getY());
+                if (pos != AdapterView.INVALID_POSITION) {
+                    View ch = lvCmdpad.getChildAt(pos - lvCmdpad.getFirstVisiblePosition());
+                    if (ch != null) {
+                        ch.setBackgroundColor(PAD_HL_COLOR);
+                        padTouchChild = ch;
+                    }
+                }
+            } else if (a == MotionEvent.ACTION_MOVE) {
+                if (padTouchChild != null
+                        && Math.abs(e.getY() - padTouchDownY) > 12 * getResources().getDisplayMetrics().density) {
+                    releasePadHighlight();      // 变成滑动，撤掉高亮
+                }
+            } else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
+                releasePadHighlight();
+            }
+            return false;
+        });
+
         lvCmdpad.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
@@ -270,9 +302,6 @@ public class MainActivity extends Activity implements MqttCore.Listener {
             plain.setLength(0);
             rendered = "";
             tvResult.setText("");
-            autoFollow = true;      // 清空后位置归零，必须重新跟随，否则新内容永远不滚
-            forcePin = true;
-            pinRetry = 0;
             scrollToBottom();
         });
 
@@ -370,11 +399,7 @@ public class MainActivity extends Activity implements MqttCore.Listener {
         applyRoleUi();
         tvServer.setText(P.host(this) + ":" + P.port(this));
         applyWrap();
-        // 从桌面/后台回来：高度、滚动位置可能被系统重置，恢复跟随并补两次贴底
-        autoFollow = true;
-        forcePin = true;
-        touchingLog = false;
-        pinRetry = 0;
+        // 从桌面/后台回来：高度可能被系统重置，补两次贴底
         scrollToBottom();
         svOut.postDelayed(this::scrollToBottom, 400);
         ui.post(ticker);
@@ -415,6 +440,9 @@ public class MainActivity extends Activity implements MqttCore.Listener {
         if (out.startsWith("mqttup:") || out.startsWith("mqttup ")) {
             // mqttup:<控制端本机路径> = 把本机这个文件传到「执行端当前目录」，同名
             String local = out.substring(7).trim();
+            P.addHist(this, out);
+            histArr = null;
+            histIdx = -1;
             etMsg.setText("");
             collapseCmdPad();
             pendingUpPath = "";
@@ -436,12 +464,11 @@ public class MainActivity extends Activity implements MqttCore.Listener {
         if (out.startsWith("mqttdown:")) out = "mqttdown " + out.substring(9).trim();
         boolean ok = MqttCore.get().publish(topic, out, P.qos(this));
         append((ok ? "→ " : "✗ ") + topic + "  " + oneLine(out));
-        if (ok) {
-            P.addHist(this, msg.trim());
-            histArr = null;
-            histIdx = -1;
-            etMsg.setText("");
-        }
+        // 只要提交过就进历史（和 MyBleClient 一样，发没发出去都记），这样 ▲ 第一条永远是刚发的那条
+        P.addHist(this, msg.trim());
+        histArr = null;
+        histIdx = -1;
+        etMsg.setText("");
         refresh();
         if (collapse) collapseCmdPad();
     }
@@ -486,9 +513,6 @@ public class MainActivity extends Activity implements MqttCore.Listener {
 
     private void render() {
         if (tvResult == null) return;
-        // append 会让 TextView 重新测量，焦点/选区变化可能把 ScrollView 拽走；
-        // 记下「原本是否在底部」，append 之后按它决定继续跟随还是保持用户位置。
-        boolean wasNearBottom = autoFollow || isNearBottom();
         String cur = plain.toString();
         if (cur.startsWith(rendered)) {
             // 正常情况只把新增的那段 append 进去。
@@ -496,7 +520,6 @@ public class MainActivity extends Activity implements MqttCore.Listener {
             // ScrollView 的滚动位置会被 clamp 回 0 —— 这就是「有时候跳回最顶部」的根源。
             String delta = cur.substring(rendered.length());
             if (!delta.isEmpty()) tvResult.append(delta);
-            autoFollow = wasNearBottom;
         } else {
             // 清屏 / 超长截断 / 界面重建后，内容不再以旧内容开头，只能整段重建。
             // 整段 setText 会把滚动位置冲掉（这就是「跳回顶部」），所以重建后强制跟到底一次。
@@ -505,94 +528,27 @@ public class MainActivity extends Activity implements MqttCore.Listener {
             }
             tvResult.setText(cur);
             hsvOut.scrollTo(0, 0);
-            autoFollow = true;
-            forcePin = true;
         }
         rendered = cur;
         if (!wrap) applyUnwrappedWidth();
         scrollToBottom();
     }
 
-    /** 手指按住日志区时不抢滚动，松开后继续跟随 */
-    private boolean touchingLog;
-    private long touchAt;
-    /** 用户是否还在底部附近：只有本来就在底部，新日志才自动滚下去；往上翻看历史时不抢 */
-    private boolean autoFollow = true;
-    /** 整段重建（清屏/截断/界面重建）之后，下一次一定要滚到底 */
-    private boolean forcePin;
-    /** 视图没尺寸时的重试计数 */
-    private int pinRetry;
-
-    private final ViewTreeObserver.OnGlobalLayoutListener pinListener =
-            new ViewTreeObserver.OnGlobalLayoutListener() {
-                @Override
-                public void onGlobalLayout() {
-                    if (svOut == null || tvResult == null) return;
-                    pinToBottom();     // 常驻，不自我移除：每次布局完成都按当前尺寸贴一次底
-                }
-            };
-
     /**
-     * 滚到最底。
-     *
-     * 旧写法只在 svOut.post() 里算 child.getHeight()：post 的 runnable 跑在下一帧 layout 之前，
-     * 拿到的是「上一次布局」的高度，于是滚动量按旧内容算，新加进来的那一段就留在下面够不着
-     * （每来一小段就差一点，来一大段就差一屏，这就是「有时候滚不到底」）。
-     * 现在改成等 OnGlobalLayout（测量/布局真正做完）再按最大滚动量 scrollTo，另留一个 post 兜底，
-     * 内容没变化不触发 layout 时也能滚。
+     * 滚到内容最底部（照 MyBleClient ShellActivity 的 scrollToBottom）：
+     * 用 scrollTo 而不是 fullScroll，避免把焦点交给可聚焦的日志 TextView；
+     * svOut.post 让它在本帧布局之后执行，child.getHeight() 才是新内容的真实高度。
      */
-    /** 距底部 24px 以内算「还在底部」（照 PDF 里给的做法） */
-    private boolean isNearBottom() {
-        if (svOut == null || tvResult == null) return true;
-        int vh = svOut.getHeight();
-        if (vh <= 0) return true;      // 还没布局：当成在底部，别把跟随关掉
-        int ch = Math.max(tvResult.getHeight(), tvResult.getBottom())
-                + svOut.getPaddingTop() + svOut.getPaddingBottom();
-        return ch - (vh + svOut.getScrollY()) <= dip(24);
-    }
-
     private void scrollToBottom() {
-        if (svOut == null || tvResult == null) return;
-        svOut.post(this::pinToBottom);
-        svOut.postDelayed(this::pinToBottom, 120);
-    }
-
-    private void pinToBottom() {
-        if (svOut == null || tvResult == null) return;
-        if (touchingLog) {
-            if (SystemClock.uptimeMillis() - touchAt < 800) return;
-            touchingLog = false;      // 手指事件丢了（滑出屏幕等）就自动放开，否则跟随即永久停掉
-        }
-        if (!forcePin && !autoFollow) return;   // 用户滑离开底部在看历史，就别抢
-        forcePin = false;
-        int vh = svOut.getHeight() - svOut.getPaddingTop() - svOut.getPaddingBottom();
-        if (vh <= 0) {          // 视图还没尺寸（刚回前台/正在布局）：稍后再试，最多 6 次
-            if (pinRetry < 6) {
-                pinRetry++;
-                svOut.postDelayed(this::pinToBottom, 100);
+        if (svOut == null) return;
+        svOut.post(new Runnable() {
+            @Override public void run() {
+                View child = svOut.getChildAt(0);
+                if (child == null) return;
+                int target = child.getHeight() - svOut.getHeight();
+                svOut.scrollTo(0, Math.max(0, target));
             }
-            return;
-        }
-        pinRetry = 0;
-        // getHeight() 是控件高度，getBottom() 是它在滚动内容里的实际下沿；
-        // 刚布局完/最后一行还在测量时两者会不一致，取大的那个，避免「差几行滚不到底」。
-        int ch = Math.max(tvResult.getHeight(), tvResult.getBottom())
-                + svOut.getPaddingTop() + svOut.getPaddingBottom();
-        int target = Math.max(0, ch - vh);
-        if (Math.abs(svOut.getScrollY() - target) > 2) {
-            svOut.smoothScrollBy(0, 0);     // 中止残留的惯性滑动，否则下一帧会把 scrollTo 覆盖回去
-            svOut.scrollTo(0, target);
-        }
-        if (svOut.getScrollY() < target - 2 && pinRetry < 6) {   // 被 clamp/还没布局到：稍后再补
-            pinRetry++;
-            svOut.postDelayed(this::pinToBottom, 80);
-        }
-        if (debugMode) {
-            LogFile.write("[滚屏] y=" + svOut.getScrollY() + " target=" + target
-                    + " vh=" + vh + " ch=" + ch
-                    + " h=" + tvResult.getHeight() + " bottom=" + tvResult.getBottom()
-                    + " svh=" + svOut.getHeight());
-        }
+        });
     }
 
     /** 换行/不换行：换行时宽度=可视宽度；不换行时宽度=最长行，横向滚动查看 */
@@ -694,12 +650,41 @@ public class MainActivity extends Activity implements MqttCore.Listener {
     }
 
     @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        int action = ev.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            // 面板展开时，只要按下的点不在面板内、也不在 ⌄CMD 按钮上，就记为“抬手后收起”
+            padCollapsePending = llCmdpad != null && llCmdpad.getVisibility() == View.VISIBLE
+                    && !hitInside(llCmdpad, ev) && !hitInside(btnQuick, ev);
+        }
+        boolean handled = super.dispatchTouchEvent(ev);
+        if (padCollapsePending && (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL)) {
+            // 等这次点击走完再收面板：面板是竖排流式布局，立刻 GONE 会让下面的控件上移，正在进行的点击可能落空
+            padCollapsePending = false;
+            ui.post(this::collapseCmdPad);
+        }
+        return handled;
+    }
+
+    private boolean hitInside(View v, MotionEvent ev) {
+        if (v == null || v.getVisibility() != View.VISIBLE) return false;
+        return v.getGlobalVisibleRect(padHitRect)
+                && padHitRect.contains((int) ev.getRawX(), (int) ev.getRawY());
+    }
+
+    @Override
     public void onBackPressed() {
         if (fullMode) {          // 全屏状态按返回键先退出全屏，不退出 app
             toggleFull();
             return;
         }
         super.onBackPressed();
+    }
+
+    private void releasePadHighlight() {
+        View ch = padTouchChild;
+        padTouchChild = null;
+        if (ch != null && ch.isAttachedToWindow()) ch.setBackgroundColor(0);
     }
 
     private void collapseCmdPad() {
@@ -739,25 +724,37 @@ public class MainActivity extends Activity implements MqttCore.Listener {
     // ---------------- 历史导航 ----------------
 
     private void histPrev() {
-        if (histArr == null) histArr = P.histCmds(this);
+        if (histArr == null || histArr.length == 0) histArr = P.histCmds(this);
         if (histArr.length == 0) {
             toast("暂无历史");
             return;
         }
-        if (histIdx == -1) {
-            histDraft = etMsg.getText().toString();
+        String cur = etMsg.getText().toString();
+        if (histIdx < 0 || histIdx >= histArr.length || !histArr[histIdx].equals(cur)) {
+            // 框里的内容跟游标对不上：刚发过命令、手改过、或点过 CMD 条目 —— 一律从头开始，▲ 给最近一条
+            if (histIdx < 0) histDraft = cur;
             histIdx = 0;
         } else if (histIdx < histArr.length - 1) {
             histIdx++;
         }
-        etMsg.setText(histArr[histIdx]);
-        etMsg.setSelection(etMsg.getText().length());
+        fillInput(histArr[histIdx]);
     }
 
     private void histNext() {
         if (histIdx < 0) return;
+        String cur = etMsg.getText().toString();
+        if (histArr == null || histIdx >= histArr.length || !histArr[histIdx].equals(cur)) {
+            // 用户把历史内容改成了别的，▼ 不再继续往旧走，回到自己的草稿
+            histIdx = -1;
+            fillInput(histDraft);
+            return;
+        }
         histIdx--;
-        etMsg.setText(histIdx < 0 ? histDraft : histArr[histIdx]);
+        fillInput(histIdx < 0 ? histDraft : histArr[histIdx]);
+    }
+
+    private void fillInput(String s) {
+        etMsg.setText(s);
         etMsg.setSelection(etMsg.getText().length());
     }
 

@@ -416,6 +416,19 @@ public final class MqttCore {
     }
 
     public void disconnect() {
+        final Mqtt3AsyncClient c = detach();
+        if (c != null) new Thread(() -> doDisconnect(c), "mqtt-disconnect").start();
+    }
+
+    /** 和 disconnect() 一样，但在当前线程把 offline presence 与 DISCONNECT 发完再返回。
+     *  给「收到 stop 广播就要退出」这种必须保证对方立刻看到离线的场景用。 */
+    public void disconnectBlocking() {
+        final Mqtt3AsyncClient c = detach();
+        if (c != null) doDisconnect(c);
+    }
+
+    /** 收尾状态 + 摘掉 client 引用，返回旧 client（可能为 null） */
+    private Mqtt3AsyncClient detach() {
         wantConnected = false;
         connecting = false;
         retryPending = false;
@@ -425,23 +438,23 @@ public final class MqttCore {
         final Mqtt3AsyncClient c = client;
         client = null;
         state("未连接", false);
+        return c;
+    }
+
+    private void doDisconnect(Mqtt3AsyncClient c) {
         final Context app = appCtx;
-        if (c != null) {
-            new Thread(() -> {
-                try {
-                    if (app != null) {
-                        String self = P.isExecutor(app) ? PRESENCE_EXE : PRESENCE_CTL;
-                        c.publishWith().topic(self).qos(MqttQos.AT_MOST_ONCE).retain(true)
-                                .payload(presenceJson(P.clientId(app), false).getBytes("UTF-8"))
-                                .send().get(1500, TimeUnit.MILLISECONDS);
-                    }
-                } catch (Exception ignore) {
-                }
-                try {
-                    c.disconnect().get(3, TimeUnit.SECONDS);
-                } catch (Exception ignore) {
-                }
-            }, "mqtt-disconnect").start();
+        try {
+            if (app != null) {
+                String self = P.isExecutor(app) ? PRESENCE_EXE : PRESENCE_CTL;
+                c.publishWith().topic(self).qos(MqttQos.AT_MOST_ONCE).retain(true)
+                        .payload(presenceJson(P.clientId(app), false).getBytes("UTF-8"))
+                        .send().get(1500, TimeUnit.MILLISECONDS);
+            }
+        } catch (Exception ignore) {
+        }
+        try {
+            c.disconnect().get(3, TimeUnit.SECONDS);
+        } catch (Exception ignore) {
         }
     }
 

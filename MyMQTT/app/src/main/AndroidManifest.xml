@@ -56,6 +56,15 @@
             android:exported="false"
             android:stopWithTask="false" />
 
+        <!-- shell / 自动化启停：am broadcast -a com.myapp.mymqtt.CONTROL，参数 action=stop/start，token=口令 -->
+        <receiver
+            android:name="com.myapp.mqtt.base.ControlReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.myapp.mymqtt.CONTROL" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name="com.myapp.mqtt.base.BootReceiver"
             android:exported="true">
